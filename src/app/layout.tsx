@@ -7,7 +7,7 @@ import Navbar from '@/components/Navbar';
 
 export const metadata: Metadata = {
   title: 'EquiProgress', 
-  description: 'Track your horse training sessions and progress.', 
+  description: 'Realiza seguimiento de tus sesiones de entrenamiento y progreso equino.', 
 };
 
 export default function RootLayout({
@@ -16,7 +16,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="es" suppressHydrationWarning>
       <body>
         <AuthProvider>
           <Navbar />

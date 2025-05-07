@@ -16,7 +16,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Icons } from './icons'; // Assuming Horse icon or similar
+import { Icons } from './icons'; 
 
 export default function Navbar() {
   const { currentUser, userProfile, loading } = useAuth();
@@ -36,9 +36,9 @@ export default function Navbar() {
     if (!name) return "U";
     const names = name.split(' ');
     if (names.length > 1) {
-      return names[0][0] + names[names.length - 1][0];
+      return names[0][0].toUpperCase() + names[names.length - 1][0].toUpperCase();
     }
-    return name[0];
+    return name[0].toUpperCase();
   }
 
   return (
@@ -52,10 +52,10 @@ export default function Navbar() {
           {!loading && !currentUser && (
             <>
               <Button variant="ghost" asChild>
-                <Link href="/login">Login</Link>
+                <Link href="/login">Iniciar Sesión</Link>
               </Button>
               <Button asChild>
-                <Link href="/signup">Sign Up</Link>
+                <Link href="/signup">Regístrate</Link>
               </Button>
             </>
           )}
@@ -64,7 +64,7 @@ export default function Navbar() {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="relative h-8 w-8 rounded-full">
                   <Avatar className="h-8 w-8">
-                    <AvatarImage src={userProfile.photoURL || undefined} alt={userProfile.displayName || "User"} />
+                    <AvatarImage src={userProfile.photoURL || undefined} alt={userProfile.displayName || "Usuario"} />
                     <AvatarFallback>{getInitials(userProfile.displayName)}</AvatarFallback>
                   </Avatar>
                 </Button>
@@ -72,26 +72,26 @@ export default function Navbar() {
               <DropdownMenuContent className="w-56" align="end" forceMount>
                 <DropdownMenuLabel className="font-normal">
                   <div className="flex flex-col space-y-1">
-                    <p className="text-sm font-medium leading-none">{userProfile.displayName || "User"}</p>
+                    <p className="text-sm font-medium leading-none">{userProfile.displayName || "Usuario"}</p>
                     <p className="text-xs leading-none text-muted-foreground">
                       {userProfile.email}
                     </p>
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => router.push('/profile')}> {/* Placeholder for profile page */}
+                <DropdownMenuItem onClick={() => router.push('/profile')}> 
                   <Icons.user className="mr-2 h-4 w-4" />
-                  <span>Profile</span>
+                  <span>Perfil</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={handleLogout}>
-                  <Icons.close className="mr-2 h-4 w-4" /> {/* Using close icon as a generic logout icon */}
-                  <span>Log out</span>
+                  <Icons.close className="mr-2 h-4 w-4" /> 
+                  <span>Cerrar Sesión</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           )}
-           {!loading && currentUser && !userProfile && ( // Case where Firebase user exists but profile hasn't loaded or doesn't exist
-             <Button variant="ghost" onClick={handleLogout}>Logout</Button>
+           {!loading && currentUser && !userProfile && ( 
+             <Button variant="ghost" onClick={handleLogout}>Cerrar Sesión</Button>
            )}
         </div>
       </div>

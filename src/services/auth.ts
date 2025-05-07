@@ -1,6 +1,6 @@
 
 // src/services/auth.ts
-'use server'; // For potential future use if parts are moved to server actions, though auth usually client-side for Firebase
+// Removed 'use server' directive
 
 import {
   createUserWithEmailAndPassword,
@@ -8,7 +8,7 @@ import {
   signInWithPopup,
   GoogleAuthProvider,
   signOut,
-  User,
+  type User,
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '@/firebase';

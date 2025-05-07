@@ -15,16 +15,12 @@ const Dashboard = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {/* Session Logging Card */}
         <Card>
-        
-            
-            
-            
           <CardHeader>
-            <CardTitle>Log New Session</CardTitle>
+            <CardTitle>Registrar Nueva Sesión</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground">
-              Start tracking your horse&apos;s progress.
+              Comienza a seguir el progreso de tu caballo.
             </p>
             <Button
               className="mt-4"
@@ -35,8 +31,8 @@ const Dashboard = () => {
                 if (date) {
                   const sessionData = {
                     date: date.toISOString().split("T")[0],
-                    time: new Date().toLocaleTimeString(),
-                    horse: "Default Horse", // Placeholder
+                    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), // Format time
+                    horse: "Caballo por Defecto", // Placeholder
                     duration: 60, // Placeholder
                     notes: "", // Placeholder
                   };
@@ -47,30 +43,27 @@ const Dashboard = () => {
                     window.location.href = `/session/${result}`;
                   } else {
                     alert(
-                      "Failed to create session. Please check the console for more details."
+                      "Error al crear la sesión. Por favor, revisa la consola para más detalles."
                     );
                   }
                 }
               }}              
-
-              
-              
             >
-              Create Session</Button>
+              Crear Sesión</Button>
           </CardContent>
         </Card>
 
         {/* Progress Tracking Card */}
         <Card>
           <CardHeader>
-            <CardTitle>Progress Overview</CardTitle>
+            <CardTitle>Resumen de Progreso</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground">
-              View your horse&apos;s training data and progress charts.
+              Ve los datos de entrenamiento y gráficos de progreso de tu caballo.
             </p>
             <Button variant="secondary" className="mt-4">
-              View Progress
+              Ver Progreso
             </Button>
           </CardContent>
         </Card>
@@ -78,21 +71,21 @@ const Dashboard = () => {
         {/* AI Session Analysis Card */}
         <Card>
           <CardHeader>
-            <CardTitle>AI Session Analysis</CardTitle>
+            <CardTitle>Análisis de Sesión con IA</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground">
-              Analyze session notes and identify patterns.
+              Analiza las notas de la sesión e identifica patrones.
             </p>
             <Button variant="secondary" className="mt-4">
-              Analyze Sessions
+              Analizar Sesiones
             </Button>
           </CardContent>
         </Card>
           {/* Calendar Card */}
         <Card className="md:col-span-2 lg:col-span-1">
             <CardHeader>
-              <CardTitle>Training Calendar</CardTitle>
+              <CardTitle>Calendario de Entrenamiento</CardTitle>
             </CardHeader>
             <CardContent className="grid gap-6">
               <Calendar
@@ -103,11 +96,11 @@ const Dashboard = () => {
               />
               {date ? (
                 <p className="text-center text-sm font-medium">
-                  {date.toLocaleDateString()}
+                  {date.toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' })}
                 </p>
               ) : (
                 <p className="text-center text-sm text-muted-foreground">
-                  Select a date.
+                  Selecciona una fecha.
                 </p>
               )}
             </CardContent>
@@ -118,4 +111,3 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
-

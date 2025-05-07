@@ -15,16 +15,16 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
-import { signUpWithEmail } from '@/services/auth'; // Assuming signUpWithEmail also handles profile creation
+import { signUpWithEmail } from '@/services/auth'; 
 import { Icons } from '@/components/icons';
 
 const signupSchema = z.object({
-  email: z.string().email({ message: "Invalid email address." }),
-  password: z.string().min(6, { message: "Password must be at least 6 characters." }),
-  confirmPassword: z.string().min(6, { message: "Password must be at least 6 characters." }),
+  email: z.string().email({ message: "Dirección de correo inválida." }),
+  password: z.string().min(6, { message: "La contraseña debe tener al menos 6 caracteres." }),
+  confirmPassword: z.string().min(6, { message: "La contraseña debe tener al menos 6 caracteres." }),
 }).refine((data) => data.password === data.confirmPassword, {
-  message: "Passwords don't match",
-  path: ["confirmPassword"], // path of error
+  message: "Las contraseñas no coinciden",
+  path: ["confirmPassword"], 
 });
 
 type SignupFormValues = z.infer<typeof signupSchema>;
@@ -47,13 +47,13 @@ export default function SignupPage() {
     setIsLoading(true);
     try {
       await signUpWithEmail(data.email, data.password);
-      toast({ title: "Signup Successful", description: "Welcome! Please login." });
-      router.push('/login'); // Redirect to login page after successful signup
+      toast({ title: "Registro Exitoso", description: "¡Bienvenido/a! Por favor, inicia sesión." });
+      router.push('/login'); 
     } catch (error: any) {
       toast({
         variant: "destructive",
-        title: "Signup Failed",
-        description: error.message || "An unexpected error occurred.",
+        title: "Falló el Registro",
+        description: error.message || "Ocurrió un error inesperado.",
       });
     } finally {
       setIsLoading(false);
@@ -64,8 +64,8 @@ export default function SignupPage() {
     <div className="container flex h-screen w-screen flex-col items-center justify-center">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl">Create an Account</CardTitle>
-          <CardDescription>Enter your details to get started.</CardDescription>
+          <CardTitle className="text-2xl">Crear una Cuenta</CardTitle>
+          <CardDescription>Ingresa tus datos para comenzar.</CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -75,9 +75,9 @@ export default function SignupPage() {
                 name="email"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Email</FormLabel>
+                    <FormLabel>Correo Electrónico</FormLabel>
                     <FormControl>
-                      <Input type="email" placeholder="you@example.com" {...field} />
+                      <Input type="email" placeholder="tu@ejemplo.com" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -88,7 +88,7 @@ export default function SignupPage() {
                 name="password"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Password</FormLabel>
+                    <FormLabel>Contraseña</FormLabel>
                     <FormControl>
                       <Input type="password" placeholder="••••••••" {...field} />
                     </FormControl>
@@ -101,7 +101,7 @@ export default function SignupPage() {
                 name="confirmPassword"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Confirm Password</FormLabel>
+                    <FormLabel>Confirmar Contraseña</FormLabel>
                     <FormControl>
                       <Input type="password" placeholder="••••••••" {...field} />
                     </FormControl>
@@ -111,15 +111,15 @@ export default function SignupPage() {
               />
               <Button type="submit" className="w-full" disabled={isLoading}>
                 {isLoading && <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />}
-                Sign Up
+                Registrarse
               </Button>
             </form>
           </Form>
         </CardContent>
         <CardFooter className="justify-center text-sm">
-          <p>Already have an account?&nbsp;</p>
+          <p>¿Ya tienes una cuenta?&nbsp;</p>
           <Link href="/login" className="font-semibold text-primary hover:underline">
-            Login
+            Iniciar Sesión
           </Link>
         </CardFooter>
       </Card>

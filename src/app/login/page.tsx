@@ -19,8 +19,8 @@ import { signInWithEmail, signInWithGoogle } from '@/services/auth';
 import { Icons } from '@/components/icons';
 
 const loginSchema = z.object({
-  email: z.string().email({ message: "Invalid email address." }),
-  password: z.string().min(6, { message: "Password must be at least 6 characters." }),
+  email: z.string().email({ message: "Dirección de correo inválida." }),
+  password: z.string().min(6, { message: "La contraseña debe tener al menos 6 caracteres." }),
 });
 
 type LoginFormValues = z.infer<typeof loginSchema>;
@@ -43,13 +43,13 @@ export default function LoginPage() {
     setIsLoading(true);
     try {
       await signInWithEmail(data.email, data.password);
-      toast({ title: "Login Successful", description: "Welcome back!" });
+      toast({ title: "Inicio de Sesión Exitoso", description: "¡Bienvenido/a de nuevo!" });
       router.push('/'); // Redirect to dashboard or home
     } catch (error: any) {
       toast({
         variant: "destructive",
-        title: "Login Failed",
-        description: error.message || "An unexpected error occurred.",
+        title: "Falló el Inicio de Sesión",
+        description: error.message || "Ocurrió un error inesperado.",
       });
     } finally {
       setIsLoading(false);
@@ -60,13 +60,13 @@ export default function LoginPage() {
     setIsGoogleLoading(true);
     try {
       await signInWithGoogle();
-      toast({ title: "Google Sign-In Successful", description: "Welcome!" });
+      toast({ title: "Inicio de Sesión con Google Exitoso", description: "¡Bienvenido/a!" });
       router.push('/');
     } catch (error: any) {
       toast({
         variant: "destructive",
-        title: "Google Sign-In Failed",
-        description: error.message || "Could not sign in with Google.",
+        title: "Falló el Inicio de Sesión con Google",
+        description: error.message || "No se pudo iniciar sesión con Google.",
       });
     } finally {
       setIsGoogleLoading(false);
@@ -77,8 +77,8 @@ export default function LoginPage() {
     <div className="container flex h-screen w-screen flex-col items-center justify-center">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl">Login</CardTitle>
-          <CardDescription>Enter your credentials to access your account.</CardDescription>
+          <CardTitle className="text-2xl">Iniciar Sesión</CardTitle>
+          <CardDescription>Ingresa tus credenciales para acceder a tu cuenta.</CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -88,9 +88,9 @@ export default function LoginPage() {
                 name="email"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Email</FormLabel>
+                    <FormLabel>Correo Electrónico</FormLabel>
                     <FormControl>
-                      <Input type="email" placeholder="you@example.com" {...field} />
+                      <Input type="email" placeholder="tu@ejemplo.com" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -101,7 +101,7 @@ export default function LoginPage() {
                 name="password"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Password</FormLabel>
+                    <FormLabel>Contraseña</FormLabel>
                     <FormControl>
                       <Input type="password" placeholder="••••••••" {...field} />
                     </FormControl>
@@ -111,7 +111,7 @@ export default function LoginPage() {
               />
               <Button type="submit" className="w-full" disabled={isLoading}>
                 {isLoading && <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />}
-                Login
+                Iniciar Sesión
               </Button>
             </form>
           </Form>
@@ -121,7 +121,7 @@ export default function LoginPage() {
             </div>
             <div className="relative flex justify-center text-xs uppercase">
               <span className="bg-background px-2 text-muted-foreground">
-                Or continue with
+                O continuar con
               </span>
             </div>
           </div>
@@ -129,15 +129,15 @@ export default function LoginPage() {
             {isGoogleLoading ? (
               <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
             ) : (
-              <Icons.mail className="mr-2 h-4 w-4" /> // Placeholder for Google icon, replace with actual Google icon if available
+              <Icons.mail className="mr-2 h-4 w-4" /> // Placeholder for Google icon
             )}
             Google
           </Button>
         </CardContent>
         <CardFooter className="justify-center text-sm">
-          <p>Don&apos;t have an account?&nbsp;</p>
+          <p>¿No tienes una cuenta?&nbsp;</p>
           <Link href="/signup" className="font-semibold text-primary hover:underline">
-            Sign up
+            Regístrate
           </Link>
         </CardFooter>
       </Card>
