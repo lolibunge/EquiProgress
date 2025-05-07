@@ -4,8 +4,9 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 
+import { createSession } from "@/services/session";
 const Dashboard = () => {
   const [date, setDate] = useState<Date>();
 
@@ -14,6 +15,10 @@ const Dashboard = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {/* Session Logging Card */}
         <Card>
+        
+            
+            
+            
           <CardHeader>
             <CardTitle>Log New Session</CardTitle>
           </CardHeader>
@@ -21,7 +26,37 @@ const Dashboard = () => {
             <p className="text-sm text-muted-foreground">
               Start tracking your horse&apos;s progress.
             </p>
-            <Button className="mt-4">Create Session</Button>
+            <Button
+              className="mt-4"
+              disabled={!date}
+              onClick={async () => {
+                console.log("Create Session clicked");
+                console.log("Date:", date);
+                if (date) {
+                  const sessionData = {
+                    date: date.toISOString().split("T")[0],
+                    time: new Date().toLocaleTimeString(),
+                    horse: "Default Horse", // Placeholder
+                    duration: 60, // Placeholder
+                    notes: "", // Placeholder
+                  };
+                  console.log("Calling createSession");
+                  const result = await createSession(sessionData);
+                  console.log("SessionId or error:", result);
+                  if (result) {
+                    window.location.href = `/session/${result}`;
+                  } else {
+                    alert(
+                      "Failed to create session. Please check the console for more details."
+                    );
+                  }
+                }
+              }}              
+
+              
+              
+            >
+              Create Session</Button>
           </CardContent>
         </Card>
 

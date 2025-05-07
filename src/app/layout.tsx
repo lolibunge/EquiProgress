@@ -1,21 +1,13 @@
 
-import type {Metadata} from 'next';
-import {Geist, Geist_Mono} from 'next/font/google';
+import type { Metadata } from 'next';
 import './globals.css';
-
-const geistSans = Geist({
-  variable: '--font-geist-sans',
-  subsets: ['latin'],
-});
-
-const geistMono = Geist_Mono({
-  variable: '--font-geist-mono',
-  subsets: ['latin'],
-});
+import { AuthProvider } from '@/context/AuthContext';
+import { Toaster } from "@/components/ui/toaster";
+import Navbar from '@/components/Navbar';
 
 export const metadata: Metadata = {
-  title: 'EquiProgress',
-  description: 'Track your horse training sessions and progress.',
+  title: 'EquiProgress', 
+  description: 'Track your horse training sessions and progress.', 
 };
 
 export default function RootLayout({
@@ -24,11 +16,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        {children}
+    <html lang="en" suppressHydrationWarning>
+      <body>
+        <AuthProvider>
+          <Navbar />
+          <main>{children}</main>
+          <Toaster />
+        </AuthProvider>
       </body>
     </html>
   );
 }
-
