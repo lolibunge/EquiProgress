@@ -39,7 +39,7 @@ export default function AddHorseForm({ onSuccess, onCancel }: AddHorseFormProps)
     resolver: zodResolver(addHorseSchema),
     defaultValues: {
       name: "",
-      age: undefined, // Or provide a default like 0 or an empty string if input type is text
+      age: undefined, 
       sex: undefined,
       color: "",
     },
@@ -96,7 +96,16 @@ export default function AddHorseForm({ onSuccess, onCancel }: AddHorseFormProps)
             <FormItem>
               <FormLabel>Edad (años)</FormLabel>
               <FormControl>
-                <Input type="number" placeholder="Ej: 5" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : +e.target.value)} />
+                <Input
+                  type="number"
+                  placeholder="Ej: 5"
+                  {...field}
+                  value={field.value === undefined || field.value === null ? '' : String(field.value)}
+                  onChange={e => {
+                    const rawValue = e.target.value;
+                    field.onChange(rawValue === '' ? undefined : Number(rawValue));
+                  }}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
