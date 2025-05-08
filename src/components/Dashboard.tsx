@@ -1,4 +1,3 @@
-
 "use client";
 
 import {
@@ -10,11 +9,10 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import type { User } from 'firebase/auth';
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-
 
 import { createSession } from "@/services/session";
 import { getHorses as fetchHorsesService } from "@/services/horse";
@@ -46,34 +44,55 @@ const Dashboard = () => {
 
   const [date, setDate] = useState<Date | undefined>(new Date());
 
-  const fetchHorses = async () => {
-    if (!currentUser?.uid) return;
+  // Function to fetch horses
+  const performFetchHorses = useCallback(async (uid: string) => {
     setIsLoadingHorses(true);
     try {
-      const userHorses = await fetchHorsesService(currentUser.uid);
+      const userHorses = await fetchHorsesService(uid);
       setHorses(userHorses);
-      if (userHorses.length > 0 && !selectedHorse) {
-        setSelectedHorse(userHorses[0]);
-      }
     } catch (error) {
       console.error("Error fetching horses:", error);
       toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar los caballos." });
+      setHorses([]); // Clear horses on error
     } finally {
       setIsLoadingHorses(false);
     }
-  };
+  }, [toast]); // fetchHorsesService is a stable import
 
+  // Effect for fetching horses when currentUser.uid changes
   useEffect(() => {
     if (currentUser?.uid) {
-      fetchHorses();
+      performFetchHorses(currentUser.uid);
+    } else {
+      setHorses([]); // Clear horses if no user
+      setIsLoadingHorses(false); // Ensure loading state is reset
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser?.uid]);
+  }, [currentUser?.uid, performFetchHorses]);
 
+  // Effect for managing selectedHorse when the horses list changes
+  useEffect(() => {
+    if (horses.length > 0) {
+      // If no horse is selected OR the currently selected horse is not in the new list
+      if (!selectedHorse || !horses.some(h => h.id === selectedHorse.id)) {
+        setSelectedHorse(horses[0]); // Select the first horse
+      } else {
+        // If a horse is selected and it's still in the list, update its data
+        // This handles cases where the horse's details might have changed
+        const updatedSelectedHorse = horses.find(h => h.id === selectedHorse.id);
+        if (updatedSelectedHorse && JSON.stringify(updatedSelectedHorse) !== JSON.stringify(selectedHorse)) {
+          setSelectedHorse(updatedSelectedHorse);
+        }
+      }
+    } else {
+      setSelectedHorse(null); // No horses, so no selection
+    }
+  }, [horses, selectedHorse]); // Rerun if horses list changes or selectedHorse itself changes (e.g., cleared)
 
   const handleHorseAdded = () => {
     setIsAddHorseDialogOpen(false);
-    fetchHorses(); // Refresh horse list
+    if (currentUser?.uid) {
+      performFetchHorses(currentUser.uid); // Re-fetch horse list
+    }
   };
 
   const handleAddHorseCancel = () => {
@@ -221,13 +240,13 @@ const Dashboard = () => {
                       </div>
                        <div className="flex justify-end mt-2">
                         <Button
-                            disabled={!date}
+                            disabled={!date || !selectedHorse}
                             onClick={async () => {
-                                if (date && selectedHorse) {
+                                if (date && selectedHorse && selectedHorse.id) {
                                 const sessionData = {
                                     date: date.toISOString().split("T")[0],
                                     time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                                    horse: selectedHorse.id ?? "ID no disponible", 
+                                    horse: selectedHorse.id,
                                     duration: 60, // Placeholder
                                     notes: "", // Placeholder
                                 };
@@ -237,6 +256,8 @@ const Dashboard = () => {
                                 } else {
                                     toast({variant: "destructive", title: "Error", description:"Error al crear la sesión. Por favor, revisa la consola."});
                                 }
+                                } else {
+                                     toast({variant: "destructive", title: "Error", description:"Por favor, selecciona un caballo y una fecha."});
                                 }
                             }}              
                             >Guardar Sesión</Button>
@@ -264,7 +285,7 @@ const Dashboard = () => {
               </Tabs>
             ) : (
               <div className="flex flex-col items-center justify-center h-64 text-center">
-                <Icons.logo className="w-16 h-16 mb-4 text-muted-foreground" /> {/* Replace with a relevant icon if Logo doesn't exist or fit */}
+                <Icons.logo className="w-16 h-16 mb-4 text-muted-foreground" /> 
                 <p className="text-muted-foreground">Selecciona un caballo de la lista para ver sus detalles o añade uno nuevo.</p>
               </div>
             )}
