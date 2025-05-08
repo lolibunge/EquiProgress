@@ -1,4 +1,3 @@
-
 // src/types/firestore.ts
 
 import type { Timestamp } from 'firebase/firestore';
@@ -14,7 +13,9 @@ export interface UserProfile {
 export interface Horse {
   id?: string; // Document ID
   name: string;
-  birthYear: number;
+  age: number; // Age of the horse
+  sex: "Macho" | "Hembra" | "Castrado"; // Sex of the horse
+  color: string; // Color of the horse
   photoUrl?: string; // URL to image in Firebase Storage
   ownerUid: string; // UID of the user who owns this horse
   createdAt: Timestamp;

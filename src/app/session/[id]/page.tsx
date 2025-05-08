@@ -1,5 +1,7 @@
 // src/app/session/[id]/page.tsx
 
+"use client"; // Add this line
+
 import { useParams } from 'next/navigation';
 
 const SessionInputPage = () => {
