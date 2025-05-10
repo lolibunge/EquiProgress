@@ -33,6 +33,7 @@ export interface TrainingBlock {
     id: string; // Unique ID for the block, typically the Firestore document ID
     planId: string; // ID of the plan this block belongs to
     title: string;
+    notes?: string; // Subtitle or additional notes for the block
 }
 
 export interface Exercise {
@@ -41,8 +42,8 @@ export interface Exercise {
     blockId: string; // ID of the block this exercise belongs to
     title: string;
     description?: string;
-    suggestedReps?: number;
-    objective?: string; // Added objective field
+    suggestedReps?: number | null; // Allow null for Firestore compatibility
+    objective?: string; 
 }
 
 export interface SessionData { // Renamed from Session for clarity with Session service
@@ -70,13 +71,15 @@ export interface TrainingPlanInput {
 
 export interface TrainingBlockInput {
   title: string;
+  notes?: string; // Subtitle or additional notes for the block
   // planId will be added by the service function
 }
 
 export interface ExerciseInput {
   title: string;
   description?: string;
-  suggestedReps?: number;
-  objective?: string; // Added objective field
+  suggestedReps?: number | null; // Allow null
+  objective?: string; 
   // planId and blockId will be added by the service function
 }
+

@@ -398,7 +398,10 @@ const Dashboard = () => {
                                <Accordion type="multiple" className="w-full">
                                 {blocks.map((block) => (
                                   <AccordionItem value={block.id} key={block.id}>
-                                    <AccordionTrigger>{block.title}</AccordionTrigger>
+                                    <AccordionTrigger>
+                                      {block.title}
+                                      {block.notes && <span className="text-sm text-muted-foreground ml-2">- {block.notes}</span>}
+                                    </AccordionTrigger>
                                     <AccordionContent>
                                       {isLoadingExercises && !exercises.some(ex => ex.blockId === block.id) ? <p>Cargando ejercicios...</p> : exercises.filter(ex => ex.blockId === block.id).length > 0 ? (
                                         <ul className="list-disc pl-5 space-y-1 text-sm">
@@ -467,6 +470,7 @@ const Dashboard = () => {
                                     setSelectedExercise(null); // Reset exercise when block changes
                                   }}>
                                       {block.title}
+                                      {block.notes && <span className="text-xs text-muted-foreground ml-1">({block.notes})</span>}
                                   </DropdownMenuItem>
                               ))
                               ) : (
@@ -549,7 +553,7 @@ const Dashboard = () => {
           ) : (
             <Card>
               <CardContent className="flex flex-col items-center justify-center h-64 text-center">
-                <Icons.logo className="w-16 h-16 mb-4 text-muted-foreground" /> 
+                <Icons.logo className="w-16 h-16 mb-4 text-muted-foreground" data-ai-hint="horse head" /> 
                 <p className="text-muted-foreground">Selecciona un caballo para ver sus detalles o registra uno nuevo usando el menú desplegable de arriba.</p>
               </CardContent>
             </Card>
@@ -655,3 +659,4 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
+

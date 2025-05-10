@@ -8,6 +8,7 @@ import * as z from 'zod';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { addTrainingBlock, type TrainingBlockInput } from '@/services/firestore';
@@ -15,6 +16,7 @@ import { Icons } from '@/components/icons';
 
 const addBlockSchema = z.object({
   title: z.string().min(3, { message: "El título debe tener al menos 3 caracteres." }).max(100, { message: "El título no puede exceder los 100 caracteres." }),
+  notes: z.string().max(200, { message: "El subtítulo no puede exceder los 200 caracteres."}).optional(),
 });
 
 type AddBlockFormValues = z.infer<typeof addBlockSchema>;
@@ -33,6 +35,7 @@ export default function AddBlockForm({ planId, onSuccess, onCancel }: AddBlockFo
     resolver: zodResolver(addBlockSchema),
     defaultValues: {
       title: "",
+      notes: "",
     },
   });
 
@@ -46,6 +49,7 @@ export default function AddBlockForm({ planId, onSuccess, onCancel }: AddBlockFo
     try {
       const blockInputData: TrainingBlockInput = {
         title: data.title,
+        notes: data.notes,
       };
       const blockId = await addTrainingBlock(planId, blockInputData);
       toast({
@@ -82,6 +86,19 @@ export default function AddBlockForm({ planId, onSuccess, onCancel }: AddBlockFo
             </FormItem>
           )}
         />
+        <FormField
+          control={form.control}
+          name="notes"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Subtítulo (Opcional)</FormLabel>
+              <FormControl>
+                <Textarea placeholder="Notas adicionales o un subtítulo para el bloque..." {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
         <div className="flex justify-end space-x-2 pt-4">
           <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading}>
             Cancelar
@@ -95,3 +112,4 @@ export default function AddBlockForm({ planId, onSuccess, onCancel }: AddBlockFo
     </Form>
   );
 }
+

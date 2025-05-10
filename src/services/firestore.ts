@@ -56,11 +56,17 @@ export async function getTrainingBlocks(planId: string): Promise<TrainingBlock[]
 
 export async function addTrainingBlock(planId: string, blockData: TrainingBlockInput): Promise<string> {
   const blockCollectionRef = collection(db, "trainingBlocks");
-  const newBlockData = {
-    ...blockData,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const newBlockData: { [key: string]: any } = {
+    title: blockData.title,
     planId: planId,
     // createdAt: serverTimestamp() as Timestamp, // Optional: if you want to track block creation time
   };
+
+  if (blockData.notes !== undefined && blockData.notes.trim() !== "") {
+    newBlockData.notes = blockData.notes;
+  }
+
   try {
     const docRef = await addDoc(blockCollectionRef, newBlockData);
     console.log("Training block added with ID:", docRef.id);
@@ -112,10 +118,10 @@ export async function addExerciseToBlock(planId: string, blockId: string, exerci
     dataToSave.objective = exerciseData.objective;
   }
 
-  if (exerciseData.suggestedReps !== undefined) {
+  if (exerciseData.suggestedReps !== undefined && exerciseData.suggestedReps !== null) {
     dataToSave.suggestedReps = exerciseData.suggestedReps;
   } else {
-    dataToSave.suggestedReps = null; // Store as null if undefined or empty to avoid Firestore error
+    dataToSave.suggestedReps = null; 
   }
 
 
@@ -128,3 +134,4 @@ export async function addExerciseToBlock(planId: string, blockId: string, exerci
     throw error;
   }
 }
+
