@@ -18,7 +18,7 @@ const addExerciseSchema = z.object({
   title: z.string().min(3, { message: "El título debe tener al menos 3 caracteres." }).max(100, { message: "El título no puede exceder los 100 caracteres." }),
   description: z.string().max(500, { message: "La descripción no puede exceder los 500 caracteres."}).optional(),
   objective: z.string().max(500, { message: "El objetivo no puede exceder los 500 caracteres."}).optional(),
-  suggestedReps: z.coerce.number().int({ message: "Las repeticiones deben ser un número entero." }).positive({message: "Las repeticiones deben ser un número positivo."}).optional(),
+  suggestedReps: z.string().max(100, { message: "Las repeticiones sugeridas no pueden exceder los 100 caracteres."}).optional(),
 });
 
 type AddExerciseFormValues = z.infer<typeof addExerciseSchema>;
@@ -40,7 +40,7 @@ export default function AddExerciseForm({ planId, blockId, onSuccess, onCancel }
       title: "",
       description: "",
       objective: "",
-      suggestedReps: undefined,
+      suggestedReps: "",
     },
   });
 
@@ -127,11 +127,10 @@ export default function AddExerciseForm({ planId, blockId, onSuccess, onCancel }
               <FormLabel>Repeticiones Sugeridas (Opcional)</FormLabel>
               <FormControl>
                 <Input 
-                  type="number" 
-                  placeholder="Ej: 10" 
+                  type="text" 
+                  placeholder="Ej: 10 o 'Hasta lograr X'" 
                   {...field} 
                   value={field.value ?? ''}
-                  onChange={e => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
                 />
               </FormControl>
               <FormMessage />

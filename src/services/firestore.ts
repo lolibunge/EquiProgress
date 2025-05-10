@@ -122,7 +122,7 @@ export async function addExerciseToBlock(planId: string, blockId: string, exerci
     dataToSave.objective = exerciseData.objective;
   }
 
-  if (exerciseData.suggestedReps !== undefined && exerciseData.suggestedReps !== null) {
+  if (exerciseData.suggestedReps !== undefined && exerciseData.suggestedReps !== null && exerciseData.suggestedReps.trim() !== "") {
     dataToSave.suggestedReps = exerciseData.suggestedReps;
   } else {
     dataToSave.suggestedReps = null; 

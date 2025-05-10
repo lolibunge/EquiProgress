@@ -43,7 +43,7 @@ export interface Exercise {
     blockId: string; // ID of the block this exercise belongs to
     title: string;
     description?: string;
-    suggestedReps?: number | null; // Allow null for Firestore compatibility
+    suggestedReps?: string | null; // Changed from number | null
     objective?: string; 
 }
 
@@ -80,7 +80,7 @@ export interface TrainingBlockInput {
 export interface ExerciseInput {
   title: string;
   description?: string;
-  suggestedReps?: number | null; // Allow null
+  suggestedReps?: string | null; // Changed from number | null
   objective?: string; 
   // planId and blockId will be added by the service function
 }

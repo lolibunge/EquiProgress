@@ -271,7 +271,7 @@ const Dashboard = () => {
       if (sessionId) {
         const exerciseResult: ExerciseResult = {
           exerciseId: selectedExercise.id, 
-          plannedReps: selectedExercise.suggestedReps?.toString() ?? '0', 
+          plannedReps: selectedExercise.suggestedReps ?? '', 
           doneReps: 0, 
           rating: rating,
           comment: "", 
