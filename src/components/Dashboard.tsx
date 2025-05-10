@@ -221,8 +221,8 @@ const Dashboard = () => {
     setIsCreatePlanDialogOpen(false);
     performFetchPlans(); // Refresh plan list
     // Optionally, select the newly added plan
-    // const newPlan = trainingPlans.find(p => p.id === newPlanId);
-    // if(newPlan) setSelectedPlan(newPlan);
+    const newPlan = trainingPlans.find(p => p.id === newPlanId);
+    if(newPlan) setSelectedPlan(newPlan);
   };
 
   const handleBlockAdded = (newBlockId: string) => {
@@ -269,6 +269,8 @@ const Dashboard = () => {
         };
         await addExerciseResult(selectedHorse.id, sessionId, exerciseResult);
         toast({ title: "Sesión Guardada", description: "La sesión y el primer ejercicio han sido registrados." });
+        // Consider using Next.js router for navigation if /session/[id] is a page in your app
+        // router.push(`/session/${sessionId}`);
         window.location.href = `/session/${sessionId}`; 
       } else {
         toast({ variant: "destructive", title: "Error", description: "No se pudo crear la sesión." });
@@ -384,7 +386,7 @@ const Dashboard = () => {
                         {selectedPlan ? (
                            <>
                             {isLoadingBlocks ? <p>Cargando bloques...</p> : blocks.length > 0 ? (
-                               <Accordion type="multiple" collapsible className="w-full">
+                               <Accordion type="multiple" className="w-full">
                                 {blocks.map((block) => (
                                   <AccordionItem value={block.id} key={block.id}>
                                     <AccordionTrigger>{block.title}</AccordionTrigger>
@@ -410,9 +412,9 @@ const Dashboard = () => {
                             ) : (
                               <p className="text-sm text-muted-foreground">Este plan no tiene bloques definidos.</p>
                             )}
-                            <div className="flex justify-end mt-4 space-x-2">
+                            <div className="flex flex-wrap justify-end mt-4 space-x-2 space-y-2 sm:space-y-0">
                                 <Button onClick={() => setIsAddBlockDialogOpen(true)} disabled={!selectedPlan || isLoadingBlocks}>
-                                    <Icons.plus className="mr-2 h-4 w-4" /> Añadir Bloque al Plan Actual
+                                    <Icons.plus className="mr-2 h-4 w-4" /> Añadir Bloque
                                 </Button>
                                 <Button variant="outline" disabled={!selectedPlan}>Editar Plan</Button>
                                 <Button variant="outline" disabled={!selectedPlan}>Clonar Plan</Button>
@@ -639,3 +641,4 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
+
