@@ -223,15 +223,13 @@ const Dashboard = () => {
   const handlePlanAdded = (newPlanId: string) => {
     setIsCreatePlanDialogOpen(false);
     performFetchPlans().then(() => {
-      // Wait for plans to refresh before trying to select the new one
-      const newPlan = trainingPlans.find(p => p.id === newPlanId);
+      const refreshedPlans = trainingPlans; // Use a local variable after re-fetch
+      const newPlan = refreshedPlans.find(p => p.id === newPlanId);
       if(newPlan) {
         setSelectedPlan(newPlan);
       } else {
-        // Fallback: attempt to select the first plan if the new one isn't immediately found
-        // This could happen if state updates are batched. A more robust way might involve
-        // re-fetching the specific plan by ID and then setting it.
-        if (trainingPlans.length > 0) setSelectedPlan(trainingPlans[0]);
+        // Fallback if new plan not immediately found (should be rare with await)
+        if (refreshedPlans.length > 0) setSelectedPlan(refreshedPlans[0]);
       }
     });
   };
@@ -428,7 +426,7 @@ const Dashboard = () => {
                             ) : (
                               <p className="text-sm text-muted-foreground">Este plan no tiene bloques definidos.</p>
                             )}
-                            <div className="flex flex-wrap justify-end mt-4 space-x-2 space-y-2 sm:space-y-0">
+                            <div className="flex flex-wrap justify-end mt-4 gap-2">
                                 <Button onClick={() => setIsAddBlockDialogOpen(true)} disabled={!selectedPlan || isLoadingBlocks}>
                                     <Icons.plus className="mr-2 h-4 w-4" /> Añadir Bloque
                                 </Button>
