@@ -17,6 +17,7 @@ import { Icons } from '@/components/icons';
 const addExerciseSchema = z.object({
   title: z.string().min(3, { message: "El título debe tener al menos 3 caracteres." }).max(100, { message: "El título no puede exceder los 100 caracteres." }),
   description: z.string().max(500, { message: "La descripción no puede exceder los 500 caracteres."}).optional(),
+  objective: z.string().max(500, { message: "El objetivo no puede exceder los 500 caracteres."}).optional(),
   suggestedReps: z.coerce.number().int({ message: "Las repeticiones deben ser un número entero." }).positive({message: "Las repeticiones deben ser un número positivo."}).optional(),
 });
 
@@ -38,6 +39,7 @@ export default function AddExerciseForm({ planId, blockId, onSuccess, onCancel }
     defaultValues: {
       title: "",
       description: "",
+      objective: "",
       suggestedReps: undefined,
     },
   });
@@ -53,6 +55,7 @@ export default function AddExerciseForm({ planId, blockId, onSuccess, onCancel }
       const exerciseInputData: ExerciseInput = {
         title: data.title,
         description: data.description,
+        objective: data.objective,
         suggestedReps: data.suggestedReps,
       };
       const exerciseId = await addExerciseToBlock(planId, blockId, exerciseInputData);
@@ -98,6 +101,19 @@ export default function AddExerciseForm({ planId, blockId, onSuccess, onCancel }
               <FormLabel>Descripción (Opcional)</FormLabel>
               <FormControl>
                 <Textarea placeholder="Detalles sobre cómo realizar el ejercicio..." {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="objective"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Objetivo del Ejercicio (Opcional)</FormLabel>
+              <FormControl>
+                <Textarea placeholder="¿Qué se busca lograr con este ejercicio?" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>

@@ -42,6 +42,7 @@ export interface Exercise {
     title: string;
     description?: string;
     suggestedReps?: number;
+    objective?: string; // Added objective field
 }
 
 export interface SessionData { // Renamed from Session for clarity with Session service
@@ -76,5 +77,6 @@ export interface ExerciseInput {
   title: string;
   description?: string;
   suggestedReps?: number;
+  objective?: string; // Added objective field
   // planId and blockId will be added by the service function
 }

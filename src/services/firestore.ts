@@ -1,3 +1,4 @@
+
 import { collection, getDocs, query, where, addDoc, serverTimestamp, Timestamp } from "firebase/firestore";
 import { db } from "@/firebase";
 import type { TrainingPlan, TrainingBlock, Exercise, TrainingPlanInput, TrainingBlockInput, ExerciseInput } from "@/types/firestore";
@@ -106,10 +107,17 @@ export async function addExerciseToBlock(planId: string, blockId: string, exerci
   if (exerciseData.description !== undefined && exerciseData.description.trim() !== "") {
     dataToSave.description = exerciseData.description;
   }
+  
+  if (exerciseData.objective !== undefined && exerciseData.objective.trim() !== "") {
+    dataToSave.objective = exerciseData.objective;
+  }
 
   if (exerciseData.suggestedReps !== undefined) {
     dataToSave.suggestedReps = exerciseData.suggestedReps;
+  } else {
+    dataToSave.suggestedReps = null; // Store as null if undefined or empty to avoid Firestore error
   }
+
 
   try {
     const docRef = await addDoc(exerciseCollectionRef, dataToSave);

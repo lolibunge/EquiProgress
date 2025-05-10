@@ -87,7 +87,10 @@ const Dashboard = () => {
     try {
       const userHorses = await fetchHorsesService(uid);
       setHorses(userHorses);
-      // Do not auto-select, let user choose.
+      if (userHorses.length > 0 && !selectedHorse) {
+        // Do not auto-select, let user choose.
+        // setSelectedHorse(userHorses[0]);
+      }
     } catch (error) {
       console.error("Error fetching horses:", error);
       toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar los caballos." });
@@ -95,7 +98,7 @@ const Dashboard = () => {
     } finally {
       setIsLoadingHorses(false);
     }
-  }, [toast]);
+  }, [toast, selectedHorse]);
 
   useEffect(() => {
     if (currentUser?.uid) {
@@ -219,10 +222,18 @@ const Dashboard = () => {
 
   const handlePlanAdded = (newPlanId: string) => {
     setIsCreatePlanDialogOpen(false);
-    performFetchPlans(); // Refresh plan list
-    // Optionally, select the newly added plan
-    const newPlan = trainingPlans.find(p => p.id === newPlanId);
-    if(newPlan) setSelectedPlan(newPlan);
+    performFetchPlans().then(() => {
+      // Wait for plans to refresh before trying to select the new one
+      const newPlan = trainingPlans.find(p => p.id === newPlanId);
+      if(newPlan) {
+        setSelectedPlan(newPlan);
+      } else {
+        // Fallback: attempt to select the first plan if the new one isn't immediately found
+        // This could happen if state updates are batched. A more robust way might involve
+        // re-fetching the specific plan by ID and then setting it.
+        if (trainingPlans.length > 0) setSelectedPlan(trainingPlans[0]);
+      }
+    });
   };
 
   const handleBlockAdded = (newBlockId: string) => {
@@ -392,11 +403,16 @@ const Dashboard = () => {
                                     <AccordionTrigger>{block.title}</AccordionTrigger>
                                     <AccordionContent>
                                       {isLoadingExercises && !exercises.some(ex => ex.blockId === block.id) ? <p>Cargando ejercicios...</p> : exercises.filter(ex => ex.blockId === block.id).length > 0 ? (
-                                        <ul className="list-disc pl-5 space-y-1">
+                                        <ul className="list-disc pl-5 space-y-1 text-sm">
                                           {exercises
                                             .filter(ex => ex.blockId === block.id)
                                             .map(exercise => (
-                                              <li key={exercise.id}>{exercise.title} (Reps: {exercise.suggestedReps ?? 'N/A'})</li>
+                                              <li key={exercise.id}>
+                                                <span className="font-medium">{exercise.title}</span>
+                                                {exercise.suggestedReps && ` (Reps: ${exercise.suggestedReps})`}
+                                                {exercise.description && <p className="text-xs text-muted-foreground pl-2">- Desc: {exercise.description}</p>}
+                                                {exercise.objective && <p className="text-xs text-muted-foreground pl-2">- Obj: {exercise.objective}</p>}
+                                                </li>
                                           ))}
                                         </ul>
                                       ) : (
@@ -641,4 +657,3 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
-
