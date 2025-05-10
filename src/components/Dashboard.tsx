@@ -15,6 +15,7 @@ import { useState, useEffect, useCallback } from "react";
 import type { User } from 'firebase/auth';
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { useRouter } from 'next/navigation'; // Added for router.push
 
 import { createSession, addExerciseResult } from "@/services/session"; 
 import { getHorses as fetchHorsesService } from "@/services/horse";
@@ -55,6 +56,7 @@ import { Icons } from "./icons";
 const Dashboard = () => {
   const { currentUser } = useAuth();
   const { toast } = useToast();  
+  const router = useRouter(); // Initialized router
   const [isAddHorseDialogOpen, setIsAddHorseDialogOpen] = useState(false);
   const [horses, setHorses] = useState<Horse[]>([]);
   const [isLoadingHorses, setIsLoadingHorses] = useState(true);
@@ -223,14 +225,17 @@ const Dashboard = () => {
   const handlePlanAdded = (newPlanId: string) => {
     setIsCreatePlanDialogOpen(false);
     performFetchPlans().then(() => {
-      const refreshedPlans = trainingPlans; // Use a local variable after re-fetch
-      const newPlan = refreshedPlans.find(p => p.id === newPlanId);
-      if(newPlan) {
-        setSelectedPlan(newPlan);
-      } else {
-        // Fallback if new plan not immediately found (should be rare with await)
-        if (refreshedPlans.length > 0) setSelectedPlan(refreshedPlans[0]);
-      }
+      // Re-fetch plans and then find the new one to select it
+      getTrainingPlans().then(refreshedPlans => {
+        setTrainingPlans(refreshedPlans); // Update state with all plans
+        const newPlan = refreshedPlans.find(p => p.id === newPlanId);
+        if (newPlan) {
+          setSelectedPlan(newPlan);
+        } else if (refreshedPlans.length > 0) {
+          // Fallback if new plan isn't immediately found or if ID was somehow wrong
+          setSelectedPlan(refreshedPlans[0]);
+        }
+      });
     });
   };
 
@@ -269,7 +274,7 @@ const Dashboard = () => {
       const sessionId = await createSession(selectedHorse.id, sessionData);
 
       if (sessionId) {
-        const exerciseResult: ExerciseResult = {
+        const exerciseResult: Omit<ExerciseResult, 'id'> = { // Using Omit type
           exerciseId: selectedExercise.id, 
           plannedReps: selectedExercise.suggestedReps ?? '', 
           doneReps: 0, 
@@ -278,9 +283,7 @@ const Dashboard = () => {
         };
         await addExerciseResult(selectedHorse.id, sessionId, exerciseResult);
         toast({ title: "Sesión Guardada", description: "La sesión y el primer ejercicio han sido registrados." });
-        // Consider using Next.js router for navigation if /session/[id] is a page in your app
-        // router.push(`/session/${sessionId}`);
-        window.location.href = `/session/${sessionId}`; 
+        router.push(`/session/${sessionId}`); // Changed to router.push
       } else {
         toast({ variant: "destructive", title: "Error", description: "No se pudo crear la sesión." });
       }
