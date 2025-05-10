@@ -94,14 +94,25 @@ export async function getExercises(planId: string, blockId: string): Promise<Exe
 
 export async function addExerciseToBlock(planId: string, blockId: string, exerciseData: ExerciseInput): Promise<string> {
   const exerciseCollectionRef = collection(db, "exercises");
-  const newExerciseData = {
-    ...exerciseData,
+  
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const dataToSave: { [key: string]: any } = {
     planId: planId,
     blockId: blockId,
-    // createdAt: serverTimestamp() as Timestamp, // Optional
+    title: exerciseData.title,
+    // createdAt: serverTimestamp() as Timestamp, // Optional: if you want to track exercise creation time
   };
+
+  if (exerciseData.description !== undefined && exerciseData.description.trim() !== "") {
+    dataToSave.description = exerciseData.description;
+  }
+
+  if (exerciseData.suggestedReps !== undefined) {
+    dataToSave.suggestedReps = exerciseData.suggestedReps;
+  }
+
   try {
-    const docRef = await addDoc(exerciseCollectionRef, newExerciseData);
+    const docRef = await addDoc(exerciseCollectionRef, dataToSave);
     console.log("Exercise added with ID:", docRef.id);
     return docRef.id;
   } catch (error) {
