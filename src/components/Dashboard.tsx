@@ -15,12 +15,12 @@ import { useState, useEffect, useCallback } from "react";
 import type { User } from 'firebase/auth';
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { useRouter } from 'next/navigation'; // Added for router.push
+import { useRouter } from 'next/navigation'; 
 
-import { createSession, addExerciseResult } from "@/services/session"; 
+import { createSession, addExerciseResult } from "@/services/session";
 import { getHorses as fetchHorsesService } from "@/services/horse";
 import { getTrainingPlans, getTrainingBlocks, getExercises } from "@/services/firestore";
-import type { Horse, TrainingPlan, TrainingBlock, Exercise, ExerciseResult, SessionData as SessionServiceData } from "@/types/firestore"; 
+import type { Horse, TrainingPlan, TrainingBlock, Exercise, ExerciseResult, SessionData as SessionServiceData } from "@/types/firestore";
  
  import {
   Accordion,
@@ -56,7 +56,7 @@ import { Icons } from "./icons";
 const Dashboard = () => {
   const { currentUser } = useAuth();
   const { toast } = useToast();  
-  const router = useRouter(); // Initialized router
+  const router = useRouter(); 
   const [isAddHorseDialogOpen, setIsAddHorseDialogOpen] = useState(false);
   const [horses, setHorses] = useState<Horse[]>([]);
   const [isLoadingHorses, setIsLoadingHorses] = useState(true);
@@ -68,16 +68,15 @@ const Dashboard = () => {
   
   const [blocks, setBlocks] = useState<TrainingBlock[]>([]);
   const [isLoadingBlocks, setIsLoadingBlocks] = useState(false);
-  const [selectedBlock, setSelectedBlock] = useState<TrainingBlock | null>(null); // For session registration
+  const [selectedBlock, setSelectedBlock] = useState<TrainingBlock | null>(null); 
   
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [isLoadingExercises, setIsLoadingExercises] = useState(false);
-  const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null); // For session registration
+  const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null); 
 
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [rating, setRating] = useState<number>(3); 
 
-  // Dialog states for plan/block/exercise creation
   const [isCreatePlanDialogOpen, setIsCreatePlanDialogOpen] = useState(false);
   const [isAddBlockDialogOpen, setIsAddBlockDialogOpen] = useState(false);
   const [isAddExerciseDialogOpen, setIsAddExerciseDialogOpen] = useState(false);
@@ -90,8 +89,7 @@ const Dashboard = () => {
       const userHorses = await fetchHorsesService(uid);
       setHorses(userHorses);
       if (userHorses.length > 0 && !selectedHorse) {
-        // Do not auto-select, let user choose.
-        // setSelectedHorse(userHorses[0]);
+        // setSelectedHorse(userHorses[0]); // Let user choose
       }
     } catch (error) {
       console.error("Error fetching horses:", error);
@@ -117,8 +115,6 @@ const Dashboard = () => {
     try {
       const plans = await getTrainingPlans();
       setTrainingPlans(plans);
-      // Don't auto-select a plan initially, let user pick from dropdown
-      // if (plans.length > 0 && !selectedPlan) setSelectedPlan(plans[0]);
     } catch (error) {
       console.error("Error fetching training plans:", error);
       toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar los planes de entrenamiento." });
@@ -135,16 +131,14 @@ const Dashboard = () => {
   const performFetchBlocks = useCallback(async (planId: string) => {
     if (!planId) {
       setBlocks([]);
-      setSelectedBlock(null); // For session registration
+      setSelectedBlock(null); 
       return;
     }
     setIsLoadingBlocks(true);
     try {
       const fetchedBlocks = await getTrainingBlocks(planId);
       setBlocks(fetchedBlocks);
-      if (fetchedBlocks.length > 0 && !selectedBlock) {
-        // setSelectedBlock(fetchedBlocks[0]); // Auto-select for session part
-      } else if (fetchedBlocks.length === 0) {
+      if (fetchedBlocks.length === 0) {
         setSelectedBlock(null);
       }
     } catch (error) {
@@ -154,51 +148,44 @@ const Dashboard = () => {
     } finally {
       setIsLoadingBlocks(false);
     }
-  }, [toast, selectedBlock]); // selectedBlock for session part
+  }, [toast]); 
 
   useEffect(() => {
     if (selectedPlan) {
       performFetchBlocks(selectedPlan.id);
     } else {
       setBlocks([]);
-      setSelectedBlock(null); // For session registration
-      setExercises([]); // Clear exercises if no plan selected
-      setSelectedExercise(null); // For session registration
+      setSelectedBlock(null); 
+      setExercises([]); 
+      setSelectedExercise(null); 
     }
   }, [selectedPlan, performFetchBlocks]);
 
   const performFetchExercises = useCallback(async (planId: string, blockId: string) => {
      if (!planId || !blockId) {
       setExercises([]);
-      setSelectedExercise(null); // For session registration
+      setSelectedExercise(null); 
       return;
     }
     setIsLoadingExercises(true);
     try { 
       const fetchedExercises = await getExercises(planId, blockId);
       setExercises(prevExercises => {
-        // Filter out exercises from the current blockId before adding new ones
         const otherBlockExercises = prevExercises.filter(ex => ex.blockId !== blockId);
         return [...otherBlockExercises, ...fetchedExercises];
       });
-      // Auto-select for session part (if needed, currently driven by dropdown)
-      // if (fetchedExercises.length > 0 && !selectedExercise && selectedBlock?.id === blockId) {
-      //   setSelectedExercise(fetchedExercises[0]);
-      // }
     } catch (error) {
        console.error(`Error fetching exercises for plan ${planId} and block ${blockId}:`, error);
         toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar los ejercicios para este bloque." });
-        // Don't clear all exercises, only for this block perhaps, or handle error differently
     } finally {
       setIsLoadingExercises(false);
     }
-  }, [toast]); // Removed selectedExercise, selectedBlock dependencies to avoid re-fetching unless plan/block changes
+  }, [toast]); 
 
-  // Fetch exercises when a block is expanded in the accordion (or all at once if preferred)
-  // For now, fetching all exercises for the selectedPlan's blocks
    useEffect(() => {
     if (selectedPlan && blocks.length > 0) {
       setIsLoadingExercises(true);
+      setExercises([]); // Clear previous exercises before fetching new ones
       Promise.all(
         blocks.map(block => getExercises(selectedPlan.id, block.id))
       ).then(results => {
@@ -215,7 +202,6 @@ const Dashboard = () => {
   }, [selectedPlan, blocks, toast]);
 
 
-  // Handlers for closing dialogs and refreshing data
   const handleHorseAdded = () => {
     setIsAddHorseDialogOpen(false);
     if (currentUser?.uid) performFetchHorses(currentUser.uid); 
@@ -225,14 +211,12 @@ const Dashboard = () => {
   const handlePlanAdded = (newPlanId: string) => {
     setIsCreatePlanDialogOpen(false);
     performFetchPlans().then(() => {
-      // Re-fetch plans and then find the new one to select it
       getTrainingPlans().then(refreshedPlans => {
-        setTrainingPlans(refreshedPlans); // Update state with all plans
+        setTrainingPlans(refreshedPlans); 
         const newPlan = refreshedPlans.find(p => p.id === newPlanId);
         if (newPlan) {
           setSelectedPlan(newPlan);
         } else if (refreshedPlans.length > 0) {
-          // Fallback if new plan isn't immediately found or if ID was somehow wrong
           setSelectedPlan(refreshedPlans[0]);
         }
       });
@@ -241,13 +225,13 @@ const Dashboard = () => {
 
   const handleBlockAdded = (newBlockId: string) => {
     setIsAddBlockDialogOpen(false);
-    if (selectedPlan) performFetchBlocks(selectedPlan.id); // Refresh block list for current plan
+    if (selectedPlan) performFetchBlocks(selectedPlan.id); 
   };
 
   const handleExerciseAdded = (newExerciseId: string) => {
     setIsAddExerciseDialogOpen(false);
     if (selectedPlan && currentBlockIdForExercise) {
-      performFetchExercises(selectedPlan.id, currentBlockIdForExercise); // Refresh exercises for the specific block
+      performFetchExercises(selectedPlan.id, currentBlockIdForExercise); 
     }
     setCurrentBlockIdForExercise(null);
   };
@@ -259,31 +243,32 @@ const Dashboard = () => {
 
 
   const handleSaveSession = async () => {
-    if (!date || !selectedHorse || !selectedHorse.id || !selectedBlock || !selectedExercise) {
+    if (!date || !selectedHorse || !selectedHorse.id || !selectedBlock || !selectedBlock.id || !selectedExercise || !selectedExercise.id) {
       toast({variant: "destructive", title: "Error de Validación", description:"Por favor, asegúrate de que la fecha, el caballo, el bloque y el ejercicio estén seleccionados."});
       return;
     }
 
     try {
-      const sessionData: SessionServiceData = {
+      const sessionDataForCreation: Omit<SessionServiceData, 'id' | 'horseId' | 'createdAt' | 'updatedAt'> = {
         date: Timestamp.fromDate(date),
-        blockId: selectedBlock.id, 
+        blockId: selectedBlock.id,
         overallNote: "", 
       };
-
-      const sessionId = await createSession(selectedHorse.id, sessionData);
+      
+      // The createSession service now handles adding horseId and timestamps
+      const sessionId = await createSession(selectedHorse.id, sessionDataForCreation);
 
       if (sessionId) {
-        const exerciseResult: Omit<ExerciseResult, 'id'> = { // Using Omit type
-          exerciseId: selectedExercise.id, 
-          plannedReps: selectedExercise.suggestedReps ?? '', 
+        const exerciseResult: Omit<ExerciseResult, 'id' | 'createdAt' | 'updatedAt'> = {
+          exerciseId: selectedExercise.id,
+          plannedReps: selectedExercise.suggestedReps ?? '',
           doneReps: 0, 
           rating: rating,
           comment: "", 
         };
         await addExerciseResult(selectedHorse.id, sessionId, exerciseResult);
         toast({ title: "Sesión Guardada", description: "La sesión y el primer ejercicio han sido registrados." });
-        router.push(`/session/${sessionId}`); // Changed to router.push
+        router.push(`/session/${sessionId}?horseId=${selectedHorse.id}`); 
       } else {
         toast({ variant: "destructive", title: "Error", description: "No se pudo crear la sesión." });
       }
@@ -471,7 +456,7 @@ const Dashboard = () => {
                               blocks.map((block) => (
                                   <DropdownMenuItem key={block.id} onSelect={() => {
                                     setSelectedBlock(block);
-                                    setSelectedExercise(null); // Reset exercise when block changes
+                                    setSelectedExercise(null); 
                                   }}>
                                       {block.title}
                                       {block.notes && <span className="text-xs text-muted-foreground ml-1">({block.notes})</span>}

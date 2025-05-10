@@ -3,6 +3,7 @@ import type { SVGProps } from 'react';
 import {
   ArrowRight,
   Check,
+  ChevronDown,
   ChevronsUpDown,
   Circle,
   Copy,
@@ -17,6 +18,7 @@ import {
   Moon,
   Plus,
   PlusCircle,
+  Save,
   Search,
   Server,
   Settings,
@@ -63,7 +65,7 @@ const LogoIcon = (props: SVGProps<SVGSVGElement>) => (
 const Icons = {
   arrowRight: ArrowRight,
   check: Check,
-  chevronDown: ChevronsUpDown,
+  chevronDown: ChevronDown, // Corrected from ChevronsUpDown for typical dropdown arrow
   circle: Circle,
   workflow: Workflow,
   close: X,
@@ -80,6 +82,7 @@ const Icons = {
   messageSquare: MessageSquare,
   plus: Plus,
   plusCircle: PlusCircle,
+  save: Save,
   search: Search,
   server: Server,
   settings: Settings,

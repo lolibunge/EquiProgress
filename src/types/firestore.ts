@@ -18,6 +18,7 @@ export interface Horse {
     photoUrl?: string; // URL to image in Firebase Storage
     ownerUid: string; // UID of the user who owns this horse
     createdAt: Timestamp;
+    updatedAt?: Timestamp; // Optional: if you track updates
     notes?: string; // General health notes or other remarks
 }
 
@@ -25,6 +26,7 @@ export interface TrainingPlan {
     id: string; // Document ID - ensure this is always present
     title: string;
     createdAt: Timestamp;
+    updatedAt?: Timestamp;
     template: boolean; // True if this is a base template, false if it's a customized plan for a horse
     horseId?: string; // Optional: if this plan instance is specifically for one horse
 }
@@ -35,6 +37,8 @@ export interface TrainingBlock {
     title: string;
     notes?: string; // Subtitle or additional notes for the block
     duration?: string; // Optional duration for the block, e.g., "1 semana"
+    createdAt?: Timestamp;
+    updatedAt?: Timestamp;
 }
 
 export interface Exercise {
@@ -43,45 +47,49 @@ export interface Exercise {
     blockId: string; // ID of the block this exercise belongs to
     title: string;
     description?: string;
-    suggestedReps?: string | null; // Changed from number | null
-    objective?: string; 
+    suggestedReps?: string | null;
+    objective?: string;
+    createdAt?: Timestamp;
+    updatedAt?: Timestamp;
 }
 
-export interface SessionData { // Renamed from Session for clarity with Session service
-    id?: string; // Firestore document ID
+export interface SessionData {
+    id: string; // Firestore document ID, added when fetched
+    horseId: string; // ID of the horse this session belongs to
     date: Timestamp;
-    blockId: string; 
+    blockId: string;
     overallNote?: string; // General notes for the session
+    createdAt: Timestamp;
+    updatedAt?: Timestamp;
 }
 
 export interface ExerciseResult {
-    id?: string; // Firestore document ID for this specific result entry
+    id: string; // Firestore document ID, added when fetched
     exerciseId: string; // Reference to the Exercise document
     plannedReps?: string; // Number of reps planned for this specific instance
     doneReps: number;
-    rating: number;
+    rating: number; // 1-5
     comment: string;
+    createdAt: Timestamp;
+    updatedAt?: Timestamp;
 }
 
 // Input types for creating new documents
 export interface TrainingPlanInput {
   title: string;
-  template?: boolean; 
-  horseId?: string; 
+  template?: boolean;
+  horseId?: string;
 }
 
 export interface TrainingBlockInput {
   title: string;
-  notes?: string; // Subtitle or additional notes for the block
-  duration?: string; // Optional duration for the block
-  // planId will be added by the service function
+  notes?: string;
+  duration?: string;
 }
 
 export interface ExerciseInput {
   title: string;
   description?: string;
-  suggestedReps?: string | null; // Changed from number | null
-  objective?: string; 
-  // planId and blockId will be added by the service function
+  suggestedReps?: string | null;
+  objective?: string;
 }
-
