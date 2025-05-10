@@ -1,6 +1,7 @@
-import { auth, db } from '../firebase';
+import { auth, db } from '@/firebase';
 import { collection, addDoc, getDocs, serverTimestamp, query, where, orderBy, Timestamp } from 'firebase/firestore';
-import type { Horse } from '@/types/firestore';
+import type { Horse } from '@/types/firestore'; // Add this line
+
 
 // Interface for the data collected from the form
 export interface HorseInputData {
