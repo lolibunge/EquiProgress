@@ -20,7 +20,7 @@ import { useRouter } from 'next/navigation';
 import { createSession, addExerciseResult } from "@/services/session";
 import { getHorses as fetchHorsesService } from "@/services/horse";
 import { getTrainingPlans, getTrainingBlocks, getExercises } from "@/services/firestore";
-import type { Horse, TrainingPlan, TrainingBlock, Exercise, ExerciseResult, SessionData as SessionServiceData } from "@/types/firestore";
+import type { Horse, TrainingPlan, TrainingBlock, Exercise, ExerciseResult, SessionDataInput, ExerciseResultInput } from "@/types/firestore";
  
  import {
   Accordion,
@@ -88,9 +88,7 @@ const Dashboard = () => {
     try {
       const userHorses = await fetchHorsesService(uid);
       setHorses(userHorses);
-      if (userHorses.length > 0 && !selectedHorse) {
-        // setSelectedHorse(userHorses[0]); // Let user choose
-      }
+      // Do not auto-select horse: if (userHorses.length > 0 && !selectedHorse) { setSelectedHorse(userHorses[0]); }
     } catch (error) {
       console.error("Error fetching horses:", error);
       toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar los caballos." });
@@ -98,13 +96,14 @@ const Dashboard = () => {
     } finally {
       setIsLoadingHorses(false);
     }
-  }, [toast, selectedHorse]);
+  }, [toast]); // Removed selectedHorse from dependencies to avoid re-fetching on selection
 
   useEffect(() => {
     if (currentUser?.uid) {
       performFetchHorses(currentUser.uid);
     } else {
       setHorses([]); 
+      setSelectedHorse(null); // Clear selected horse if no user
       setIsLoadingHorses(false); 
     }
   }, [currentUser?.uid, performFetchHorses]);
@@ -171,6 +170,7 @@ const Dashboard = () => {
     try { 
       const fetchedExercises = await getExercises(planId, blockId);
       setExercises(prevExercises => {
+        // Filter out exercises from the current blockId before adding new ones to avoid duplicates
         const otherBlockExercises = prevExercises.filter(ex => ex.blockId !== blockId);
         return [...otherBlockExercises, ...fetchedExercises];
       });
@@ -185,17 +185,29 @@ const Dashboard = () => {
    useEffect(() => {
     if (selectedPlan && blocks.length > 0) {
       setIsLoadingExercises(true);
+      const allExercisesForPlan: Exercise[] = [];
       setExercises([]); // Clear previous exercises before fetching new ones
-      Promise.all(
-        blocks.map(block => getExercises(selectedPlan.id, block.id))
-      ).then(results => {
-        setExercises(results.flat());
-      }).catch(error => {
-        console.error("Error fetching all exercises for plan:", error);
-        toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar todos los ejercicios del plan."});
-      }).finally(() => {
+      
+      const fetchAllExercises = async () => {
+        for (const block of blocks) {
+          try {
+            const blockExercises = await getExercises(selectedPlan.id, block.id);
+            allExercisesForPlan.push(...blockExercises);
+          } catch (error) {
+             console.error(`Error fetching exercises for block ${block.id}:`, error);
+             // Optionally show a toast for individual block failures
+          }
+        }
+        setExercises(allExercisesForPlan);
         setIsLoadingExercises(false);
+      };
+      
+      fetchAllExercises().catch(error => {
+         console.error("Error fetching all exercises for plan:", error);
+         toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar todos los ejercicios del plan."});
+         setIsLoadingExercises(false);
       });
+
     } else {
       setExercises([]);
     }
@@ -217,7 +229,7 @@ const Dashboard = () => {
         if (newPlan) {
           setSelectedPlan(newPlan);
         } else if (refreshedPlans.length > 0) {
-          setSelectedPlan(refreshedPlans[0]);
+         // setSelectedPlan(refreshedPlans[0]); // Or let user choose
         }
       });
     });
@@ -231,7 +243,8 @@ const Dashboard = () => {
   const handleExerciseAdded = (newExerciseId: string) => {
     setIsAddExerciseDialogOpen(false);
     if (selectedPlan && currentBlockIdForExercise) {
-      performFetchExercises(selectedPlan.id, currentBlockIdForExercise); 
+      // Re-fetch exercises for the specific block that was modified
+      performFetchExercises(selectedPlan.id, currentBlockIdForExercise);
     }
     setCurrentBlockIdForExercise(null);
   };
@@ -243,31 +256,32 @@ const Dashboard = () => {
 
 
   const handleSaveSession = async () => {
-    if (!date || !selectedHorse || !selectedHorse.id || !selectedBlock || !selectedBlock.id || !selectedExercise || !selectedExercise.id) {
+    if (!currentUser || !date || !selectedHorse || !selectedHorse.id || !selectedBlock || !selectedBlock.id || !selectedExercise || !selectedExercise.id) {
       toast({variant: "destructive", title: "Error de Validación", description:"Por favor, asegúrate de que la fecha, el caballo, el bloque y el ejercicio estén seleccionados."});
       return;
     }
 
     try {
-      const sessionDataForCreation: Omit<SessionServiceData, 'id' | 'horseId' | 'createdAt' | 'updatedAt'> = {
+      const sessionInput: SessionDataInput = {
+        horseId: selectedHorse.id,
         date: Timestamp.fromDate(date),
         blockId: selectedBlock.id,
-        overallNote: "", 
+        overallNote: "", // Initially empty, to be filled on session detail page
       };
       
-      // The createSession service now handles adding horseId and timestamps
-      const sessionId = await createSession(selectedHorse.id, sessionDataForCreation);
+      const sessionId = await createSession(sessionInput);
 
       if (sessionId) {
-        const exerciseResult: Omit<ExerciseResult, 'id' | 'createdAt' | 'updatedAt'> = {
+        const exerciseResultInput: ExerciseResultInput = {
           exerciseId: selectedExercise.id,
           plannedReps: selectedExercise.suggestedReps ?? '',
-          doneReps: 0, 
+          doneReps: 0, // Initially 0, to be updated on session detail page
           rating: rating,
-          comment: "", 
+          comment: "", // Initially empty
         };
-        await addExerciseResult(selectedHorse.id, sessionId, exerciseResult);
+        await addExerciseResult(sessionId, exerciseResultInput);
         toast({ title: "Sesión Guardada", description: "La sesión y el primer ejercicio han sido registrados." });
+        // Pass horseId to session detail page so it can fetch horse info for display
         router.push(`/session/${sessionId}?horseId=${selectedHorse.id}`); 
       } else {
         toast({ variant: "destructive", title: "Error", description: "No se pudo crear la sesión." });
@@ -512,7 +526,7 @@ const Dashboard = () => {
                             onClick={handleSaveSession}
                             disabled={!date || !selectedHorse || !selectedBlock || !selectedExercise}
                           >
-                            Guardar Sesión
+                            Guardar Sesión e Ir a Detalles
                           </Button>
                         </div>
                       </CardContent>

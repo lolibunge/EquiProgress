@@ -16,7 +16,7 @@ import { Slider } from '@/components/ui/slider';
 import { Icons } from '@/components/icons';
 import { useToast } from "@/hooks/use-toast";
 
-import type { Horse, SessionData, ExerciseResult, Exercise } from '@/types/firestore';
+import type { Horse, SessionData, ExerciseResult, Exercise, SessionDataInput, ExerciseResultInput } from '@/types/firestore';
 import { getHorseById } from '@/services/horse';
 import { getSession, getExerciseResults, updateSession, updateExerciseResult } from '@/services/session';
 import { getExercise } from '@/services/firestore';
@@ -28,14 +28,16 @@ const SessionDetailPage = () => {
   const { toast } = useToast();
 
   const sessionId = params.id as string;
-  const horseId = searchParams.get('horseId');
+  // horseId is still needed to fetch horse details for display
+  const horseIdFromQuery = searchParams.get('horseId'); 
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   const [horse, setHorse] = useState<Horse | null>(null);
   const [session, setSession] = useState<SessionData | null>(null);
-  const [exerciseResult, setExerciseResult] = useState<ExerciseResult | null>(null);
+  // Assuming one exercise result per session for now as per previous logic, might need to adapt for multiple
+  const [exerciseResult, setExerciseResult] = useState<ExerciseResult | null>(null); 
   const [exercise, setExercise] = useState<Exercise | null>(null);
 
   // Form state
@@ -45,37 +47,41 @@ const SessionDetailPage = () => {
   const [exerciseComment, setExerciseComment] = useState('');
 
   const fetchData = useCallback(async () => {
-    if (!horseId || !sessionId) {
-      toast({ variant: "destructive", title: "Error", description: "Falta ID de caballo o sesión." });
+    if (!sessionId) {
+      toast({ variant: "destructive", title: "Error", description: "Falta ID de sesión." });
       setLoading(false);
       return;
     }
     setLoading(true);
     try {
-      const [fetchedHorse, fetchedSession, fetchedExerciseResults] = await Promise.all([
-        getHorseById(horseId),
-        getSession(horseId, sessionId),
-        getExerciseResults(horseId, sessionId),
-      ]);
-
-      setHorse(fetchedHorse);
+      const fetchedSession = await getSession(sessionId);
       setSession(fetchedSession);
 
       if (fetchedSession) {
         setOverallSessionNotes(fetchedSession.overallNote || '');
-      }
-
-      if (fetchedExerciseResults && fetchedExerciseResults.length > 0) {
-        const firstExerciseResult = fetchedExerciseResults[0];
-        setExerciseResult(firstExerciseResult);
-        setRepsDone(firstExerciseResult.doneReps.toString());
-        setExerciseRating(firstExerciseResult.rating);
-        setExerciseComment(firstExerciseResult.comment || '');
-
-        if (firstExerciseResult.exerciseId) {
-          const fetchedExercise = await getExercise(firstExerciseResult.exerciseId);
-          setExercise(fetchedExercise);
+        
+        // Fetch horse details if horseId is available (either from query or session data)
+        const currentHorseId = horseIdFromQuery || fetchedSession.horseId;
+        if (currentHorseId) {
+          const fetchedHorse = await getHorseById(currentHorseId);
+          setHorse(fetchedHorse);
         }
+
+        const fetchedExerciseResults = await getExerciseResults(sessionId);
+        if (fetchedExerciseResults && fetchedExerciseResults.length > 0) {
+          const firstExerciseResult = fetchedExerciseResults[0]; // Assuming one for now
+          setExerciseResult(firstExerciseResult);
+          setRepsDone(firstExerciseResult.doneReps.toString());
+          setExerciseRating(firstExerciseResult.rating);
+          setExerciseComment(firstExerciseResult.comment || '');
+
+          if (firstExerciseResult.exerciseId) {
+            const fetchedExercise = await getExercise(firstExerciseResult.exerciseId);
+            setExercise(fetchedExercise);
+          }
+        }
+      } else {
+        toast({ variant: "destructive", title: "Error", description: "No se encontró la sesión."});
       }
     } catch (error) {
       console.error("Error fetching session details:", error);
@@ -83,14 +89,14 @@ const SessionDetailPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [horseId, sessionId, toast]);
+  }, [sessionId, horseIdFromQuery, toast]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
   const handleSave = async () => {
-    if (!horseId || !sessionId || !session || !exerciseResult || !exerciseResult.id) {
+    if (!sessionId || !session || !exerciseResult || !exerciseResult.id) {
       toast({ variant: "destructive", title: "Error", description: "Datos incompletos para guardar." });
       return;
     }
@@ -103,16 +109,16 @@ const SessionDetailPage = () => {
         return;
       }
 
-      await updateSession(horseId, sessionId, {
+      await updateSession(sessionId, {
         overallNote: overallSessionNotes,
-        updatedAt: serverTimestamp() as Timestamp,
+        // updatedAt will be handled by the service
       });
 
-      await updateExerciseResult(horseId, sessionId, exerciseResult.id, {
+      await updateExerciseResult(sessionId, exerciseResult.id, {
         doneReps: repsDoneNumber,
         rating: exerciseRating,
         comment: exerciseComment,
-        updatedAt: serverTimestamp() as Timestamp,
+        // updatedAt will be handled by the service
       });
 
       toast({ title: "Éxito", description: "Detalles de la sesión guardados correctamente." });
@@ -133,7 +139,7 @@ const SessionDetailPage = () => {
     );
   }
 
-  if (!horseId || !sessionId || !session) {
+  if (!session) { // Check if session itself is null
     return (
       <div className="container mx-auto p-4 flex justify-center items-center min-h-[calc(100vh-4rem)]">
         <Card className="w-full max-w-md text-center">
@@ -141,7 +147,7 @@ const SessionDetailPage = () => {
             <CardTitle>Error</CardTitle>
           </CardHeader>
           <CardContent>
-            <p>No se pudo cargar la información de la sesión. Verifica que los IDs sean correctos.</p>
+            <p>No se pudo cargar la información de la sesión. Verifica que el ID sea correcto.</p>
             <Button asChild className="mt-4 w-full">
               <Link href="/">Volver al Dashboard</Link>
             </Button>
@@ -221,14 +227,14 @@ const SessionDetailPage = () => {
               </CardContent>
             </Card>
           ) : (
-            <p className="text-muted-foreground">No hay detalles de ejercicio para esta sesión inicial o no se pudieron cargar.</p>
+            <p className="text-muted-foreground">No hay detalles de ejercicio para esta sesión o no se pudieron cargar.</p>
           )}
         </CardContent>
         <CardFooter className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-6">
            <Button variant="outline" onClick={() => router.push('/')} disabled={saving}>
             Volver al Dashboard
           </Button>
-          <Button onClick={handleSave} disabled={saving || loading}>
+          <Button onClick={handleSave} disabled={saving || loading || !exerciseResult /* Disable if no exercise result to update */}>
             {saving ? <Icons.spinner className="mr-2 h-4 w-4 animate-spin" /> : <Icons.save className="mr-2 h-4 w-4" />}
             Guardar Cambios
           </Button>

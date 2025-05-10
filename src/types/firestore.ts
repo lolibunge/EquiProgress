@@ -56,8 +56,9 @@ export interface Exercise {
 export interface SessionData {
     id: string; // Firestore document ID, added when fetched
     horseId: string; // ID of the horse this session belongs to
+    userId: string; // ID of the user who created the session
     date: Timestamp;
-    blockId: string;
+    blockId: string; // ID of the training block used in this session
     overallNote?: string; // General notes for the session
     createdAt: Timestamp;
     updatedAt?: Timestamp;
@@ -65,6 +66,7 @@ export interface SessionData {
 
 export interface ExerciseResult {
     id: string; // Firestore document ID, added when fetched
+    // sessionId is implicit as this is a subcollection of a session
     exerciseId: string; // Reference to the Exercise document
     plannedReps?: string; // Number of reps planned for this specific instance
     doneReps: number;
@@ -92,4 +94,21 @@ export interface ExerciseInput {
   description?: string;
   suggestedReps?: string | null;
   objective?: string;
+}
+
+// Input type for creating new SessionData
+export interface SessionDataInput {
+    horseId: string;
+    date: Timestamp;
+    blockId: string;
+    overallNote?: string;
+}
+
+// Input type for creating new ExerciseResult
+export interface ExerciseResultInput {
+    exerciseId: string;
+    plannedReps?: string;
+    doneReps: number;
+    rating: number;
+    comment: string;
 }

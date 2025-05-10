@@ -1,28 +1,27 @@
 
 import { auth, db } from '@/firebase';
 import { collection, addDoc, serverTimestamp, Timestamp, doc, writeBatch, getDoc, getDocs, updateDoc, query } from 'firebase/firestore';
-import type { SessionData, ExerciseResult } from '@/types/firestore';
+import type { SessionData, ExerciseResult, SessionDataInput, ExerciseResultInput } from '@/types/firestore';
 
 /**
- * Creates a new training session for a horse.
- * @param horseId The ID of the horse.
- * @param sessionData Data for the new session.
+ * Creates a new training session for a horse in the top-level 'sessions' collection.
+ * @param sessionInput Data for the new session.
  * @returns The ID of the newly created session document.
  */
-export const createSession = async (horseId: string, sessionData: Omit<SessionData, 'id' | 'horseId' | 'createdAt' | 'updatedAt'>): Promise<string> => {
+export const createSession = async (sessionInput: SessionDataInput): Promise<string> => {
   const user = auth.currentUser;
   if (!user) {
     throw new Error("Usuario no autenticado. Por favor, inicie sesión.");
   }
-  if (!horseId) {
+  if (!sessionInput.horseId) {
     throw new Error("Se requiere el ID del caballo.");
   }
 
-  const sessionCollectionRef = collection(db, 'horses', horseId, 'sessions');
+  const sessionCollectionRef = collection(db, 'sessions');
   
   const newSessionData: Omit<SessionData, 'id'> = {
-    ...sessionData,
-    horseId: horseId, // Storing horseId with the session
+    ...sessionInput,
+    userId: user.uid,
     createdAt: serverTimestamp() as Timestamp,
     updatedAt: serverTimestamp() as Timestamp,
   };
@@ -30,13 +29,6 @@ export const createSession = async (horseId: string, sessionData: Omit<SessionDa
   try {
     const docRef = await addDoc(sessionCollectionRef, newSessionData);
     console.log('Session document written with ID: ', docRef.id);
-    // Retrieve the document to get the ID correctly associated with the data
-    // const newSessionSnap = await getDoc(docRef);
-    // if (newSessionSnap.exists()) {
-    //   return { id: newSessionSnap.id, ...newSessionSnap.data() } as SessionData;
-    // } else {
-    //   throw new Error("Failed to create session document or retrieve it.");
-    // }
     return docRef.id;
   } catch (e) {
     console.error('Error adding session document: ', e);
@@ -46,28 +38,27 @@ export const createSession = async (horseId: string, sessionData: Omit<SessionDa
 
 /**
  * Adds an exercise result to a specific training session.
- * @param horseId The ID of the horse.
+ * ExerciseResults are stored as a subcollection of the session.
  * @param sessionId The ID of the session.
- * @param exerciseResultData Data for the exercise result.
+ * @param exerciseResultInput Data for the exercise result.
  * @returns The ID of the newly created exercise result document.
  */
 export const addExerciseResult = async (
-  horseId: string,
   sessionId: string,
-  exerciseResultData: Omit<ExerciseResult, 'id' | 'createdAt' | 'updatedAt'>
+  exerciseResultInput: ExerciseResultInput
 ): Promise<string> => {
   const user = auth.currentUser;
   if (!user) {
     throw new Error("Usuario no autenticado. Por favor, inicie sesión.");
   }
-  if (!horseId || !sessionId) {
-    throw new Error("Se requieren los IDs del caballo y de la sesión.");
+  if (!sessionId) {
+    throw new Error("Se requiere el ID de la sesión.");
   }
 
-  const exerciseResultCollectionRef = collection(db, 'horses', horseId, 'sessions', sessionId, 'exerciseResults');
+  const exerciseResultCollectionRef = collection(db, 'sessions', sessionId, 'exerciseResults');
   
   const newExerciseResultData: Omit<ExerciseResult, 'id'> = {
-    ...exerciseResultData,
+    ...exerciseResultInput,
     createdAt: serverTimestamp() as Timestamp,
     updatedAt: serverTimestamp() as Timestamp,
   };
@@ -83,13 +74,13 @@ export const addExerciseResult = async (
 };
 
 
-export const getSession = async (horseId: string, sessionId: string): Promise<SessionData | null> => {
-  if (!horseId || !sessionId) {
-    console.warn("horseId and sessionId are required to fetch a session.");
+export const getSession = async (sessionId: string): Promise<SessionData | null> => {
+  if (!sessionId) {
+    console.warn("sessionId is required to fetch a session.");
     return null;
   }
   try {
-    const sessionDocRef = doc(db, 'horses', horseId, 'sessions', sessionId);
+    const sessionDocRef = doc(db, 'sessions', sessionId);
     const sessionSnap = await getDoc(sessionDocRef);
     if (sessionSnap.exists()) {
       return { id: sessionSnap.id, ...sessionSnap.data() } as SessionData;
@@ -103,15 +94,14 @@ export const getSession = async (horseId: string, sessionId: string): Promise<Se
   }
 };
 
-export const getExerciseResults = async (horseId: string, sessionId: string): Promise<ExerciseResult[]> => {
-  if (!horseId || !sessionId) {
-    console.warn("horseId and sessionId are required to fetch exercise results.");
+export const getExerciseResults = async (sessionId: string): Promise<ExerciseResult[]> => {
+  if (!sessionId) {
+    console.warn("sessionId is required to fetch exercise results.");
     return [];
   }
   try {
-    const exerciseResultsRef = collection(db, 'horses', horseId, 'sessions', sessionId, 'exerciseResults');
-    // Potentially order by createdAt if needed
-    const q = query(exerciseResultsRef);
+    const exerciseResultsRef = collection(db, 'sessions', sessionId, 'exerciseResults');
+    const q = query(exerciseResultsRef); // Potentially order by createdAt if needed
     const querySnapshot = await getDocs(q);
     const results: ExerciseResult[] = [];
     querySnapshot.forEach((doc) => {
@@ -124,12 +114,12 @@ export const getExerciseResults = async (horseId: string, sessionId: string): Pr
   }
 };
 
-export const updateSession = async (horseId: string, sessionId: string, data: Partial<SessionData>): Promise<void> => {
-  if (!horseId || !sessionId) {
-    throw new Error("horseId and sessionId are required for updating a session.");
+export const updateSession = async (sessionId: string, data: Partial<Omit<SessionData, 'id' | 'createdAt' | 'userId' | 'horseId'>>): Promise<void> => {
+  if (!sessionId) {
+    throw new Error("sessionId is required for updating a session.");
   }
   try {
-    const sessionDocRef = doc(db, 'horses', horseId, 'sessions', sessionId);
+    const sessionDocRef = doc(db, 'sessions', sessionId);
     await updateDoc(sessionDocRef, {
         ...data,
         updatedAt: serverTimestamp() as Timestamp,
@@ -142,16 +132,15 @@ export const updateSession = async (horseId: string, sessionId: string, data: Pa
 };
 
 export const updateExerciseResult = async (
-  horseId: string,
   sessionId: string,
   exerciseResultId: string,
-  data: Partial<ExerciseResult>
+  data: Partial<Omit<ExerciseResult, 'id' | 'createdAt'>>
 ): Promise<void> => {
-  if (!horseId || !sessionId || !exerciseResultId) {
-    throw new Error("horseId, sessionId, and exerciseResultId are required for updating an exercise result.");
+  if (!sessionId || !exerciseResultId) {
+    throw new Error("sessionId and exerciseResultId are required for updating an exercise result.");
   }
   try {
-    const exerciseResultDocRef = doc(db, 'horses', horseId, 'sessions', sessionId, 'exerciseResults', exerciseResultId);
+    const exerciseResultDocRef = doc(db, 'sessions', sessionId, 'exerciseResults', exerciseResultId);
     await updateDoc(exerciseResultDocRef, {
         ...data,
         updatedAt: serverTimestamp() as Timestamp,
