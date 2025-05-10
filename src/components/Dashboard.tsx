@@ -401,6 +401,7 @@ const Dashboard = () => {
                                     <AccordionTrigger>
                                       {block.title}
                                       {block.notes && <span className="text-sm text-muted-foreground ml-2">- {block.notes}</span>}
+                                      {block.duration && <span className="text-sm text-muted-foreground ml-2">- Duración: {block.duration}</span>}
                                     </AccordionTrigger>
                                     <AccordionContent>
                                       {isLoadingExercises && !exercises.some(ex => ex.blockId === block.id) ? <p>Cargando ejercicios...</p> : exercises.filter(ex => ex.blockId === block.id).length > 0 ? (
@@ -659,4 +660,3 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
-

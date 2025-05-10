@@ -34,6 +34,7 @@ export interface TrainingBlock {
     planId: string; // ID of the plan this block belongs to
     title: string;
     notes?: string; // Subtitle or additional notes for the block
+    duration?: string; // Optional duration for the block, e.g., "1 semana"
 }
 
 export interface Exercise {
@@ -72,6 +73,7 @@ export interface TrainingPlanInput {
 export interface TrainingBlockInput {
   title: string;
   notes?: string; // Subtitle or additional notes for the block
+  duration?: string; // Optional duration for the block
   // planId will be added by the service function
 }
 

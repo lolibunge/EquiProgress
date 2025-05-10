@@ -17,6 +17,7 @@ import { Icons } from '@/components/icons';
 const addBlockSchema = z.object({
   title: z.string().min(3, { message: "El título debe tener al menos 3 caracteres." }).max(100, { message: "El título no puede exceder los 100 caracteres." }),
   notes: z.string().max(200, { message: "El subtítulo no puede exceder los 200 caracteres."}).optional(),
+  duration: z.string().max(50, { message: "La duración no puede exceder los 50 caracteres."}).optional(),
 });
 
 type AddBlockFormValues = z.infer<typeof addBlockSchema>;
@@ -36,6 +37,7 @@ export default function AddBlockForm({ planId, onSuccess, onCancel }: AddBlockFo
     defaultValues: {
       title: "",
       notes: "",
+      duration: "",
     },
   });
 
@@ -50,6 +52,7 @@ export default function AddBlockForm({ planId, onSuccess, onCancel }: AddBlockFo
       const blockInputData: TrainingBlockInput = {
         title: data.title,
         notes: data.notes,
+        duration: data.duration,
       };
       const blockId = await addTrainingBlock(planId, blockInputData);
       toast({
@@ -99,6 +102,19 @@ export default function AddBlockForm({ planId, onSuccess, onCancel }: AddBlockFo
             </FormItem>
           )}
         />
+        <FormField
+          control={form.control}
+          name="duration"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Duración (Opcional)</FormLabel>
+              <FormControl>
+                <Input placeholder="Ej: 1 semana, 3 días" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
         <div className="flex justify-end space-x-2 pt-4">
           <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading}>
             Cancelar
@@ -112,4 +128,3 @@ export default function AddBlockForm({ planId, onSuccess, onCancel }: AddBlockFo
     </Form>
   );
 }
-

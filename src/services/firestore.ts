@@ -67,6 +67,10 @@ export async function addTrainingBlock(planId: string, blockData: TrainingBlockI
     newBlockData.notes = blockData.notes;
   }
 
+  if (blockData.duration !== undefined && blockData.duration.trim() !== "") {
+    newBlockData.duration = blockData.duration;
+  }
+
   try {
     const docRef = await addDoc(blockCollectionRef, newBlockData);
     console.log("Training block added with ID:", docRef.id);
