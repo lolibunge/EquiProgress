@@ -29,7 +29,7 @@ import type { Horse, TrainingPlan, TrainingBlock, Exercise, ExerciseResult, Sess
 } from "@/components/ui/accordion";
  import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
  import { Label } from "@/components/ui/label";
- import { Input } from "@/components/ui/input"; // Keep for other potential uses
+ import { Input } from "@/components/ui/input"; 
  import { 
   DropdownMenu, 
   DropdownMenuContent, 
@@ -47,6 +47,9 @@ import type { Horse, TrainingPlan, TrainingBlock, Exercise, ExerciseResult, Sess
   DialogTitle 
 } from "@/components/ui/dialog";
 import AddHorseForm from "./AddHorseForm";
+import AddPlanForm from "./AddPlanForm";
+import AddBlockForm from "./AddBlockForm";
+import AddExerciseForm from "./AddExerciseForm";
 import { Icons } from "./icons";
 
 const Dashboard = () => {
@@ -58,25 +61,33 @@ const Dashboard = () => {
   const [selectedHorse, setSelectedHorse] = useState<Horse | null>(null);
   
   const [trainingPlans, setTrainingPlans] = useState<TrainingPlan[]>([]);
+  const [isLoadingPlans, setIsLoadingPlans] = useState(true);
   const [selectedPlan, setSelectedPlan] = useState<TrainingPlan | null>(null);
+  
   const [blocks, setBlocks] = useState<TrainingBlock[]>([]);
-  const [selectedBlock, setSelectedBlock] = useState<TrainingBlock | null>(null);
+  const [isLoadingBlocks, setIsLoadingBlocks] = useState(false);
+  const [selectedBlock, setSelectedBlock] = useState<TrainingBlock | null>(null); // For session registration
+  
   const [exercises, setExercises] = useState<Exercise[]>([]);
-  const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null); 
+  const [isLoadingExercises, setIsLoadingExercises] = useState(false);
+  const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null); // For session registration
 
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [rating, setRating] = useState<number>(3); 
+
+  // Dialog states for plan/block/exercise creation
+  const [isCreatePlanDialogOpen, setIsCreatePlanDialogOpen] = useState(false);
+  const [isAddBlockDialogOpen, setIsAddBlockDialogOpen] = useState(false);
+  const [isAddExerciseDialogOpen, setIsAddExerciseDialogOpen] = useState(false);
+  const [currentBlockIdForExercise, setCurrentBlockIdForExercise] = useState<string | null>(null);
+
 
   const performFetchHorses = useCallback(async (uid: string) => {
     setIsLoadingHorses(true);
     try {
       const userHorses = await fetchHorsesService(uid);
       setHorses(userHorses);
-      if (userHorses.length > 0 && !selectedHorse) {
-        // setSelectedHorse(userHorses[0]); // Auto-select first horse if none selected
-      } else if (userHorses.length === 0) {
-        setSelectedHorse(null); // No horses, clear selection
-      }
+      // Do not auto-select, let user choose.
     } catch (error) {
       console.error("Error fetching horses:", error);
       toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar los caballos." });
@@ -84,7 +95,7 @@ const Dashboard = () => {
     } finally {
       setIsLoadingHorses(false);
     }
-  }, [toast, selectedHorse]); // Added selectedHorse to dependencies to re-evaluate selection
+  }, [toast]);
 
   useEffect(() => {
     if (currentUser?.uid) {
@@ -95,100 +106,143 @@ const Dashboard = () => {
     }
   }, [currentUser?.uid, performFetchHorses]);
 
-  useEffect(() => {
-    if (horses.length > 0) {
-      if (!selectedHorse || !horses.some(h => h.id === selectedHorse.id)) {
-         // Don't auto-select, let user choose or handle "no selection" state
-         // setSelectedHorse(horses[0]); 
-      } else {
-        const updatedSelectedHorse = horses.find(h => h.id === selectedHorse.id);
-        if (updatedSelectedHorse && JSON.stringify(updatedSelectedHorse) !== JSON.stringify(selectedHorse)) {
-          setSelectedHorse(updatedSelectedHorse);
-        }
-      }
-    } else {
-      setSelectedHorse(null); 
+
+  const performFetchPlans = useCallback(async () => {
+    setIsLoadingPlans(true);
+    try {
+      const plans = await getTrainingPlans();
+      setTrainingPlans(plans);
+      // Don't auto-select a plan initially, let user pick from dropdown
+      // if (plans.length > 0 && !selectedPlan) setSelectedPlan(plans[0]);
+    } catch (error) {
+      console.error("Error fetching training plans:", error);
+      toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar los planes de entrenamiento." });
+      setTrainingPlans([]);
+    } finally {
+      setIsLoadingPlans(false);
     }
-  }, [horses, selectedHorse]);
-
-  const handleHorseAdded = () => {
-    setIsAddHorseDialogOpen(false);
-    if (currentUser?.uid) {
-      performFetchHorses(currentUser.uid); 
-    }
-  };
-
-  const handleAddHorseCancel = () => {
-    setIsAddHorseDialogOpen(false);
-  };
-
-  useEffect(() => {
-    const fetchPlans = async () => {
-      try {
-        const plans = await getTrainingPlans();
-        setTrainingPlans(plans);
-        if (plans.length > 0) {
-          setSelectedPlan(plans[0]);
-        }
-      } catch (error) {
-        console.error("Error fetching training plans:", error);
-        toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar los planes de entrenamiento." });
-      }
-    };
-    fetchPlans();
   }, [toast]);
 
   useEffect(() => {
-    const fetchBlocks = async () => {
-      if (selectedPlan) {
-        try {
-          const fetchedBlocks = await getTrainingBlocks(selectedPlan.id);
-          setBlocks(fetchedBlocks);
-          if (fetchedBlocks.length > 0) {
-            setSelectedBlock(fetchedBlocks[0]);
-          } else {
-            setSelectedBlock(null); 
-            setExercises([]); // Clear exercises if no blocks
-            setSelectedExercise(null);
-          }
-        } catch (error) {
-          console.error(`Error fetching blocks for plan ${selectedPlan.id}:`, error);
-          toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar los bloques para este plan." });
-          setBlocks([]); 
-          setSelectedBlock(null);
-        }
-      } else {
-        setBlocks([]); 
+    performFetchPlans();
+  }, [performFetchPlans]);
+
+  const performFetchBlocks = useCallback(async (planId: string) => {
+    if (!planId) {
+      setBlocks([]);
+      setSelectedBlock(null); // For session registration
+      return;
+    }
+    setIsLoadingBlocks(true);
+    try {
+      const fetchedBlocks = await getTrainingBlocks(planId);
+      setBlocks(fetchedBlocks);
+      if (fetchedBlocks.length > 0 && !selectedBlock) {
+        // setSelectedBlock(fetchedBlocks[0]); // Auto-select for session part
+      } else if (fetchedBlocks.length === 0) {
         setSelectedBlock(null);
       }
-    };
-    fetchBlocks();
-  }, [selectedPlan, toast]);
+    } catch (error) {
+      console.error(`Error fetching blocks for plan ${planId}:`, error);
+      toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar los bloques para este plan." });
+      setBlocks([]);
+    } finally {
+      setIsLoadingBlocks(false);
+    }
+  }, [toast, selectedBlock]); // selectedBlock for session part
 
+  useEffect(() => {
+    if (selectedPlan) {
+      performFetchBlocks(selectedPlan.id);
+    } else {
+      setBlocks([]);
+      setSelectedBlock(null); // For session registration
+      setExercises([]); // Clear exercises if no plan selected
+      setSelectedExercise(null); // For session registration
+    }
+  }, [selectedPlan, performFetchBlocks]);
+
+  const performFetchExercises = useCallback(async (planId: string, blockId: string) => {
+     if (!planId || !blockId) {
+      setExercises([]);
+      setSelectedExercise(null); // For session registration
+      return;
+    }
+    setIsLoadingExercises(true);
+    try { 
+      const fetchedExercises = await getExercises(planId, blockId);
+      setExercises(prevExercises => {
+        // Filter out exercises from the current blockId before adding new ones
+        const otherBlockExercises = prevExercises.filter(ex => ex.blockId !== blockId);
+        return [...otherBlockExercises, ...fetchedExercises];
+      });
+      // Auto-select for session part (if needed, currently driven by dropdown)
+      // if (fetchedExercises.length > 0 && !selectedExercise && selectedBlock?.id === blockId) {
+      //   setSelectedExercise(fetchedExercises[0]);
+      // }
+    } catch (error) {
+       console.error(`Error fetching exercises for plan ${planId} and block ${blockId}:`, error);
+        toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar los ejercicios para este bloque." });
+        // Don't clear all exercises, only for this block perhaps, or handle error differently
+    } finally {
+      setIsLoadingExercises(false);
+    }
+  }, [toast]); // Removed selectedExercise, selectedBlock dependencies to avoid re-fetching unless plan/block changes
+
+  // Fetch exercises when a block is expanded in the accordion (or all at once if preferred)
+  // For now, fetching all exercises for the selectedPlan's blocks
    useEffect(() => {
-    const fetchExercises = async () => {
-      if (selectedPlan && selectedBlock) {
-        try { 
-          const fetchedExercises = await getExercises(selectedPlan.id, selectedBlock.id);
-          setExercises(fetchedExercises);
-           if (fetchedExercises.length > 0) {
-            setSelectedExercise(fetchedExercises[0]);
-          } else {
-            setSelectedExercise(null); 
-          }
-        } catch (error) {
-           console.error(`Error fetching exercises for plan ${selectedPlan.id} and block ${selectedBlock.id}:`, error);
-            toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar los ejercicios para este bloque." });
-            setExercises([]); 
-            setSelectedExercise(null);
-        }
-      } else {
-        setExercises([]); 
-        setSelectedExercise(null);
-      }
-    };
-    fetchExercises();
-  }, [selectedPlan, selectedBlock, toast]);
+    if (selectedPlan && blocks.length > 0) {
+      setIsLoadingExercises(true);
+      Promise.all(
+        blocks.map(block => getExercises(selectedPlan.id, block.id))
+      ).then(results => {
+        setExercises(results.flat());
+      }).catch(error => {
+        console.error("Error fetching all exercises for plan:", error);
+        toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar todos los ejercicios del plan."});
+      }).finally(() => {
+        setIsLoadingExercises(false);
+      });
+    } else {
+      setExercises([]);
+    }
+  }, [selectedPlan, blocks, toast]);
+
+
+  // Handlers for closing dialogs and refreshing data
+  const handleHorseAdded = () => {
+    setIsAddHorseDialogOpen(false);
+    if (currentUser?.uid) performFetchHorses(currentUser.uid); 
+  };
+  const handleAddHorseCancel = () => setIsAddHorseDialogOpen(false);
+
+  const handlePlanAdded = (newPlanId: string) => {
+    setIsCreatePlanDialogOpen(false);
+    performFetchPlans(); // Refresh plan list
+    // Optionally, select the newly added plan
+    // const newPlan = trainingPlans.find(p => p.id === newPlanId);
+    // if(newPlan) setSelectedPlan(newPlan);
+  };
+
+  const handleBlockAdded = (newBlockId: string) => {
+    setIsAddBlockDialogOpen(false);
+    if (selectedPlan) performFetchBlocks(selectedPlan.id); // Refresh block list for current plan
+  };
+
+  const handleExerciseAdded = (newExerciseId: string) => {
+    setIsAddExerciseDialogOpen(false);
+    if (selectedPlan && currentBlockIdForExercise) {
+      performFetchExercises(selectedPlan.id, currentBlockIdForExercise); // Refresh exercises for the specific block
+    }
+    setCurrentBlockIdForExercise(null);
+  };
+  
+  const openAddExerciseDialog = (blockId: string) => {
+    setCurrentBlockIdForExercise(blockId);
+    setIsAddExerciseDialogOpen(true);
+  };
+
 
   const handleSaveSession = async () => {
     if (!date || !selectedHorse || !selectedHorse.id || !selectedBlock || !selectedExercise) {
@@ -199,24 +253,23 @@ const Dashboard = () => {
     try {
       const sessionData: SessionServiceData = {
         date: Timestamp.fromDate(date),
-        blockId: selectedBlock.id, // Use selectedBlock.id (which should be TrainingBlock.id)
-        overallNote: "", // Placeholder for now
+        blockId: selectedBlock.id, 
+        overallNote: "", 
       };
 
       const sessionId = await createSession(selectedHorse.id, sessionData);
 
       if (sessionId) {
         const exerciseResult: ExerciseResult = {
-          exerciseId: selectedExercise.id, // Use selectedExercise.id (which should be Exercise.id)
-          plannedReps: selectedExercise.suggestedReps?.toString() ?? '0', // Ensure it's a string
-          doneReps: 0, // Placeholder
+          exerciseId: selectedExercise.id, 
+          plannedReps: selectedExercise.suggestedReps?.toString() ?? '0', 
+          doneReps: 0, 
           rating: rating,
-          comment: "", // Placeholder
+          comment: "", 
         };
         await addExerciseResult(selectedHorse.id, sessionId, exerciseResult);
         toast({ title: "Sesión Guardada", description: "La sesión y el primer ejercicio han sido registrados." });
-        // router.push(`/session/${sessionId}`); // Use Next.js router for navigation
-        window.location.href = `/session/${sessionId}`; // Temporary redirect
+        window.location.href = `/session/${sessionId}`; 
       } else {
         toast({ variant: "destructive", title: "Error", description: "No se pudo crear la sesión." });
       }
@@ -235,7 +288,6 @@ const Dashboard = () => {
     <div className="container py-10">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
 
-        {/* Caballos y Detalles/Acciones */}
         <div className="md:col-span-2 space-y-6">
           <Card>
             <CardHeader>
@@ -294,36 +346,63 @@ const Dashboard = () => {
                   <TabsContent value="plan">
                     <Card className="my-4">
                       <CardHeader>
-                        <CardTitle>Plan de Entrenamiento</CardTitle>
-                        <CardDescription>Plan actual para {selectedHorse.name}.</CardDescription>
+                        <CardTitle>Plan de Entrenamiento para {selectedHorse.name}</CardTitle>
+                         <div className="flex flex-col sm:flex-row sm:items-center gap-2 mt-2">
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                <Button variant="outline" className="w-full sm:w-auto justify-between">
+                                    {selectedPlan ? selectedPlan.title : "Seleccionar Plan"}
+                                    <Icons.chevronDown className="ml-2 h-4 w-4" />
+                                </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent className="w-[var(--radix-dropdown-menu-trigger-width)]">
+                                <DropdownMenuLabel>Planes Disponibles</DropdownMenuLabel>
+                                <DropdownMenuSeparator />
+                                {isLoadingPlans ? (
+                                    <DropdownMenuItem disabled>Cargando planes...</DropdownMenuItem>
+                                ) : trainingPlans.length > 0 ? (
+                                    trainingPlans.map((plan) => (
+                                    <DropdownMenuItem
+                                        key={plan.id}
+                                        onSelect={() => setSelectedPlan(plan)}
+                                    >
+                                        {plan.title} {plan.template && "(Plantilla)"}
+                                    </DropdownMenuItem>
+                                    ))
+                                ) : (
+                                    <DropdownMenuItem disabled>No hay planes disponibles</DropdownMenuItem>
+                                )}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                            <Button onClick={() => setIsCreatePlanDialogOpen(true)} className="w-full sm:w-auto">
+                                <Icons.plus className="mr-2 h-4 w-4" /> Crear Plan Nuevo
+                            </Button>
+                        </div>
+                        {selectedPlan && <CardDescription className="mt-2">Plan activo: {selectedPlan.title}</CardDescription>}
                       </CardHeader>
                       <CardContent>
-                        {trainingPlans.length > 0 && selectedPlan ? (
-                           <Tabs defaultValue={selectedPlan.id} onValueChange={(planId) => setSelectedPlan(trainingPlans.find(p => p.id === planId) || null)}>
-                            <TabsList className="mb-4">
-                              {trainingPlans.map((plan) => (
-                                <TabsTrigger key={plan.id} value={plan.id}>
-                                  {plan.title}
-                                </TabsTrigger>
-                              ))}
-                            </TabsList>
-                            {blocks.length > 0 ? (
+                        {selectedPlan ? (
+                           <>
+                            {isLoadingBlocks ? <p>Cargando bloques...</p> : blocks.length > 0 ? (
                                <Accordion type="multiple" collapsible className="w-full">
                                 {blocks.map((block) => (
                                   <AccordionItem value={block.id} key={block.id}>
                                     <AccordionTrigger>{block.title}</AccordionTrigger>
                                     <AccordionContent>
-                                      { exercises.filter(ex => ex.blockId === block.id).length > 0 ? (
+                                      {isLoadingExercises && !exercises.some(ex => ex.blockId === block.id) ? <p>Cargando ejercicios...</p> : exercises.filter(ex => ex.blockId === block.id).length > 0 ? (
                                         <ul className="list-disc pl-5 space-y-1">
                                           {exercises
                                             .filter(ex => ex.blockId === block.id)
                                             .map(exercise => (
-                                              <li key={exercise.id}>{exercise.title} (Reps: {exercise.suggestedReps || 'N/A'})</li>
+                                              <li key={exercise.id}>{exercise.title} (Reps: {exercise.suggestedReps ?? 'N/A'})</li>
                                           ))}
                                         </ul>
                                       ) : (
                                         <p className="text-sm text-muted-foreground">No hay ejercicios en este bloque.</p>
                                       )}
+                                      <Button size="sm" variant="outline" className="mt-2" onClick={() => openAddExerciseDialog(block.id)}>
+                                        <Icons.plus className="mr-2 h-4 w-4" /> Añadir Ejercicio a este Bloque
+                                      </Button>
                                     </AccordionContent>
                                   </AccordionItem>
                                 ))}
@@ -331,21 +410,23 @@ const Dashboard = () => {
                             ) : (
                               <p className="text-sm text-muted-foreground">Este plan no tiene bloques definidos.</p>
                             )}
-                          </Tabs>
+                            <div className="flex justify-end mt-4 space-x-2">
+                                <Button onClick={() => setIsAddBlockDialogOpen(true)} disabled={!selectedPlan || isLoadingBlocks}>
+                                    <Icons.plus className="mr-2 h-4 w-4" /> Añadir Bloque al Plan Actual
+                                </Button>
+                                <Button variant="outline" disabled={!selectedPlan}>Editar Plan</Button>
+                                <Button variant="outline" disabled={!selectedPlan}>Clonar Plan</Button>
+                            </div>
+                           </>
                         ) : (
-                          <p className="text-sm text-muted-foreground">No hay planes de entrenamiento disponibles.</p>
+                          <p className="text-sm text-muted-foreground">Selecciona o crea un plan de entrenamiento para ver sus detalles y gestionarlo.</p>
                         )}
-                        <div className="flex justify-end mt-4 space-x-2">
-                          <Button variant="outline">Editar Plan</Button>
-                          <Button variant="outline">Clonar Plan</Button>
-                          <Button>Añadir Ejercicio</Button>
-                        </div>
                       </CardContent>
                     </Card>
                   </TabsContent>
 
                   <TabsContent value="sesiones">
-                    <Card className="my-4">
+                     <Card className="my-4">
                       <CardHeader>
                         <CardTitle>Registrar Nueva Sesión</CardTitle>
                         <CardDescription>Para {selectedHorse.name}</CardDescription>
@@ -353,37 +434,44 @@ const Dashboard = () => {
                       <CardContent className="grid gap-4">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="outline" className="w-full justify-start">
-                              {selectedBlock ? selectedBlock.title : "Seleccionar Bloque"}
+                            <Button variant="outline" className="w-full justify-start" disabled={!selectedPlan || blocks.length === 0}>
+                              {(selectedBlock && blocks.some(b => b.id === selectedBlock.id)) ? selectedBlock.title : "Seleccionar Bloque"}
                               <Icons.chevronDown className="ml-auto h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent className="w-[var(--radix-dropdown-menu-trigger-width)]">
-                            <DropdownMenuLabel>Bloques del Plan</DropdownMenuLabel>
+                            <DropdownMenuLabel>Bloques del Plan Actual</DropdownMenuLabel>
                             <DropdownMenuSeparator />
-                            {blocks.length > 0 ? (
+                            {isLoadingBlocks ? (
+                                <DropdownMenuItem disabled>Cargando bloques...</DropdownMenuItem>
+                            ) : blocks.length > 0 ? (
                               blocks.map((block) => (
-                                  <DropdownMenuItem key={block.id} onSelect={() => setSelectedBlock(block)}>
+                                  <DropdownMenuItem key={block.id} onSelect={() => {
+                                    setSelectedBlock(block);
+                                    setSelectedExercise(null); // Reset exercise when block changes
+                                  }}>
                                       {block.title}
                                   </DropdownMenuItem>
                               ))
                               ) : (
-                              <DropdownMenuItem disabled>No hay bloques disponibles</DropdownMenuItem>
+                              <DropdownMenuItem disabled>No hay bloques en el plan seleccionado</DropdownMenuItem>
                               )}
                           </DropdownMenuContent>
                         </DropdownMenu>
 
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="outline" className="w-full justify-start" disabled={!selectedBlock}>
-                              {selectedExercise ? selectedExercise.title : "Seleccionar Ejercicio"}
+                            <Button variant="outline" className="w-full justify-start" disabled={!selectedBlock || isLoadingExercises}>
+                              {(selectedExercise && exercises.some(e => e.id === selectedExercise.id && e.blockId === selectedBlock?.id)) ? selectedExercise.title : "Seleccionar Ejercicio"}
                               <Icons.chevronDown className="ml-auto h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent className="w-[var(--radix-dropdown-menu-trigger-width)]">
                             <DropdownMenuLabel>Ejercicios del Bloque</DropdownMenuLabel>
                             <DropdownMenuSeparator />
-                            {exercises.filter(ex => ex.blockId === selectedBlock?.id).length > 0 ? (
+                             {isLoadingExercises && exercises.filter(ex => ex.blockId === selectedBlock?.id).length === 0 ? (
+                                <DropdownMenuItem disabled>Cargando ejercicios...</DropdownMenuItem>
+                            ) : exercises.filter(ex => ex.blockId === selectedBlock?.id).length > 0 ? (
                               exercises.filter(ex => ex.blockId === selectedBlock?.id).map((exercise) => (
                                   <DropdownMenuItem key={exercise.id} onSelect={() => setSelectedExercise(exercise)}>
                                       {exercise.title}
@@ -452,8 +540,7 @@ const Dashboard = () => {
           )}
         </div>
         
-        {/* Calendar Card */}
-        <Card className="col-span-1 md:col-span-1"> {/* Adjusted to take full column on md */}
+        <Card className="col-span-1 md:col-span-1">
           <CardHeader>
             <CardTitle>Calendario</CardTitle>
             <CardDescription>
@@ -484,7 +571,6 @@ const Dashboard = () => {
         </Card>
       </div>
 
-      {/* Add Horse Dialog */}
       <Dialog open={isAddHorseDialogOpen} onOpenChange={setIsAddHorseDialogOpen}>
         <DialogContent className="sm:max-w-[480px]">
           <DialogHeader>
@@ -499,10 +585,57 @@ const Dashboard = () => {
           />
         </DialogContent>
       </Dialog>
+
+      <Dialog open={isCreatePlanDialogOpen} onOpenChange={setIsCreatePlanDialogOpen}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle>Crear Nuevo Plan de Entrenamiento</DialogTitle>
+            <DialogDescription>Define un nuevo plan para tus caballos.</DialogDescription>
+          </DialogHeader>
+          <AddPlanForm onSuccess={handlePlanAdded} onCancel={() => setIsCreatePlanDialogOpen(false)} />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isAddBlockDialogOpen} onOpenChange={setIsAddBlockDialogOpen}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle>Añadir Nuevo Bloque al Plan</DialogTitle>
+            <DialogDescription>Añade un bloque a "{selectedPlan?.title}".</DialogDescription>
+          </DialogHeader>
+          {selectedPlan && (
+            <AddBlockForm 
+              planId={selectedPlan.id} 
+              onSuccess={handleBlockAdded} 
+              onCancel={() => setIsAddBlockDialogOpen(false)} 
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isAddExerciseDialogOpen} onOpenChange={setIsAddExerciseDialogOpen}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle>Añadir Nuevo Ejercicio al Bloque</DialogTitle>
+            <DialogDescription>
+              Añade un ejercicio al bloque "{blocks.find(b => b.id === currentBlockIdForExercise)?.title}" del plan "{selectedPlan?.title}".
+            </DialogDescription>
+          </DialogHeader>
+          {selectedPlan && currentBlockIdForExercise && (
+            <AddExerciseForm 
+              planId={selectedPlan.id} 
+              blockId={currentBlockIdForExercise} 
+              onSuccess={handleExerciseAdded} 
+              onCancel={() => {
+                setIsAddExerciseDialogOpen(false);
+                setCurrentBlockIdForExercise(null);
+              }} 
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 };
 
 export default Dashboard;
-
-    
