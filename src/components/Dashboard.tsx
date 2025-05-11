@@ -1,4 +1,3 @@
-
 "use client";
 
 import { Timestamp } from "firebase/firestore";
@@ -17,7 +16,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from 'next/navigation'; 
 
-import { createSession, addExerciseResult, getSessionExerciseResults } from "@/services/session";
+import { createSession, addExerciseResult, getExerciseResults } from "@/services/session";
 import { getHorses as fetchHorsesService } from "@/services/horse";
 import { getTrainingPlans, getTrainingBlocks, getExercises } from "@/services/firestore";
 import type { Horse, TrainingPlan, TrainingBlock, Exercise, ExerciseResult, SessionDataInput, ExerciseResultInput } from "@/types/firestore";
@@ -67,9 +66,9 @@ const Dashboard = () => {
   const [isLoadingPlans, setIsLoadingPlans] = useState(true);
   const [selectedPlan, setSelectedPlan] = useState<TrainingPlan | null>(null);
   
-  const [blocks, setBlocks] = useState<TrainingBlock[]>([]); // Data model still uses 'blocks'
+  const [blocks, setBlocks] = useState<TrainingBlock[]>([]); 
   const [isLoadingBlocks, setIsLoadingBlocks] = useState(false);
-  const [selectedBlock, setSelectedBlock] = useState<TrainingBlock | null>(null); // Data model still uses 'block'
+  const [selectedBlock, setSelectedBlock] = useState<TrainingBlock | null>(null); 
   
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [isLoadingExercises, setIsLoadingExercises] = useState(false);
@@ -84,7 +83,7 @@ const Dashboard = () => {
 
 
   const [isCreatePlanDialogOpen, setIsCreatePlanDialogOpen] = useState(false);
-  const [isAddBlockDialogOpen, setIsAddBlockDialogOpen] = useState(false);
+  const [isAddBlockDialogOpen, setIsAddBlockDialogOpen] = useState(false); // 'Block' here refers to 'Etapa'
   const [isAddExerciseDialogOpen, setIsAddExerciseDialogOpen] = useState(false);
   const [currentBlockIdForExercise, setCurrentBlockIdForExercise] = useState<string | null>(null);
 
@@ -138,7 +137,7 @@ const Dashboard = () => {
 
   const performFetchBlocks = useCallback(async (planId: string) => {
     if (!planId) {
-      setBlocks([]);
+      setBlocks([]); // Use 'blocks' for 'etapas'
       setSelectedBlock(null); 
       return;
     }
@@ -179,8 +178,6 @@ const Dashboard = () => {
     try { 
       const fetchedExercises = await getExercises(planId, blockId);
       setExercises(prevExercises => {
-        // This logic ensures that we only update exercises for the current block
-        // or add new ones, without removing exercises from other blocks if they were loaded.
         const otherBlockExercises = prevExercises.filter(ex => ex.blockId !== blockId);
         return [...otherBlockExercises, ...fetchedExercises];
       });
@@ -196,14 +193,10 @@ const Dashboard = () => {
     if (selectedPlan && blocks.length > 0) {
       setIsLoadingExercises(true);
       const allExercisesForPlan: Exercise[] = [];
-      // Clear exercises related to the currently selected plan and its blocks,
-      // to avoid duplicates if blocks or exercises are re-fetched.
       setExercises(prev => prev.filter(ex => ex.planId !== selectedPlan.id)); 
       
       const fetchAllExercises = async () => {
         for (const block of blocks) {
-          // Only fetch if exercises for this block aren't already loaded
-          // This check might need adjustment based on how `exercises` state is managed globally
           if (!exercises.some(ex => ex.blockId === block.id && ex.planId === selectedPlan.id)) {
             try {
               const blockExercises = await getExercises(selectedPlan.id, block.id);
@@ -212,11 +205,9 @@ const Dashboard = () => {
                console.error(`Error fetching exercises for block ${block.id}:`, error);
             }
           } else {
-             // Add already loaded exercises for this block to the list
             allExercisesForPlan.push(...exercises.filter(ex => ex.blockId === block.id && ex.planId === selectedPlan.id));
           }
         }
-        // Combine with exercises from other plans (if any are kept in state)
         setExercises(prev => [...prev.filter(ex => ex.planId !== selectedPlan.id), ...allExercisesForPlan]);
         setIsLoadingExercises(false);
       };
@@ -230,7 +221,7 @@ const Dashboard = () => {
     } else {
       setExercises(prev => selectedPlan ? prev.filter(ex => ex.planId !== selectedPlan.id) : []);
     }
-  }, [selectedPlan, blocks, toast]); // Removed 'exercises' from dependency array to avoid potential loop with setExercises inside
+  }, [selectedPlan, blocks, toast]);
 
 
   const handleHorseAdded = () => {
@@ -242,9 +233,8 @@ const Dashboard = () => {
   const handlePlanAdded = (newPlanId: string) => {
     setIsCreatePlanDialogOpen(false);
     performFetchPlans().then(() => {
-      // After fetching all plans, find the new one and select it.
       getTrainingPlans().then(refreshedPlans => {
-        setTrainingPlans(refreshedPlans); // Ensure state is updated with the latest list
+        setTrainingPlans(refreshedPlans); 
         const newPlan = refreshedPlans.find(p => p.id === newPlanId);
         if (newPlan) {
           setSelectedPlan(newPlan);
@@ -256,9 +246,8 @@ const Dashboard = () => {
   const handleBlockAdded = (newBlockId: string) => {
     setIsAddBlockDialogOpen(false);
     if (selectedPlan) {
-      // Re-fetch blocks for the current plan to include the new one
       performFetchBlocks(selectedPlan.id).then(() => {
-        // Optionally, select the new block or handle UI update
+        // UI should update automatically as 'blocks' state changes
       });
     }
   };
@@ -266,13 +255,11 @@ const Dashboard = () => {
   const handleExerciseAdded = (newExerciseId: string) => {
     setIsAddExerciseDialogOpen(false);
     if (selectedPlan && currentBlockIdForExercise) {
-      // Re-fetch exercises for the specific block to include the new one
       performFetchExercises(selectedPlan.id, currentBlockIdForExercise);
     }
-    setCurrentBlockIdForExercise(null); // Reset after adding
+    setCurrentBlockIdForExercise(null); 
   };
   
-  // Helper function to open the Add Exercise dialog and set the current block ID
   const openAddExerciseDialog = (blockId: string) => {
     setCurrentBlockIdForExercise(blockId);
     setIsAddExerciseDialogOpen(true);
@@ -320,7 +307,7 @@ const handleSaveSessionAndNavigate = async () => {
       const sessionInput: SessionDataInput = {
         horseId: selectedHorse.id,
         date: Timestamp.fromDate(date),
-        blockId: selectedBlock.id, // blockId still refers to the 'etapa'
+        blockId: selectedBlock.id, 
         overallNote: sessionOverallNote,
       };
       
@@ -346,12 +333,11 @@ const handleSaveSessionAndNavigate = async () => {
         }
         
         toast({ title: "Sesión Guardada", description: "La sesión y los resultados de los ejercicios han sido registrados." });
-        // Reset form fields after successful save
         setSessionOverallNote("");
         setSessionExerciseResults(new Map());
         // setSelectedBlock(null); // Optionally reset selected block
 
-        router.push(`/session/${sessionId}?horseId=${selectedHorse.id}`); 
+        router.push(`/session/${sessionId}`); 
       } else {
         toast({ variant: "destructive", title: "Error", description: "No se pudo crear la sesión." });
       }
@@ -469,7 +455,7 @@ const handleSaveSessionAndNavigate = async () => {
                            <>
                             {isLoadingBlocks ? <p>Cargando etapas...</p> : blocks.length > 0 ? (
                                <Accordion type="multiple" collapsible className="w-full">
-                                {blocks.map((block) => (
+                                {blocks.map((block) => ( // 'block' here represents an 'etapa'
                                   <AccordionItem value={block.id} key={block.id}>
                                     <AccordionTrigger>
                                       {block.title}
@@ -505,7 +491,7 @@ const handleSaveSessionAndNavigate = async () => {
                             )}
                             <div className="flex flex-wrap justify-end mt-4 gap-2">
                                 <Button onClick={() => setIsAddBlockDialogOpen(true)} disabled={!selectedPlan || isLoadingBlocks}>
-                                    <Icons.plus className="mr-2 h-4 w-4" /> Añadir Etapa
+                                    <Icons.plus className="mr-2 h-4 w-4" /> Añadir Etapa 
                                 </Button>
                                 <Button variant="outline" disabled={!selectedPlan}>Editar Plan</Button>
                                 <Button variant="outline" disabled={!selectedPlan}>Clonar Plan</Button>
@@ -541,7 +527,6 @@ const handleSaveSessionAndNavigate = async () => {
                               blocks.map((block) => (
                                   <DropdownMenuItem key={block.id} onSelect={() => {
                                     setSelectedBlock(block);
-                                    // Clear previous exercise results when block changes
                                     setSessionExerciseResults(new Map());
                                   }}>
                                       {block.title}
@@ -591,7 +576,7 @@ const handleSaveSessionAndNavigate = async () => {
                                                         id={`doneReps-${exercise.id}`}
                                                         type="number"
                                                         placeholder="Ej: 8"
-                                                        value={String(currentResult.doneReps)} // Ensure value is string for input
+                                                        value={String(currentResult.doneReps)} 
                                                         onChange={(e) => handleSessionExerciseInputChange(exercise.id, 'doneReps', e.target.value)}
                                                     />
                                                 </div>
