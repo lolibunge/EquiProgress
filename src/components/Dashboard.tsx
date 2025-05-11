@@ -313,7 +313,7 @@ const handleSaveSessionAndNavigate = async () => {
         // Save all exercise results
         if (exerciseResultsToSave.length > 0) {
              for (const resultInput of exerciseResultsToSave) {
-                await addExerciseResult(sessionId, resultInput);
+                await addExerciseResult(selectedHorse.id, sessionId, resultInput);
             }
         }
         
@@ -324,7 +324,7 @@ const handleSaveSessionAndNavigate = async () => {
         // setSelectedBlock(null); // Optionally reset selected block
 
         // Navigate to the session detail page
-        router.push(`/session/${sessionId}`); 
+        router.push(`/session/${sessionId}?horseId=${selectedHorse.id}`); 
       } else {
         toast({ variant: "destructive", title: "Error", description: "No se pudo crear la sesión." });
       }
