@@ -17,6 +17,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Icons } from './icons'; 
+import { BookMarked } from 'lucide-react';
 
 export default function Navbar() {
   const { currentUser, userProfile, loading } = useAuth();
@@ -45,7 +46,7 @@ export default function Navbar() {
     <nav className="border-b bg-background">
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
         <Link href="/" className="flex items-center gap-2 font-bold text-lg">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6 text-primary"><path d="M2 12h2"/><path d="M6 6v.01"/><path d="M10 3.5A1.5 1.5 0 0 1 8.5 2A1.5 1.5 0 0 1 7 3.5V5c0 .6.4 1 1 1h1.5c.6 0 1-.4 1-1V3.5Z"/><path d="M18 6v.01"/><path d="M22 12h-2"/><path d="M17.5 3.5A1.5 1.5 0 0 0 16 2a1.5 1.5 0 0 0-1.5 1.5V5c0 .6.4 1 1 1H16c.6 0 1-.4 1-1V3.5Z"/><path d="M6 18v.01"/><path d="M18 18v.01"/><path d="M8.7 15.8c1-.4 1.9-.8 2.6-1.3a2 2 0 0 0-2.6-3c-.9.5-1.7.9-2.6 1.3"/><path d="m15.3 15.8c-1-.4-1.9-.8-2.6-1.3a2 2 0 0 1 2.6-3c.9.5 1.7.9 2.6 1.3"/><path d="M12 22v-4"/><path d="M6 12c0-1.5 1.2-2.8 2.7-3"/><path d="M18 12c0-1.5-1.2-2.8-2.7-3"/></svg>
+          <Icons.logo className="h-6 w-6 text-primary"/>
           EquiProgress
         </Link>
         <div className="flex items-center gap-4">
@@ -83,6 +84,11 @@ export default function Navbar() {
                   <Icons.user className="mr-2 h-4 w-4" />
                   <span>Perfil</span>
                 </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => router.push('/horse-history')}>
+                  <BookMarked className="mr-2 h-4 w-4" />
+                  <span>Historial</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout}>
                   <Icons.close className="mr-2 h-4 w-4" /> 
                   <span>Cerrar Sesión</span>

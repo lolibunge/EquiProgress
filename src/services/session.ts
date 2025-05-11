@@ -1,6 +1,6 @@
 
 import { auth, db } from '@/firebase';
-import { collection, addDoc, serverTimestamp, Timestamp, doc, writeBatch, getDoc, getDocs, updateDoc, query } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, Timestamp, doc, writeBatch, getDoc, getDocs, updateDoc, query, where, orderBy } from 'firebase/firestore';
 import type { SessionData, ExerciseResult, SessionDataInput, ExerciseResultInput } from '@/types/firestore';
 
 /**
@@ -101,7 +101,7 @@ export const getExerciseResults = async (sessionId: string): Promise<ExerciseRes
   }
   try {
     const exerciseResultsRef = collection(db, 'sessions', sessionId, 'exerciseResults');
-    const q = query(exerciseResultsRef); // Potentially order by createdAt if needed
+    const q = query(exerciseResultsRef, orderBy("createdAt", "asc")); 
     const querySnapshot = await getDocs(q);
     const results: ExerciseResult[] = [];
     querySnapshot.forEach((doc) => {
@@ -149,5 +149,39 @@ export const updateExerciseResult = async (
   } catch (error) {
     console.error("Error updating exercise result:", error);
     throw error;
+  }
+};
+
+export const getSessionsByHorseId = async (horseId: string): Promise<SessionData[]> => {
+  const user = auth.currentUser;
+  if (!user) {
+    // It's better to throw or return an empty array and let the UI handle it.
+    // For authenticated routes, this check might be redundant if useAuth handles redirection.
+    console.warn("Usuario no autenticado. No se pueden cargar sesiones.");
+    return []; 
+  }
+  if (!horseId) {
+    console.warn("horseId is required to fetch sessions.");
+    return [];
+  }
+  try {
+    const sessionsRef = collection(db, 'sessions');
+    const q = query(
+      sessionsRef,
+      where("horseId", "==", horseId),
+      where("userId", "==", user.uid), // Ensure user only sees their sessions for the horse
+      orderBy("date", "desc") // Show newest sessions first
+    );
+    const querySnapshot = await getDocs(q);
+    const sessions: SessionData[] = [];
+    querySnapshot.forEach((doc) => {
+      sessions.push({ id: doc.id, ...doc.data() } as SessionData);
+    });
+    return sessions;
+  } catch (error) {
+    console.error("Error fetching sessions by horseId:", error);
+    // It's good practice to throw the error or return an empty array + notify the user.
+    // throw error; 
+    return []; // For now, return empty on error to prevent UI crash, but consider toast notification.
   }
 };

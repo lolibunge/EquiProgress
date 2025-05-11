@@ -55,6 +55,26 @@ export async function getTrainingBlocks(planId: string): Promise<TrainingBlock[]
   }
 }
 
+export async function getBlockById(blockId: string): Promise<TrainingBlock | null> {
+  if (!blockId) {
+    console.warn("blockId is required to fetch a block.");
+    return null;
+  }
+  try {
+    const blockDocRef = doc(db, 'trainingBlocks', blockId);
+    const blockDocSnap = await getDoc(blockDocRef);
+    if (blockDocSnap.exists()) {
+      return { id: blockDocSnap.id, ...blockDocSnap.data() } as TrainingBlock;
+    } else {
+      console.log("No such block document!");
+      return null;
+    }
+  } catch (e) {
+    console.error('Error fetching block document: ', e);
+    throw e;
+  }
+}
+
 export async function addTrainingBlock(planId: string, blockData: TrainingBlockInput): Promise<string> {
   const blockCollectionRef = collection(db, "trainingBlocks");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -145,10 +165,10 @@ export async function addExerciseToBlock(planId: string, blockId: string, exerci
     dataToSave.objective = exerciseData.objective;
   }
 
-  if (exerciseData.suggestedReps !== undefined && exerciseData.suggestedReps !== null && exerciseData.suggestedReps.trim() !== "") {
-    dataToSave.suggestedReps = exerciseData.suggestedReps;
+  if (exerciseData.suggestedReps !== undefined && exerciseData.suggestedReps !== null && String(exerciseData.suggestedReps).trim() !== "") {
+    dataToSave.suggestedReps = String(exerciseData.suggestedReps);
   } else {
-    dataToSave.suggestedReps = null;
+    dataToSave.suggestedReps = null; // Explicitly set to null if empty or undefined
   }
 
 

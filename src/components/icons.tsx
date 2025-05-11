@@ -4,7 +4,6 @@ import {
   ArrowRight,
   Check,
   ChevronDown,
-  ChevronsUpDown,
   Circle,
   Copy,
   Edit,
@@ -29,7 +28,8 @@ import {
   User,
   X,
   Workflow,
-  PanelLeft
+  PanelLeft,
+  BookMarked
 } from 'lucide-react';
 
 const LogoIcon = (props: SVGProps<SVGSVGElement>) => (
@@ -65,7 +65,7 @@ const LogoIcon = (props: SVGProps<SVGSVGElement>) => (
 const Icons = {
   arrowRight: ArrowRight,
   check: Check,
-  chevronDown: ChevronDown, // Corrected from ChevronsUpDown for typical dropdown arrow
+  chevronDown: ChevronDown, 
   circle: Circle,
   workflow: Workflow,
   close: X,
@@ -93,6 +93,7 @@ const Icons = {
   user: User,
   panelLeft: PanelLeft,
   logo: LogoIcon,
+  bookMarked: BookMarked,
 };
 
 export {Icons};
