@@ -50,6 +50,11 @@ export default function Navbar() {
           EquiProgress
         </Link>
         <div className="flex items-center gap-4">
+          {!loading && currentUser && (
+            <Button variant="ghost" asChild>
+              <Link href="/horse-history">Historial</Link>
+            </Button>
+          )}
           {!loading && !currentUser && (
             <>
               <Button variant="ghost" asChild>
@@ -84,10 +89,10 @@ export default function Navbar() {
                   <Icons.user className="mr-2 h-4 w-4" />
                   <span>Perfil</span>
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => router.push('/horse-history')}>
+                {/* <DropdownMenuItem onClick={() => router.push('/horse-history')}>
                   <Icons.bookMarked className="mr-2 h-4 w-4" />
                   <span>Historial</span>
-                </DropdownMenuItem>
+                </DropdownMenuItem> */}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout}>
                   <Icons.close className="mr-2 h-4 w-4" /> 
