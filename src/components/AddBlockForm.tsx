@@ -49,24 +49,24 @@ export default function AddBlockForm({ planId, onSuccess, onCancel }: AddBlockFo
         return;
     }
     try {
-      const blockInputData: TrainingBlockInput = {
+      const blockInputData: TrainingBlockInput = { // Data model still uses TrainingBlockInput
         title: data.title,
         notes: data.notes,
         duration: data.duration,
       };
-      const blockId = await addTrainingBlock(planId, blockInputData);
+      const blockId = await addTrainingBlock(planId, blockInputData); // Service function still uses addTrainingBlock
       toast({
-        title: "Bloque Añadido",
-        description: `El bloque "${data.title}" ha sido guardado exitosamente.`,
+        title: "Etapa Añadida",
+        description: `La etapa "${data.title}" ha sido guardada exitosamente.`,
       });
       form.reset();
       onSuccess(blockId);
     } catch (error: any) {
-      console.error("Error adding training block:", error);
+      console.error("Error adding training block/etapa:", error);
       toast({
         variant: "destructive",
-        title: "Error al Añadir Bloque",
-        description: error.message || "Ocurrió un error inesperado al guardar el bloque.",
+        title: "Error al Añadir Etapa",
+        description: error.message || "Ocurrió un error inesperado al guardar la etapa.",
       });
     } finally {
       setIsLoading(false);
@@ -81,9 +81,9 @@ export default function AddBlockForm({ planId, onSuccess, onCancel }: AddBlockFo
           name="title"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Título del Bloque</FormLabel>
+              <FormLabel>Título de la Etapa</FormLabel>
               <FormControl>
-                <Input placeholder="Ej: Calentamiento, Trabajo Principal" {...field} />
+                <Input placeholder="Ej: Etapa 1, Fundamentos" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -96,7 +96,7 @@ export default function AddBlockForm({ planId, onSuccess, onCancel }: AddBlockFo
             <FormItem>
               <FormLabel>Subtítulo (Opcional)</FormLabel>
               <FormControl>
-                <Textarea placeholder="Notas adicionales o un subtítulo para el bloque..." {...field} />
+                <Textarea placeholder="Notas adicionales o un subtítulo para la etapa..." {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -121,7 +121,7 @@ export default function AddBlockForm({ planId, onSuccess, onCancel }: AddBlockFo
           </Button>
           <Button type="submit" disabled={isLoading}>
             {isLoading && <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />}
-            Guardar Bloque
+            Guardar Etapa
           </Button>
         </div>
       </form>
