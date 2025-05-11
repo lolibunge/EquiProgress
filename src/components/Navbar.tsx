@@ -85,7 +85,7 @@ export default function Navbar() {
                   <span>Perfil</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => router.push('/horse-history')}>
-                  <BookMarked className="mr-2 h-4 w-4" />
+                  <Icons.bookMarked className="mr-2 h-4 w-4" />
                   <span>Historial</span>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
@@ -104,3 +104,4 @@ export default function Navbar() {
     </nav>
   );
 }
+
