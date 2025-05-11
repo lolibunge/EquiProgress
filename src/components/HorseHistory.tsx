@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
@@ -15,10 +14,10 @@ import { Icons } from '@/components/icons';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import AddHorseForm from './AddHorseForm'; // Assuming this exists for adding new horses
+import AddHorseForm from './AddHorseForm';
 
 interface BlockDetailsCache {
-  [blockId: string]: string | null; // Store block title or null if not found/loading
+  [blockId: string]: string; // Store block title
 }
 
 export default function HorseHistory() {
@@ -37,78 +36,172 @@ export default function HorseHistory() {
     try {
       const userHorses = await fetchHorsesService(currentUser.uid);
       setHorses(userHorses);
-      if (userHorses.length > 0 && !selectedHorse) {
-        // Optionally pre-select first horse
-        // setSelectedHorse(userHorses[0]); 
-      } else if (userHorses.length === 0) {
+      if (userHorses.length === 0) {
         setSelectedHorse(null);
         setSessions([]);
       }
+      // Do not auto-select horse here to allow explicit user selection
     } catch (error) {
       console.error("Error fetching horses:", error);
-      // Consider adding a toast notification here
     } finally {
       setIsLoadingHorses(false);
     }
-  }, [currentUser?.uid, selectedHorse]);
+  }, [currentUser?.uid]);
 
   useEffect(() => {
     fetchHorses();
   }, [fetchHorses]);
 
-  const fetchBlockTitle = useCallback(async (blockId: string) => {
-    if (blockDetailsCache[blockId] !== undefined) {
-      return blockDetailsCache[blockId]; // Already fetched or attempted
-    }
-    try {
-      const block = await getBlockById(blockId);
-      const title = block?.title || 'Etapa Desconocida';
-      setBlockDetailsCache(prev => ({ ...prev, [blockId]: title }));
-      return title;
-    } catch (error) {
-      console.error(`Error fetching block title for ${blockId}:`, error);
-      setBlockDetailsCache(prev => ({ ...prev, [blockId]: 'Error al cargar etapa' }));
-      return 'Error al cargar etapa';
-    }
-  }, [blockDetailsCache]);
-
+  // Effect for fetching sessions based on selectedHorse
   useEffect(() => {
-    const fetchSessionsAndDependentData = async () => {
-      if (!selectedHorse || !currentUser?.uid) {
-        setSessions([]);
-        return;
-      }
-      setIsLoadingSessions(true);
+    if (!selectedHorse || !currentUser?.uid) {
+      setSessions([]);
+      setIsLoadingSessions(false);
+      return;
+    }
+
+    setIsLoadingSessions(true);
+    setSessions([]); // Clear previous sessions immediately
+
+    const fetchHorseSessions = async () => {
       try {
         const fetchedSessions = await getSessionsByHorseId(selectedHorse.id);
         setSessions(fetchedSessions);
-        // Pre-fetch block titles for all sessions
-        const newBlockDetailsCache = { ...blockDetailsCache };
-        let cacheUpdated = false;
-        for (const session of fetchedSessions) {
-          if (session.blockId && newBlockDetailsCache[session.blockId] === undefined) {
-            const block = await getBlockById(session.blockId);
-            newBlockDetailsCache[session.blockId] = block?.title || 'Etapa Desconocida';
-            cacheUpdated = true;
-          }
-        }
-        if(cacheUpdated) {
-          setBlockDetailsCache(newBlockDetailsCache);
-        }
       } catch (error) {
-        console.error("Error fetching sessions:", error);
-        // Consider adding a toast notification here
+        console.error("Error fetching sessions for horse:", selectedHorse.id, error);
+        setSessions([]); // Ensure sessions are empty on error
       } finally {
         setIsLoadingSessions(false);
       }
     };
 
-    fetchSessionsAndDependentData();
-  }, [selectedHorse, currentUser?.uid, fetchBlockTitle, blockDetailsCache]);
+    fetchHorseSessions();
+  }, [selectedHorse, currentUser?.uid]);
+
+  // Effect for fetching block details for the current set of sessions
+  useEffect(() => {
+    if (sessions.length === 0) {
+      return;
+    }
+
+    const blockIdsToFetch = sessions
+      .map(session => session.blockId)
+      .filter(blockId => blockId && blockDetailsCache[blockId] === undefined);
+
+    const uniqueBlockIdsToFetch = Array.from(new Set(blockIdsToFetch));
+
+    if (uniqueBlockIdsToFetch.length > 0) {
+      const fetchAllMissingBlockTitles = async () => {
+        const promises = uniqueBlockIdsToFetch.map(async (blockId) => {
+          if (!blockId) return null;
+          try {
+            const block = await getBlockById(blockId);
+            return { blockId, title: block?.title || 'Etapa Desconocida' };
+          } catch (error) {
+            console.error(`Error fetching block title for ${blockId}:`, error);
+            return { blockId, title: 'Error al cargar etapa' };
+          }
+        });
+        const results = await Promise.all(promises);
+        setBlockDetailsCache(prev => {
+          const newCache = { ...prev };
+          results.forEach(result => {
+            if (result) {
+              newCache[result.blockId] = result.title;
+            }
+          });
+          return newCache;
+        });
+      };
+      fetchAllMissingBlockTitles();
+    }
+  }, [sessions, blockDetailsCache]);
   
   const handleHorseAdded = () => {
     setIsAddHorseDialogOpen(false);
-    fetchHorses(); // Refresh horse list
+    fetchHorses(); 
+  };
+
+  const renderSessionContent = () => {
+    if (isLoadingSessions) {
+      return (
+        <div className="flex justify-center items-center py-8">
+          <Icons.spinner className="h-8 w-8 animate-spin" />
+          <p className="ml-2">Cargando sesiones...</p>
+        </div>
+      );
+    }
+
+    if (!selectedHorse) {
+      if (isLoadingHorses) {
+         return (
+            <div className="flex justify-center items-center py-8">
+                <Icons.spinner className="h-8 w-8 animate-spin" />
+                <p className="ml-2">Cargando caballos...</p>
+            </div>
+         );
+      }
+      if (horses.length > 0) {
+        return (
+            <Card>
+                <CardContent className="py-6 text-center">
+                <Icons.logo className="mx-auto h-12 w-12 text-muted-foreground mb-4" data-ai-hint="horse pointing" />
+                <p className="text-muted-foreground">Por favor, selecciona un caballo para ver su historial.</p>
+                </CardContent>
+            </Card>
+        );
+      }
+      return (
+        <Card>
+            <CardContent className="py-6 text-center">
+            <Icons.logo className="mx-auto h-12 w-12 text-muted-foreground mb-4" data-ai-hint="horse plus" />
+            <p className="text-muted-foreground">No tienes caballos registrados. Añade uno para empezar.</p>
+            <Button className="mt-4" onClick={() => setIsAddHorseDialogOpen(true)}>
+                <Icons.plus className="mr-2 h-4 w-4" /> Añadir Caballo
+            </Button>
+            </CardContent>
+        </Card>
+      );
+    }
+
+    if (sessions.length === 0) {
+      return (
+        <Card>
+          <CardContent className="py-6 text-center">
+            <Icons.logo className="mx-auto h-12 w-12 text-muted-foreground mb-4" data-ai-hint="horse sad" />
+            <p className="text-muted-foreground">No hay sesiones registradas para {selectedHorse.name}.</p>
+          </CardContent>
+        </Card>
+      );
+    }
+
+    return (
+      <div className="space-y-4">
+        <h2 className="text-2xl font-semibold">Sesiones de {selectedHorse.name}</h2>
+        {sessions.map((session) => (
+          <Card key={session.id}>
+            <CardHeader>
+              <CardTitle>
+                Sesión del {format(session.date.toDate(), "PPP", { locale: es })}
+              </CardTitle>
+              <CardDescription>
+                Etapa: {session.blockId && blockDetailsCache[session.blockId] ? blockDetailsCache[session.blockId] : (session.blockId ? <Icons.spinner className="inline-block h-4 w-4 animate-spin" /> : 'Etapa Desconocida')}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {session.overallNote && (
+                <p className="text-sm text-muted-foreground mb-4 whitespace-pre-wrap">
+                  <strong>Nota General:</strong> {session.overallNote}
+                </p>
+              )}
+              <Button asChild variant="outline" size="sm">
+                <Link href={`/session/${session.id}?horseId=${selectedHorse?.id}`}>Ver Detalles de la Sesión</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    );
   };
 
   return (
@@ -122,8 +215,8 @@ export default function HorseHistory() {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" className="w-full md:w-auto justify-between">
-                {selectedHorse ? selectedHorse.name : "Seleccionar Caballo"}
-                <Icons.chevronDown className="ml-2 h-4 w-4" />
+                {selectedHorse ? selectedHorse.name : (isLoadingHorses ? "Cargando caballos..." : "Seleccionar Caballo")}
+                {!isLoadingHorses && <Icons.chevronDown className="ml-2 h-4 w-4" />}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent className="w-[var(--radix-dropdown-menu-trigger-width)]">
@@ -150,71 +243,7 @@ export default function HorseHistory() {
         </CardContent>
       </Card>
 
-      {isLoadingSessions && (
-        <div className="flex justify-center items-center py-8">
-          <Icons.spinner className="h-8 w-8 animate-spin" />
-          <p className="ml-2">Cargando sesiones...</p>
-        </div>
-      )}
-
-      {!isLoadingSessions && selectedHorse && sessions.length === 0 && (
-        <Card>
-          <CardContent className="py-6 text-center">
-            <Icons.logo className="mx-auto h-12 w-12 text-muted-foreground mb-4" data-ai-hint="horse sad" />
-            <p className="text-muted-foreground">No hay sesiones registradas para {selectedHorse.name}.</p>
-          </CardContent>
-        </Card>
-      )}
-
-      {!isLoadingSessions && !selectedHorse && !isLoadingHorses && horses.length > 0 && (
-         <Card>
-          <CardContent className="py-6 text-center">
-            <Icons.logo className="mx-auto h-12 w-12 text-muted-foreground mb-4" data-ai-hint="horse pointing" />
-            <p className="text-muted-foreground">Por favor, selecciona un caballo para ver su historial.</p>
-          </CardContent>
-        </Card>
-      )}
-      
-      {!isLoadingSessions && !selectedHorse && !isLoadingHorses && horses.length === 0 && (
-         <Card>
-          <CardContent className="py-6 text-center">
-            <Icons.logo className="mx-auto h-12 w-12 text-muted-foreground mb-4" data-ai-hint="horse plus" />
-            <p className="text-muted-foreground">No tienes caballos registrados. Añade uno para empezar.</p>
-            <Button className="mt-4" onClick={() => setIsAddHorseDialogOpen(true)}>
-              <Icons.plus className="mr-2 h-4 w-4" /> Añadir Caballo
-            </Button>
-          </CardContent>
-        </Card>
-      )}
-
-
-      {!isLoadingSessions && selectedHorse && sessions.length > 0 && (
-        <div className="space-y-4">
-          <h2 className="text-2xl font-semibold">Sesiones de {selectedHorse.name}</h2>
-          {sessions.map((session) => (
-            <Card key={session.id}>
-              <CardHeader>
-                <CardTitle>
-                  Sesión del {format(session.date.toDate(), "PPP", { locale: es })}
-                </CardTitle>
-                <CardDescription>
-                  Etapa: {blockDetailsCache[session.blockId] || <Icons.spinner className="inline-block h-4 w-4 animate-spin" />}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {session.overallNote && (
-                  <p className="text-sm text-muted-foreground mb-4">
-                    <strong>Nota General:</strong> {session.overallNote}
-                  </p>
-                )}
-                <Button asChild variant="outline" size="sm">
-                  <Link href={`/session/${session.id}`}>Ver Detalles de la Sesión</Link>
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+      {renderSessionContent()}
       
       <Dialog open={isAddHorseDialogOpen} onOpenChange={setIsAddHorseDialogOpen}>
         <DialogContent className="sm:max-w-[480px]">
