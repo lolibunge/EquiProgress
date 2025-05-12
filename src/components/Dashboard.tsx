@@ -1,4 +1,3 @@
-
 "use client";
 
 import { Timestamp } from "firebase/firestore";
@@ -20,7 +19,8 @@ import { useRouter } from 'next/navigation';
 import { createSession, addExerciseResult, getSession, getExerciseResults } from "@/services/session";
 import { getHorses as fetchHorsesService, getHorseById } from "@/services/horse";
 import { getTrainingPlans, getTrainingBlocks, getExercises, getExercise } from "@/services/firestore";
-import type { Horse, TrainingPlan, TrainingBlock, Exercise, ExerciseResult, SessionDataInput, ExerciseResultInput, SessionData } from "@/types/firestore";
+import type { Horse, TrainingPlan, TrainingBlock, Exercise, ExerciseResult, SessionDataInput, ExerciseResultInput, SessionData, Observation, ObservationInput } from "@/types/firestore";
+import { addObservation, getObservationsByHorseId } from "@/services/observation";
  
  import {
   Accordion,
@@ -53,6 +53,28 @@ import AddPlanForm from "./AddPlanForm";
 import AddBlockForm from "./AddBlockForm"; // Renamed from AddStageForm to AddBlockForm, as 'block' is the data model term
 import AddExerciseForm from "./AddExerciseForm";
 import { Icons } from "./icons";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+
+const TENSION_STATUS_OPTIONS = [
+  { value: '🟢', label: '🟢 Relajado' },
+  { value: '🟡', label: '🟡 Neutral/Tenso' },
+  { value: '🔴', label: '🔴 Muy Tenso/Dolor' },
+  { value: 'N/A', label: 'N/A (No aplica)' },
+];
+
+const OBSERVATION_ZONES = [
+  { id: 'ears', label: 'Orejas' },
+  { id: 'eyes', label: 'Ojos' },
+  { id: 'neck', label: 'Cuello' },
+  { id: 'withers', label: 'Cruz' },
+  { id: 'back', label: 'Dorso' },
+  { id: 'loins', label: 'Riñones' },
+  { id: 'croup', label: 'Grupa' },
+  { id: 'legs', label: 'Patas/Manos' },
+  { id: 'hooves', label: 'Cascos' },
+];
+
 
 const Dashboard = () => {
   const { currentUser } = useAuth();
@@ -81,6 +103,12 @@ const Dashboard = () => {
   const [sessionOverallNote, setSessionOverallNote] = useState("");
   const [sessionExerciseResults, setSessionExerciseResults] = useState<Map<string, Omit<ExerciseResultInput, 'exerciseId'>>>(new Map());
   const [isSavingSession, setIsSavingSession] = useState(false);
+
+  // State for new observation
+  const [observationData, setObservationData] = useState<Partial<ObservationInput>>({});
+  const [isSavingObservation, setIsSavingObservation] = useState(false);
+  const [horseObservations, setHorseObservations] = useState<Observation[]>([]);
+  const [isLoadingObservations, setIsLoadingObservations] = useState(false);
 
 
   const [isCreatePlanDialogOpen, setIsCreatePlanDialogOpen] = useState(false);
@@ -203,6 +231,32 @@ const Dashboard = () => {
     }
   }, [selectedPlan, performFetchExercisesForPlan]);
 
+  const performFetchObservations = useCallback(async (horseId: string) => {
+    if (!horseId) {
+      setHorseObservations([]);
+      return;
+    }
+    setIsLoadingObservations(true);
+    try {
+      const observations = await getObservationsByHorseId(horseId);
+      setHorseObservations(observations);
+    } catch (error) {
+      console.error(`Error fetching observations for horse ${horseId}:`, error);
+      toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar las observaciones." });
+      setHorseObservations([]);
+    } finally {
+      setIsLoadingObservations(false);
+    }
+  }, [toast]);
+
+  useEffect(() => {
+    if (selectedHorse) {
+      performFetchObservations(selectedHorse.id);
+    } else {
+      setHorseObservations([]);
+    }
+  }, [selectedHorse, performFetchObservations]);
+
 
   const handleHorseAdded = () => {
     setIsAddHorseDialogOpen(false);
@@ -294,7 +348,7 @@ const handleSaveSessionAndNavigate = async () => {
         overallNote: sessionOverallNote,
       };
       
-      const sessionId = await createSession(sessionInput);
+      const sessionId = await createSession(selectedHorse.id, sessionInput);
 
       if (sessionId) {
         const exerciseResultsToSave: ExerciseResultInput[] = [];
@@ -337,6 +391,54 @@ const handleSaveSessionAndNavigate = async () => {
       toast({ variant: "destructive", title: "Error al Guardar", description: errorMessage });
     } finally {
       setIsSavingSession(false);
+    }
+  };
+
+  const handleObservationInputChange = (field: keyof ObservationInput, value: string) => {
+    setObservationData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleSaveObservation = async () => {
+    if (!currentUser || !date || !selectedHorse || !selectedHorse.id) {
+      toast({
+        variant: "destructive",
+        title: "Error de Validación",
+        description: "Por favor, asegúrate de que la fecha y el caballo estén seleccionados.",
+      });
+      return;
+    }
+
+    setIsSavingObservation(true);
+    try {
+      const fullObservationData: ObservationInput = {
+        date: Timestamp.fromDate(date),
+        ears: observationData.ears,
+        eyes: observationData.eyes,
+        neck: observationData.neck,
+        withers: observationData.withers,
+        back: observationData.back,
+        loins: observationData.loins,
+        croup: observationData.croup,
+        legs: observationData.legs,
+        hooves: observationData.hooves,
+        overallBehavior: observationData.overallBehavior,
+        additionalNotes: observationData.additionalNotes,
+        // photoUrl will be handled later
+      };
+
+      await addObservation(selectedHorse.id, fullObservationData);
+      toast({ title: "Observación Guardada", description: "La observación ha sido registrada exitosamente." });
+      setObservationData({}); // Reset form
+      performFetchObservations(selectedHorse.id); // Refresh observations list
+    } catch (error) {
+      console.error("Error saving observation:", error);
+      let errorMessage = "Ocurrió un error al guardar la observación.";
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      toast({ variant: "destructive", title: "Error al Guardar", description: errorMessage });
+    } finally {
+      setIsSavingObservation(false);
     }
   };
 
@@ -449,9 +551,10 @@ const handleSaveSessionAndNavigate = async () => {
                                       {block.title}
                                       {block.notes && <span className="text-sm text-muted-foreground ml-2">- {block.notes}</span>}
                                       {block.duration && <span className="text-sm text-muted-foreground ml-2">- Duración: {block.duration}</span>}
+                                      {block.goal && <span className="text-sm text-primary font-semibold ml-2">- Meta: {block.goal}</span>}
                                     </AccordionTrigger>
                                     <AccordionContent>
-                                      {block.goal && (
+                                      {block.goal && !block.duration && !block.notes && ( // Only show meta here if not in trigger
                                         <p className="text-sm text-primary font-semibold mb-2">
                                           Meta: <span className="font-normal text-muted-foreground">{block.goal}</span>
                                         </p>
@@ -622,21 +725,89 @@ const handleSaveSessionAndNavigate = async () => {
                   </TabsContent>
 
                   <TabsContent value="observaciones">
-                    <Card className="my-4">
-                      <CardHeader>
-                        <CardTitle>Observaciones de Tensión</CardTitle>
-                        <CardDescription>Para {selectedHorse.name}</CardDescription>
-                      </CardHeader>
-                      <CardContent className="grid gap-4">
-                        <Label className="text-sm font-medium">Checklist de zonas (próximamente)</Label>
-                        <Label htmlFor="tension-notes" className="text-sm font-medium">Notas Adicionales</Label>
-                        <Input id="tension-notes" type="text" placeholder="Añade notas sobre tensión, comportamiento, etc." />
-                        <Button variant="outline">Añadir Foto (próximamente)</Button>
-                        <div className="flex justify-end mt-2">
-                          <Button>Guardar Observación</Button>
+                  <Card className="my-4">
+                    <CardHeader>
+                      <CardTitle>Registrar Observación de Tensión</CardTitle>
+                      <CardDescription>
+                        Para {selectedHorse.name} en {date ? date.toLocaleDateString("es-ES") : 'fecha no seleccionada'}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                        {OBSERVATION_ZONES.map(zone => (
+                          <div key={zone.id} className="space-y-1">
+                            <Label htmlFor={`obs-${zone.id}`}>{zone.label}</Label>
+                            <Select
+                              value={observationData[zone.id as keyof ObservationInput] || ''}
+                              onValueChange={(value) => handleObservationInputChange(zone.id as keyof ObservationInput, value)}
+                            >
+                              <SelectTrigger id={`obs-${zone.id}`}>
+                                <SelectValue placeholder={`Estado de ${zone.label.toLowerCase()}`} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {TENSION_STATUS_OPTIONS.map(option => (
+                                  <SelectItem key={option.value} value={option.value}>
+                                    {option.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label htmlFor="obs-overallBehavior">Comportamiento General</Label>
+                        <Textarea
+                          id="obs-overallBehavior"
+                          placeholder="Describe el comportamiento general del caballo..."
+                          value={observationData.overallBehavior || ''}
+                          onChange={(e) => handleObservationInputChange('overallBehavior', e.target.value)}
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label htmlFor="obs-additionalNotes">Notas Adicionales</Label>
+                        <Textarea
+                          id="obs-additionalNotes"
+                          placeholder="Añade cualquier otra observación relevante..."
+                          value={observationData.additionalNotes || ''}
+                          onChange={(e) => handleObservationInputChange('additionalNotes', e.target.value)}
+                        />
+                      </div>
+                      
+                      <Button variant="outline" disabled>Añadir Foto (próximamente)</Button>
+
+                      <div className="flex justify-end mt-2">
+                        <Button onClick={handleSaveObservation} disabled={isSavingObservation || !selectedHorse || !date}>
+                          {isSavingObservation && <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />}
+                          Guardar Observación
+                        </Button>
+                      </div>
+
+                      {/* Display recent observations - simple list for now */}
+                      {isLoadingObservations && <p>Cargando observaciones anteriores...</p>}
+                      {!isLoadingObservations && horseObservations.length > 0 && (
+                        <div className="mt-6 space-y-4">
+                          <h4 className="text-md font-semibold">Observaciones Anteriores:</h4>
+                          {horseObservations.slice(0, 3).map(obs => ( // Show last 3
+                            <Card key={obs.id} className="p-3 text-sm">
+                              <p className="font-medium">{obs.date.toDate().toLocaleDateString("es-ES")}</p>
+                              <ul className="list-disc list-inside text-muted-foreground">
+                                {OBSERVATION_ZONES.map(zone => {
+                                   const status = obs[zone.id as keyof Observation];
+                                   return status ? <li key={zone.id}>{zone.label}: {status}</li> : null;
+                                })}
+                                {obs.overallBehavior && <li>Comportamiento: {obs.overallBehavior}</li>}
+                                {obs.additionalNotes && <li>Notas: {obs.additionalNotes}</li>}
+                              </ul>
+                            </Card>
+                          ))}
                         </div>
-                      </CardContent>
-                    </Card>
+                      )}
+
+                    </CardContent>
+                  </Card>
                   </TabsContent>
                 </Tabs>
               </CardContent>

@@ -1,4 +1,3 @@
-
 import type { Timestamp } from 'firebase/firestore';
 
 export interface UserProfile {
@@ -77,6 +76,27 @@ export interface ExerciseResult {
     updatedAt?: Timestamp;
 }
 
+export interface Observation {
+  id: string; // Firestore document ID
+  horseId: string; // ID of the horse, for query or denormalization
+  userId: string; // ID of the user who made the observation
+  date: Timestamp; // Date of the observation
+  ears?: string; // Status/emoji/color for ears
+  eyes?: string;
+  neck?: string;
+  withers?: string; // Cruz
+  back?: string;
+  loins?: string; // Riñones
+  croup?: string; // Grupa
+  legs?: string; // Patas/Manos
+  hooves?: string; // Cascos
+  overallBehavior?: string; // General behavior notes
+  additionalNotes?: string; // Any other notes
+  photoUrl?: string; // Optional photo of the observation
+  createdAt: Timestamp;
+  updatedAt?: Timestamp;
+}
+
 // Input types for creating new documents
 export interface TrainingPlanInput {
   title: string;
@@ -115,3 +135,19 @@ export interface ExerciseResultInput {
     comment: string;
 }
 
+// Input type for creating new Observation
+export interface ObservationInput {
+  date: Timestamp;
+  ears?: string;
+  eyes?: string;
+  neck?: string;
+  withers?: string;
+  back?: string;
+  loins?: string;
+  croup?: string;
+  legs?: string;
+  hooves?: string;
+  overallBehavior?: string;
+  additionalNotes?: string;
+  photoUrl?: string;
+}
