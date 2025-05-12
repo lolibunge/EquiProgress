@@ -93,6 +93,10 @@ export async function addTrainingBlock(planId: string, blockData: TrainingBlockI
     newBlockData.duration = blockData.duration;
   }
 
+  if (blockData.goal !== undefined && blockData.goal.trim() !== "") {
+    newBlockData.goal = blockData.goal;
+  }
+
   try {
     const docRef = await addDoc(blockCollectionRef, newBlockData);
     console.log("Training block added with ID:", docRef.id);
@@ -168,7 +172,7 @@ export async function addExerciseToBlock(planId: string, blockId: string, exerci
   if (exerciseData.suggestedReps !== undefined && exerciseData.suggestedReps !== null && String(exerciseData.suggestedReps).trim() !== "") {
     dataToSave.suggestedReps = String(exerciseData.suggestedReps);
   } else {
-    dataToSave.suggestedReps = null; // Explicitly set to null if empty or undefined
+    dataToSave.suggestedReps = null; 
   }
 
 

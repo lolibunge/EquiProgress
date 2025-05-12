@@ -451,6 +451,11 @@ const handleSaveSessionAndNavigate = async () => {
                                       {block.duration && <span className="text-sm text-muted-foreground ml-2">- Duración: {block.duration}</span>}
                                     </AccordionTrigger>
                                     <AccordionContent>
+                                      {block.goal && (
+                                        <p className="text-sm text-primary font-semibold mb-2">
+                                          Meta: <span className="font-normal text-muted-foreground">{block.goal}</span>
+                                        </p>
+                                      )}
                                       {isLoadingExercises && !exercises.some(ex => ex.blockId === block.id && ex.planId === selectedPlan.id) ? <p>Cargando ejercicios...</p> : exercises.filter(ex => ex.blockId === block.id && ex.planId === selectedPlan.id).length > 0 ? (
                                         <ul className="list-disc pl-5 space-y-1 text-sm">
                                           {exercises

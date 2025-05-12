@@ -37,6 +37,7 @@ export interface TrainingBlock {
     title: string;
     notes?: string; // Subtitle or additional notes for the block
     duration?: string; // Optional duration for the block, e.g., "1 semana"
+    goal?: string; // Optional goal for the training block
     createdAt?: Timestamp;
     updatedAt?: Timestamp;
 }
@@ -87,6 +88,7 @@ export interface TrainingBlockInput {
   title: string;
   notes?: string;
   duration?: string;
+  goal?: string; // Optional goal for the training block
 }
 
 export interface ExerciseInput {
@@ -112,3 +114,4 @@ export interface ExerciseResultInput {
     rating: number;
     comment: string;
 }
+
