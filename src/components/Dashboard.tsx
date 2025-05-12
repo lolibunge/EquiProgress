@@ -1,3 +1,4 @@
+
 "use client";
 
 import { Timestamp } from "firebase/firestore";
@@ -73,7 +74,7 @@ const OBSERVATION_ZONES = [
   { id: 'croup', label: 'Grupa' },
   { id: 'legs', label: 'Patas/Manos' },
   { id: 'hooves', label: 'Cascos' },
-];
+] as const; // Use const assertion for stronger typing of 'id'
 
 
 const Dashboard = () => {
@@ -394,9 +395,10 @@ const handleSaveSessionAndNavigate = async () => {
     }
   };
 
-  const handleObservationInputChange = (field: keyof ObservationInput, value: string) => {
+  const handleObservationInputChange = (field: typeof OBSERVATION_ZONES[number]['id'] | 'overallBehavior' | 'additionalNotes' | 'photoUrl', value: string) => {
     setObservationData(prev => ({ ...prev, [field]: value }));
   };
+  
 
   const handleSaveObservation = async () => {
     if (!currentUser || !date || !selectedHorse || !selectedHorse.id) {
@@ -412,18 +414,18 @@ const handleSaveSessionAndNavigate = async () => {
     try {
       const fullObservationData: ObservationInput = {
         date: Timestamp.fromDate(date),
-        ears: observationData.ears,
-        eyes: observationData.eyes,
-        neck: observationData.neck,
-        withers: observationData.withers,
-        back: observationData.back,
-        loins: observationData.loins,
-        croup: observationData.croup,
-        legs: observationData.legs,
-        hooves: observationData.hooves,
-        overallBehavior: observationData.overallBehavior,
-        additionalNotes: observationData.additionalNotes,
-        // photoUrl will be handled later
+        ears: observationData.ears ?? null,
+        eyes: observationData.eyes ?? null,
+        neck: observationData.neck ?? null,
+        withers: observationData.withers ?? null,
+        back: observationData.back ?? null,
+        loins: observationData.loins ?? null,
+        croup: observationData.croup ?? null,
+        legs: observationData.legs ?? null,
+        hooves: observationData.hooves ?? null,
+        overallBehavior: observationData.overallBehavior ?? null,
+        additionalNotes: observationData.additionalNotes ?? null,
+        photoUrl: observationData.photoUrl ?? null,
       };
 
       await addObservation(selectedHorse.id, fullObservationData);
@@ -738,8 +740,8 @@ const handleSaveSessionAndNavigate = async () => {
                           <div key={zone.id} className="space-y-1">
                             <Label htmlFor={`obs-${zone.id}`}>{zone.label}</Label>
                             <Select
-                              value={observationData[zone.id as keyof ObservationInput] || ''}
-                              onValueChange={(value) => handleObservationInputChange(zone.id as keyof ObservationInput, value)}
+                              value={observationData[zone.id] || ''}
+                              onValueChange={(value) => handleObservationInputChange(zone.id, value)}
                             >
                               <SelectTrigger id={`obs-${zone.id}`}>
                                 <SelectValue placeholder={`Estado de ${zone.label.toLowerCase()}`} />
@@ -795,7 +797,7 @@ const handleSaveSessionAndNavigate = async () => {
                               <p className="font-medium">{obs.date.toDate().toLocaleDateString("es-ES")}</p>
                               <ul className="list-disc list-inside text-muted-foreground">
                                 {OBSERVATION_ZONES.map(zone => {
-                                   const status = obs[zone.id as keyof Observation];
+                                   const status = obs[zone.id as keyof Observation]; // Type assertion
                                    return status ? <li key={zone.id}>{zone.label}: {status}</li> : null;
                                 })}
                                 {obs.overallBehavior && <li>Comportamiento: {obs.overallBehavior}</li>}
