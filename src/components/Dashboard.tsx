@@ -1,4 +1,3 @@
-
 "use client";
 
 import { Timestamp } from "firebase/firestore";
@@ -51,7 +50,7 @@ import { addObservation, getObservationsByHorseId } from "@/services/observation
 } from "@/components/ui/dialog";
 import AddHorseForm from "./AddHorseForm";
 import AddPlanForm from "./AddPlanForm";
-import AddBlockForm from "./AddBlockForm"; // Renamed from AddStageForm to AddBlockForm, as 'block' is the data model term
+import AddBlockForm from "./AddBlockForm"; 
 import AddExerciseForm from "./AddExerciseForm";
 import { Icons } from "./icons";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -74,7 +73,7 @@ const OBSERVATION_ZONES = [
   { id: 'croup', label: 'Grupa' },
   { id: 'legs', label: 'Patas/Manos' },
   { id: 'hooves', label: 'Cascos' },
-] as const; // Use const assertion for stronger typing of 'id'
+] as const; 
 
 
 const Dashboard = () => {
@@ -90,22 +89,19 @@ const Dashboard = () => {
   const [isLoadingPlans, setIsLoadingPlans] = useState(true);
   const [selectedPlan, setSelectedPlan] = useState<TrainingPlan | null>(null);
   
-  const [blocks, setBlocks] = useState<TrainingBlock[]>([]); // 'blocks' for 'etapas'
+  const [blocks, setBlocks] = useState<TrainingBlock[]>([]); 
   const [isLoadingBlocks, setIsLoadingBlocks] = useState(false);
-  const [selectedBlock, setSelectedBlock] = useState<TrainingBlock | null>(null); // 'selectedBlock' for 'etapa seleccionada'
+  const [selectedBlock, setSelectedBlock] = useState<TrainingBlock | null>(null); 
   
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [isLoadingExercises, setIsLoadingExercises] = useState(false);
-  // const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null); // Not currently used for selection, but for listing
 
   const [date, setDate] = useState<Date | undefined>(new Date());
   
-  // State for new session registration
   const [sessionOverallNote, setSessionOverallNote] = useState("");
   const [sessionExerciseResults, setSessionExerciseResults] = useState<Map<string, Omit<ExerciseResultInput, 'exerciseId'>>>(new Map());
   const [isSavingSession, setIsSavingSession] = useState(false);
 
-  // State for new observation
   const [observationData, setObservationData] = useState<Partial<ObservationInput>>({});
   const [isSavingObservation, setIsSavingObservation] = useState(false);
   const [horseObservations, setHorseObservations] = useState<Observation[]>([]);
@@ -113,7 +109,7 @@ const Dashboard = () => {
 
 
   const [isCreatePlanDialogOpen, setIsCreatePlanDialogOpen] = useState(false);
-  const [isAddBlockDialogOpen, setIsAddBlockDialogOpen] = useState(false); // 'Block' here refers to 'Etapa'
+  const [isAddBlockDialogOpen, setIsAddBlockDialogOpen] = useState(false); 
   const [isAddExerciseDialogOpen, setIsAddExerciseDialogOpen] = useState(false);
   const [currentBlockIdForExercise, setCurrentBlockIdForExercise] = useState<string | null>(null);
 
@@ -124,10 +120,9 @@ const Dashboard = () => {
       const userHorses = await fetchHorsesService(uid);
       setHorses(userHorses);
       if (userHorses.length > 0 && !selectedHorse) {
-        // Optionally select the first horse if none is selected
-        // setSelectedHorse(userHorses[0]);
+        // setSelectedHorse(userHorses[0]); // Auto-select first horse removed as per previous updates
       } else if (userHorses.length === 0) {
-        setSelectedHorse(null); // Clear selected horse if no horses
+        setSelectedHorse(null); 
       }
     } catch (error) {
       console.error("Error fetching horses:", error);
@@ -169,7 +164,7 @@ const Dashboard = () => {
 
   const performFetchBlocks = useCallback(async (planId: string) => {
     if (!planId) {
-      setBlocks([]); // Use 'blocks' for 'etapas'
+      setBlocks([]); 
       setSelectedBlock(null); 
       return;
     }
@@ -178,7 +173,7 @@ const Dashboard = () => {
       const fetchedBlocks = await getTrainingBlocks(planId);
       setBlocks(fetchedBlocks);
       if (fetchedBlocks.length === 0) {
-        setSelectedBlock(null); // Clear selected block if no blocks for this plan
+        setSelectedBlock(null); 
       }
     } catch (error) {
       console.error(`Error fetching blocks for plan ${planId}:`, error);
@@ -196,11 +191,9 @@ const Dashboard = () => {
       setBlocks([]);
       setSelectedBlock(null); 
       setExercises([]); 
-      // setSelectedExercise(null); 
     }
   }, [selectedPlan, performFetchBlocks]);
 
-  // Fetch exercises for all blocks of the selected plan
    const performFetchExercisesForPlan = useCallback(async (planId: string) => {
     if (!planId) {
       setExercises([]);
@@ -208,7 +201,7 @@ const Dashboard = () => {
     }
     setIsLoadingExercises(true);
     try {
-      const planBlocks = await getTrainingBlocks(planId); // Re-fetch or use existing blocks state
+      const planBlocks = await getTrainingBlocks(planId); 
       let allExercisesForPlan: Exercise[] = [];
       for (const block of planBlocks) {
         const blockExercises = await getExercises(planId, block.id);
@@ -268,23 +261,20 @@ const Dashboard = () => {
   const handlePlanAdded = (newPlanId: string) => {
     setIsCreatePlanDialogOpen(false);
     performFetchPlans().then(() => {
-      // After fetching all plans, find the new one and select it
-      getTrainingPlans().then(refreshedPlans => { // Assuming getTrainingPlans is up-to-date
-        setTrainingPlans(refreshedPlans); // Update local state for dropdown
+      getTrainingPlans().then(refreshedPlans => { 
+        setTrainingPlans(refreshedPlans); 
         const newPlan = refreshedPlans.find(p => p.id === newPlanId);
         if (newPlan) {
-          setSelectedPlan(newPlan); // This will trigger fetching its blocks and exercises
+          setSelectedPlan(newPlan); 
         }
       });
     });
   };
 
-  const handleBlockAdded = (newBlockId: string) => { // newBlockId is the ID of the added 'etapa'
+  const handleBlockAdded = (newBlockId: string) => { 
     setIsAddBlockDialogOpen(false);
     if (selectedPlan) {
       performFetchBlocks(selectedPlan.id).then(() => {
-        // The 'blocks' state will be updated, and UI should reflect this.
-        // If needed, find and select the new block, but usually just refreshing the list is enough.
       });
     }
   };
@@ -292,10 +282,9 @@ const Dashboard = () => {
   const handleExerciseAdded = (newExerciseId: string) => {
     setIsAddExerciseDialogOpen(false);
     if (selectedPlan && currentBlockIdForExercise) {
-      // Re-fetch exercises for the specific block or the whole plan
       performFetchExercisesForPlan(selectedPlan.id);
     }
-    setCurrentBlockIdForExercise(null); // Reset after adding
+    setCurrentBlockIdForExercise(null); 
   };
   
   const openAddExerciseDialog = (blockId: string) => {
@@ -310,7 +299,7 @@ const Dashboard = () => {
         const currentExercise = newMap.get(exerciseId) || { doneReps: 0, rating: 3, comment: "", plannedReps: "" };
         
         if (field === 'doneReps' || field === 'rating') {
-            (currentExercise as any)[field] = Number(value); // Use 'any' carefully or improve typing
+            (currentExercise as any)[field] = Number(value); 
         } else {
             (currentExercise as any)[field] = String(value);
         }
@@ -329,7 +318,7 @@ const handleSaveSessionAndNavigate = async () => {
       return;
     }
 
-    const exercisesInSelectedBlock = exercises.filter(ex => ex.blockId === selectedBlock.id);
+    const exercisesInSelectedBlock = exercises.filter(ex => ex.blockId === selectedBlock.id && selectedPlan && ex.planId === selectedPlan.id);
     if (exercisesInSelectedBlock.length === 0) {
         toast({
             variant: "destructive",
@@ -345,27 +334,25 @@ const handleSaveSessionAndNavigate = async () => {
       const sessionInput: SessionDataInput = {
         horseId: selectedHorse.id,
         date: Timestamp.fromDate(date),
-        blockId: selectedBlock.id, // Save the ID of the selected 'etapa'
+        blockId: selectedBlock.id, 
         overallNote: sessionOverallNote,
       };
       
-      const sessionId = await createSession(selectedHorse.id, sessionInput);
+      const sessionId = await createSession(sessionInput);
 
       if (sessionId) {
         const exerciseResultsToSave: ExerciseResultInput[] = [];
         sessionExerciseResults.forEach((result, exerciseId) => {
-            // Ensure we have the original exercise details to get plannedReps if not overridden
             const exerciseDetails = exercises.find(ex => ex.id === exerciseId);
             exerciseResultsToSave.push({
                 exerciseId: exerciseId,
-                plannedReps: result.plannedReps ?? exerciseDetails?.suggestedReps ?? '', // Fallback to exercise's suggestedReps
+                plannedReps: result.plannedReps ?? exerciseDetails?.suggestedReps ?? '', 
                 doneReps: result.doneReps,
                 rating: result.rating,
                 comment: result.comment,
             });
         });
 
-        // Save all exercise results
         if (exerciseResultsToSave.length > 0) {
              for (const resultInput of exerciseResultsToSave) {
                 await addExerciseResult(selectedHorse.id, sessionId, resultInput);
@@ -373,12 +360,9 @@ const handleSaveSessionAndNavigate = async () => {
         }
         
         toast({ title: "Sesión Guardada", description: "La sesión y los resultados de los ejercicios han sido registrados." });
-        // Reset form states
         setSessionOverallNote("");
         setSessionExerciseResults(new Map());
-        // setSelectedBlock(null); // Optionally reset selected block
 
-        // Navigate to the session detail page
         router.push(`/session/${sessionId}?horseId=${selectedHorse.id}`); 
       } else {
         toast({ variant: "destructive", title: "Error", description: "No se pudo crear la sesión." });
@@ -386,7 +370,7 @@ const handleSaveSessionAndNavigate = async () => {
     } catch (error) {
       console.error("Error saving session:", error);
       let errorMessage = "Ocurrió un error al guardar la sesión.";
-      if (error instanceof Error) { // More specific error handling
+      if (error instanceof Error) { 
         errorMessage = error.message;
       }
       toast({ variant: "destructive", title: "Error al Guardar", description: errorMessage });
@@ -430,8 +414,8 @@ const handleSaveSessionAndNavigate = async () => {
 
       await addObservation(selectedHorse.id, fullObservationData);
       toast({ title: "Observación Guardada", description: "La observación ha sido registrada exitosamente." });
-      setObservationData({}); // Reset form
-      performFetchObservations(selectedHorse.id); // Refresh observations list
+      setObservationData({}); 
+      performFetchObservations(selectedHorse.id); 
     } catch (error) {
       console.error("Error saving observation:", error);
       let errorMessage = "Ocurrió un error al guardar la observación.";
@@ -449,7 +433,6 @@ const handleSaveSessionAndNavigate = async () => {
     <div className="container py-10">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
 
-        {/* Columna Izquierda: Selección Caballo y Detalles/Plan */}
         <div className="md:col-span-2 space-y-6">
           <Card>
             <CardHeader>
@@ -547,7 +530,7 @@ const handleSaveSessionAndNavigate = async () => {
                            <>
                             {isLoadingBlocks ? <p>Cargando etapas...</p> : blocks.length > 0 ? (
                                <Accordion type="multiple" className="w-full">
-                                {blocks.map((block) => ( // 'block' here represents an 'etapa'
+                                {blocks.map((block) => ( 
                                   <AccordionItem value={block.id} key={block.id}>
                                     <AccordionTrigger>
                                       {block.title}
@@ -556,7 +539,7 @@ const handleSaveSessionAndNavigate = async () => {
                                       {block.goal && <span className="text-sm text-primary font-semibold ml-2">- Meta: {block.goal}</span>}
                                     </AccordionTrigger>
                                     <AccordionContent>
-                                      {block.goal && !block.duration && !block.notes && ( // Only show meta here if not in trigger
+                                      {block.goal && !block.duration && !block.notes && ( 
                                         <p className="text-sm text-primary font-semibold mb-2">
                                           Meta: <span className="font-normal text-muted-foreground">{block.goal}</span>
                                         </p>
@@ -589,7 +572,7 @@ const handleSaveSessionAndNavigate = async () => {
                             )}
                             <div className="flex flex-wrap justify-end mt-4 gap-2">
                                 <Button onClick={() => setIsAddBlockDialogOpen(true)} disabled={!selectedPlan || isLoadingBlocks}>
-                                    <Icons.plus className="mr-2 h-4 w-4" /> Añadir Etapa {/* Changed from 'Añadir Bloque' to 'Añadir Etapa' */}
+                                    <Icons.plus className="mr-2 h-4 w-4" /> Añadir Etapa 
                                 </Button>
                                 <Button variant="outline" disabled={!selectedPlan}>Editar Plan</Button>
                                 <Button variant="outline" disabled={!selectedPlan}>Clonar Plan</Button>
@@ -609,11 +592,9 @@ const handleSaveSessionAndNavigate = async () => {
                         <CardDescription>Para {selectedHorse.name} en {date ? date.toLocaleDateString("es-ES") : 'fecha no seleccionada'}</CardDescription>
                       </CardHeader>
                       <CardContent className="grid gap-4">
-                        {/* Dropdown to select a Block (Etapa) for the session */}
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="outline" className="w-full justify-start" disabled={!selectedPlan || blocks.length === 0}>
-                              {/* Check if selectedBlock is valid within current blocks */}
                               {(selectedBlock && blocks.some(b => b.id === selectedBlock.id)) ? selectedBlock.title : "Seleccionar Etapa"}
                               <Icons.chevronDown className="ml-auto h-4 w-4" />
                             </Button>
@@ -624,10 +605,10 @@ const handleSaveSessionAndNavigate = async () => {
                             {isLoadingBlocks ? (
                                 <DropdownMenuItem disabled>Cargando etapas...</DropdownMenuItem>
                             ) : blocks.length > 0 ? (
-                              blocks.map((block) => ( // 'block' is an 'etapa'
+                              blocks.map((block) => ( 
                                   <DropdownMenuItem key={block.id} onSelect={() => {
                                     setSelectedBlock(block);
-                                    setSessionExerciseResults(new Map()); // Reset results when block changes
+                                    setSessionExerciseResults(new Map()); 
                                   }}>
                                       {block.title}
                                       {block.notes && <span className="text-xs text-muted-foreground ml-1">({block.notes})</span>}
@@ -649,11 +630,10 @@ const handleSaveSessionAndNavigate = async () => {
                                 onChange={(e) => setSessionOverallNote(e.target.value)}
                             />
 
-                            {/* List exercises of the selected block for session input */}
-                            {isLoadingExercises && exercises.filter(ex => ex.blockId === selectedBlock.id && ex.planId === selectedPlan?.id).length === 0 ? (
+                            {isLoadingExercises && exercises.filter(ex => ex.blockId === selectedBlock.id && selectedPlan && ex.planId === selectedPlan.id).length === 0 ? (
                                 <p>Cargando ejercicios...</p>
-                            ) : exercises.filter(ex => ex.blockId === selectedBlock.id && ex.planId === selectedPlan?.id).length > 0 ? (
-                                exercises.filter(ex => ex.blockId === selectedBlock.id && ex.planId === selectedPlan?.id).map(exercise => {
+                            ) : exercises.filter(ex => ex.blockId === selectedBlock.id && selectedPlan && ex.planId === selectedPlan.id).length > 0 ? (
+                                exercises.filter(ex => ex.blockId === selectedBlock.id && selectedPlan && ex.planId === selectedPlan.id).map(exercise => {
                                     const currentResult = sessionExerciseResults.get(exercise.id) || { doneReps: 0, rating: 3, comment: "", plannedReps: exercise.suggestedReps ?? "" };
                                     return (
                                         <Card key={exercise.id} className="p-4">
@@ -677,7 +657,7 @@ const handleSaveSessionAndNavigate = async () => {
                                                         id={`doneReps-${exercise.id}`}
                                                         type="number"
                                                         placeholder="Ej: 8"
-                                                        value={String(currentResult.doneReps)} // Ensure value is string for input
+                                                        value={String(currentResult.doneReps)} 
                                                         onChange={(e) => handleSessionExerciseInputChange(exercise.id, 'doneReps', e.target.value)}
                                                     />
                                                 </div>
@@ -716,7 +696,7 @@ const handleSaveSessionAndNavigate = async () => {
                         <div className="flex justify-end mt-2">
                           <Button 
                             onClick={handleSaveSessionAndNavigate}
-                            disabled={isSavingSession || !date || !selectedHorse || !selectedBlock || (selectedBlock && exercises.filter(ex => ex.blockId === selectedBlock.id && ex.planId === selectedPlan?.id).length === 0) }
+                            disabled={isSavingSession || !date || !selectedHorse || !selectedBlock || (selectedBlock && selectedPlan && exercises.filter(ex => ex.blockId === selectedBlock.id && ex.planId === selectedPlan.id).length === 0) }
                           >
                             {isSavingSession && <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />}
                             Guardar Sesión e Ir a Detalles
@@ -787,17 +767,16 @@ const handleSaveSessionAndNavigate = async () => {
                         </Button>
                       </div>
 
-                      {/* Display recent observations - simple list for now */}
                       {isLoadingObservations && <p>Cargando observaciones anteriores...</p>}
                       {!isLoadingObservations && horseObservations.length > 0 && (
                         <div className="mt-6 space-y-4">
                           <h4 className="text-md font-semibold">Observaciones Anteriores:</h4>
-                          {horseObservations.slice(0, 3).map(obs => ( // Show last 3
+                          {horseObservations.slice(0, 3).map(obs => ( 
                             <Card key={obs.id} className="p-3 text-sm">
                               <p className="font-medium">{obs.date.toDate().toLocaleDateString("es-ES")}</p>
                               <ul className="list-disc list-inside text-muted-foreground">
                                 {OBSERVATION_ZONES.map(zone => {
-                                   const status = obs[zone.id as keyof Observation]; // Type assertion
+                                   const status = obs[zone.id as keyof Observation]; 
                                    return status ? <li key={zone.id}>{zone.label}: {status}</li> : null;
                                 })}
                                 {obs.overallBehavior && <li>Comportamiento: {obs.overallBehavior}</li>}
@@ -824,7 +803,6 @@ const handleSaveSessionAndNavigate = async () => {
           )}
         </div>
         
-        {/* Columna Derecha: Calendario */}
         <Card className="col-span-1 md:col-span-1">
           <CardHeader>
             <CardTitle>Calendario</CardTitle>
@@ -856,7 +834,6 @@ const handleSaveSessionAndNavigate = async () => {
         </Card>
       </div>
 
-      {/* Dialogs for adding entities */}
       <Dialog open={isAddHorseDialogOpen} onOpenChange={setIsAddHorseDialogOpen}>
         <DialogContent className="sm:max-w-[480px]">
           <DialogHeader>
@@ -885,7 +862,7 @@ const handleSaveSessionAndNavigate = async () => {
       <Dialog open={isAddBlockDialogOpen} onOpenChange={setIsAddBlockDialogOpen}>
         <DialogContent className="sm:max-w-[480px]">
           <DialogHeader>
-            <DialogTitle>Añadir Nueva Etapa al Plan</DialogTitle> {/* Changed "Bloque" to "Etapa" */}
+            <DialogTitle>Añadir Nueva Etapa al Plan</DialogTitle> 
             <DialogDescription>Añade una etapa a "{selectedPlan?.title}".</DialogDescription>
           </DialogHeader>
           {selectedPlan && (
@@ -913,7 +890,7 @@ const handleSaveSessionAndNavigate = async () => {
               onSuccess={handleExerciseAdded} 
               onCancel={() => {
                 setIsAddExerciseDialogOpen(false);
-                setCurrentBlockIdForExercise(null); // Clear current block ID on cancel
+                setCurrentBlockIdForExercise(null); 
               }} 
             />
           )}
