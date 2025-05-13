@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useState, Suspense } from 'react';
-import { useParams, useSearchParams } from 'next/navigation';
+import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { getSession, getExerciseResults } from '@/services/session';
@@ -23,6 +23,7 @@ interface ExerciseResultWithDetails extends ExerciseResult {
 function SessionDetailContent() {
   const params = useParams();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const { currentUser } = useAuth();
 
   const sessionId = params.sessionId as string;
@@ -101,8 +102,8 @@ function SessionDetailContent() {
           <AlertTitle>Error</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
-        <Button asChild className="mt-4">
-          <Link href="/">Volver al Dashboard</Link>
+        <Button onClick={() => router.back()} className="mt-4">
+          <Icons.arrowRight className="mr-2 h-4 w-4 rotate-180" /> Volver
         </Button>
       </div>
     );
@@ -112,8 +113,8 @@ function SessionDetailContent() {
     return (
       <div className="container py-10 text-center">
         <p>No se encontró la sesión.</p>
-        <Button asChild className="mt-4">
-          <Link href="/">Volver al Dashboard</Link>
+        <Button onClick={() => router.back()} className="mt-4">
+           <Icons.arrowRight className="mr-2 h-4 w-4 rotate-180" /> Volver
         </Button>
       </div>
     );
@@ -168,8 +169,8 @@ function SessionDetailContent() {
           )}
 
           <div className="mt-8 flex justify-center">
-            <Button asChild variant="outline">
-              <Link href="/">Volver al Dashboard</Link>
+            <Button onClick={() => router.back()} variant="outline">
+              <Icons.arrowRight className="mr-2 h-4 w-4 rotate-180" /> Volver
             </Button>
           </div>
         </CardContent>

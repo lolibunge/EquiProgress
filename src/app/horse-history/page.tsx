@@ -7,9 +7,11 @@ import { Icons } from "@/components/icons";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 export default function HorseHistoryPage() {
   const { currentUser, loading } = useAuth();
+  const router = useRouter();
 
   if (loading) {
     return (
@@ -29,9 +31,12 @@ export default function HorseHistoryPage() {
               Debes iniciar sesión para ver el historial de sesiones.
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex flex-col items-center gap-4">
             <Button asChild>
               <Link href="/login">Iniciar Sesión</Link>
+            </Button>
+            <Button variant="outline" onClick={() => router.back()}>
+              Volver
             </Button>
           </CardContent>
         </Card>
@@ -39,5 +44,14 @@ export default function HorseHistoryPage() {
     );
   }
 
-  return <HorseHistory />;
+  return (
+    <div className="container py-10">
+      <HorseHistory />
+      <div className="mt-8 flex justify-center">
+        <Button variant="outline" onClick={() => router.back()}>
+          <Icons.arrowRight className="mr-2 h-4 w-4 rotate-180" /> Volver
+        </Button>
+      </div>
+    </div>
+  );
 }
