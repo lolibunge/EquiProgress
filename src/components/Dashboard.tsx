@@ -100,7 +100,7 @@ const Dashboard = () => {
   const [date, setDate] = useState<Date | undefined>(new Date());
 
   const [sessionOverallNote, setSessionOverallNote] = useState("");
-  const [sessionExerciseResults, setSessionExerciseResults] = useState<Map<string, Omit<ExerciseResultInput, 'exerciseId'>>>(new Map());
+  const [sessionExerciseResults, setSessionExerciseResults] = useState<Map<string, Omit<ExerciseResultInput, 'exerciseId' | 'observations'>>>(new Map());
   const [isSavingSession, setIsSavingSession] = useState(false);
 
   const [observationData, setObservationData] = useState<Partial<ObservationInput>>({});
@@ -279,6 +279,7 @@ const Dashboard = () => {
         const newPlan = refreshedPlans.find(p => p.id === newPlanId);
         if (newPlan) {
           setSelectedPlan(newPlan);
+          console.log('[Dashboard] New plan added and selected:', newPlan);
         }
       });
     });
@@ -309,7 +310,7 @@ const Dashboard = () => {
   };
 
 
-  const handleSessionExerciseInputChange = (exerciseId: string, field: keyof Omit<ExerciseResultInput, 'exerciseId'>, value: string | number) => {
+  const handleSessionExerciseInputChange = (exerciseId: string, field: keyof Omit<ExerciseResultInput, 'exerciseId' | 'observations'>, value: string | number) => {
     setSessionExerciseResults(prev => {
         const newMap = new Map(prev);
         const currentExercise = newMap.get(exerciseId) || { doneReps: 0, rating: 3, comment: "", plannedReps: "" };
@@ -325,16 +326,15 @@ const Dashboard = () => {
   };
 
 const handleSaveSessionAndNavigate = async () => {
-    if (!currentUser || !date || !selectedHorse || !selectedHorse.id || !selectedBlock || !selectedBlock.id ) {
+    if (!currentUser || !date || !selectedHorse || !selectedHorse.id ) {
       toast({
         variant: "destructive",
         title: "Error de Validación",
-        description: "Por favor, asegúrate de que la fecha, el caballo y la etapa estén seleccionados.",
+        description: "Por favor, asegúrate de que la fecha y el caballo estén seleccionados.",
       });
       return;
     }
-
-    if (!selectedPlan) {
+     if (!selectedPlan) {
         toast({
             variant: "destructive",
             title: "Error de Validación",
@@ -342,6 +342,15 @@ const handleSaveSessionAndNavigate = async () => {
         });
         return;
     }
+    if (!selectedBlock || !selectedBlock.id) {
+        toast({
+            variant: "destructive",
+            title: "Error de Validación",
+            description: "Por favor, selecciona una etapa.",
+        });
+        return;
+    }
+
 
     const exercisesInSelectedBlock = exercises.filter(ex => ex.blockId === selectedBlock.id && selectedPlan && ex.planId === selectedPlan.id);
     if (exercisesInSelectedBlock.length === 0) {
@@ -359,7 +368,7 @@ const handleSaveSessionAndNavigate = async () => {
       const sessionInput: SessionDataInput = {
         horseId: selectedHorse.id,
         date: Timestamp.fromDate(date),
-        blockId: selectedBlock.id,
+        blockId: selectedBlock.id, // This is now guaranteed to be non-null
         overallNote: sessionOverallNote,
       };
 
@@ -372,15 +381,20 @@ const handleSaveSessionAndNavigate = async () => {
         exercisesInSelectedBlock.forEach(exercise => {
             const resultData = sessionExerciseResults.get(exercise.id);
             // If there's data for this exercise or we want to save a default entry
-            if (resultData || exercise) { // exercise always true here due to loop
-                 exerciseResultsToSave.push({
-                    exerciseId: exercise.id,
-                    plannedReps: resultData?.plannedReps ?? exercise?.suggestedReps ?? '',
-                    doneReps: resultData?.doneReps ?? 0,
-                    rating: resultData?.rating ?? 3, // Default rating
-                    comment: resultData?.comment ?? "",
-                });
-            }
+            // if (resultData || exercise) { // exercise always true here due to loop // Old logic, removed
+            // Ensure plannedReps and doneReps are correctly typed
+            const plannedRepsValue = resultData?.plannedReps ?? exercise?.suggestedReps ?? '';
+            const doneRepsValue = resultData?.doneReps ?? 0;
+
+            exerciseResultsToSave.push({
+                exerciseId: exercise.id,
+                plannedReps: String(plannedRepsValue), // Ensure it's a string
+                doneReps: Number(doneRepsValue),       // Ensure it's a number
+                rating: resultData?.rating ?? 3, // Default rating
+                comment: resultData?.comment ?? "",
+                // observations are not handled here, they are on session detail page
+            });
+            // }
         });
 
 
@@ -445,8 +459,8 @@ const handleSaveSessionAndNavigate = async () => {
 
       await addObservation(selectedHorse.id, fullObservationData);
       toast({ title: "Observación Guardada", description: "La observación ha sido registrada exitosamente." });
-      setObservationData({});
-      performFetchObservations(selectedHorse.id);
+      setObservationData({}); // Clear form
+      if (selectedHorse) performFetchObservations(selectedHorse.id); // Refresh observations list
     } catch (error) {
       console.error("Error saving observation:", error);
       let errorMessage = "Ocurrió un error al guardar la observación.";
@@ -513,10 +527,11 @@ const handleSaveSessionAndNavigate = async () => {
               </CardHeader>
               <CardContent>
                 <Tabs defaultValue="plan" className="w-full">
-                  <TabsList className="grid w-full grid-cols-3">
+                   <TabsList className="grid w-full grid-cols-4"> {/* Updated to 4 cols */}
                     <TabsTrigger value="plan">Plan</TabsTrigger>
                     <TabsTrigger value="sesiones">Sesiones</TabsTrigger>
                     <TabsTrigger value="observaciones">Observaciones</TabsTrigger>
+                    <TabsTrigger value="historial">Historial</TabsTrigger> {/* New Tab */}
                   </TabsList>
 
                   <TabsContent value="plan">
@@ -540,7 +555,10 @@ const handleSaveSessionAndNavigate = async () => {
                                     trainingPlans.map((plan) => (
                                     <DropdownMenuItem
                                         key={plan.id}
-                                        onSelect={() => setSelectedPlan(plan)}
+                                        onSelect={() => {
+                                            console.log('[Dashboard] Plan selected in UI:', plan);
+                                            setSelectedPlan(plan);
+                                        }}
                                     >
                                         {plan.title} {plan.template && "(Plantilla)"}
                                     </DropdownMenuItem>
@@ -561,7 +579,7 @@ const handleSaveSessionAndNavigate = async () => {
                            <>
                             {isLoadingBlocks ? <p>Cargando etapas...</p> : blocks.length > 0 ? (
                                <Accordion type="multiple" className="w-full">
-                                {blocks.map((block) => (
+                                {blocks.map((block) => ( // 'block' here represents an 'etapa'
                                   <AccordionItem value={block.id} key={block.id}>
                                     <AccordionTrigger>
                                       {block.title}
@@ -640,9 +658,9 @@ const handleSaveSessionAndNavigate = async () => {
                             {isLoadingBlocks ? (
                                 <DropdownMenuItem disabled>Cargando etapas...</DropdownMenuItem>
                             ) : blocks.length > 0 ? (
-                              blocks.map((block) => (
+                              blocks.map((block) => ( // 'block' here represents an 'etapa'
                                   <DropdownMenuItem key={block.id} onSelect={() => {
-                                    setSelectedBlock(block);
+                                    setSelectedBlock(block); // 'block' is an 'etapa'
                                     setSessionExerciseResults(new Map());
                                   }}>
                                       {block.title}
@@ -655,7 +673,7 @@ const handleSaveSessionAndNavigate = async () => {
                           </DropdownMenuContent>
                         </DropdownMenu>
 
-                        {selectedBlock && (
+                        {selectedBlock && ( // 'selectedBlock' is the selected 'etapa'
                             <>
                             <Label htmlFor="session-overall-note">Notas Generales de la Sesión</Label>
                             <Textarea
@@ -825,6 +843,9 @@ const handleSaveSessionAndNavigate = async () => {
                     </CardContent>
                   </Card>
                   </TabsContent>
+                   <TabsContent value="historial">
+                     <HorseHistory />
+                   </TabsContent>
                 </Tabs>
               </CardContent>
             </Card>
@@ -937,5 +958,6 @@ const handleSaveSessionAndNavigate = async () => {
 };
 
 export default Dashboard;
+
 
 
