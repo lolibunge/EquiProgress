@@ -1,3 +1,4 @@
+
 "use client";
 
 import { Timestamp } from "firebase/firestore";
@@ -200,14 +201,19 @@ const Dashboard = () => {
       return;
     }
     setIsLoadingExercises(true);
+    console.log(`Starting to fetch exercises for plan: ${planId}`);
     try {
       const planBlocks = await getTrainingBlocks(planId); 
+      console.log(`For plan ${planId}, found blocks:`, planBlocks.map(b => ({id: b.id, title: b.title})));
       let allExercisesForPlan: Exercise[] = [];
       for (const block of planBlocks) {
+        console.log(`Fetching exercises for block: ${block.id} (${block.title}) of plan ${planId}`);
         const blockExercises = await getExercises(planId, block.id);
+        console.log(`Found ${blockExercises.length} exercises for block ${block.id}:`, blockExercises.map(e => ({id: e.id, title: e.title})));
         allExercisesForPlan = [...allExercisesForPlan, ...blockExercises];
       }
       setExercises(allExercisesForPlan);
+      console.log(`Total exercises set for plan ${planId}: ${allExercisesForPlan.length}`);
     } catch (error) {
       console.error(`Error fetching all exercises for plan ${planId}:`, error);
       toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar todos los ejercicios del plan." });
@@ -275,6 +281,8 @@ const Dashboard = () => {
     setIsAddBlockDialogOpen(false);
     if (selectedPlan) {
       performFetchBlocks(selectedPlan.id).then(() => {
+         // After blocks are fetched, re-fetch exercises for the plan to include new block's potential exercises (though unlikely just after adding a block)
+        performFetchExercisesForPlan(selectedPlan.id);
       });
     }
   };
@@ -282,6 +290,7 @@ const Dashboard = () => {
   const handleExerciseAdded = (newExerciseId: string) => {
     setIsAddExerciseDialogOpen(false);
     if (selectedPlan && currentBlockIdForExercise) {
+      // Re-fetch all exercises for the plan, as a new one was added to one of its blocks
       performFetchExercisesForPlan(selectedPlan.id);
     }
     setCurrentBlockIdForExercise(null); 
@@ -309,13 +318,22 @@ const Dashboard = () => {
   };
 
 const handleSaveSessionAndNavigate = async () => {
-    if (!currentUser || !date || !selectedHorse || !selectedHorse.id || !selectedBlock || !selectedBlock.id) {
+    if (!currentUser || !date || !selectedHorse || !selectedHorse.id || !selectedBlock || !selectedBlock.id ) {
       toast({
         variant: "destructive",
         title: "Error de Validación",
         description: "Por favor, asegúrate de que la fecha, el caballo y la etapa estén seleccionados.",
       });
       return;
+    }
+    
+    if (!selectedPlan) {
+        toast({
+            variant: "destructive",
+            title: "Error de Validación",
+            description: "Por favor, selecciona un plan de entrenamiento.",
+        });
+        return;
     }
 
     const exercisesInSelectedBlock = exercises.filter(ex => ex.blockId === selectedBlock.id && selectedPlan && ex.planId === selectedPlan.id);
@@ -342,16 +360,22 @@ const handleSaveSessionAndNavigate = async () => {
 
       if (sessionId) {
         const exerciseResultsToSave: ExerciseResultInput[] = [];
-        sessionExerciseResults.forEach((result, exerciseId) => {
-            const exerciseDetails = exercises.find(ex => ex.id === exerciseId);
-            exerciseResultsToSave.push({
-                exerciseId: exerciseId,
-                plannedReps: result.plannedReps ?? exerciseDetails?.suggestedReps ?? '', 
-                doneReps: result.doneReps,
-                rating: result.rating,
-                comment: result.comment,
-            });
+        
+        // Ensure results are only saved for exercises actually in the selected block of the selected plan
+        exercisesInSelectedBlock.forEach(exercise => {
+            const resultData = sessionExerciseResults.get(exercise.id);
+            // If there's data for this exercise or we want to save a default entry
+            if (resultData || exercise) { // exercise always true here due to loop
+                 exerciseResultsToSave.push({
+                    exerciseId: exercise.id,
+                    plannedReps: resultData?.plannedReps ?? exercise?.suggestedReps ?? '', 
+                    doneReps: resultData?.doneReps ?? 0,
+                    rating: resultData?.rating ?? 3, // Default rating
+                    comment: resultData?.comment ?? "",
+                });
+            }
         });
+
 
         if (exerciseResultsToSave.length > 0) {
              for (const resultInput of exerciseResultsToSave) {
@@ -398,18 +422,18 @@ const handleSaveSessionAndNavigate = async () => {
     try {
       const fullObservationData: ObservationInput = {
         date: Timestamp.fromDate(date),
-        ears: observationData.ears ?? null,
-        eyes: observationData.eyes ?? null,
-        neck: observationData.neck ?? null,
-        withers: observationData.withers ?? null,
-        back: observationData.back ?? null,
-        loins: observationData.loins ?? null,
-        croup: observationData.croup ?? null,
-        legs: observationData.legs ?? null,
-        hooves: observationData.hooves ?? null,
-        overallBehavior: observationData.overallBehavior ?? null,
-        additionalNotes: observationData.additionalNotes ?? null,
-        photoUrl: observationData.photoUrl ?? null,
+        ears: observationData.ears === '' ? null : observationData.ears ?? null,
+        eyes: observationData.eyes === '' ? null : observationData.eyes ?? null,
+        neck: observationData.neck === '' ? null : observationData.neck ?? null,
+        withers: observationData.withers === '' ? null : observationData.withers ?? null,
+        back: observationData.back === '' ? null : observationData.back ?? null,
+        loins: observationData.loins === '' ? null : observationData.loins ?? null,
+        croup: observationData.croup === '' ? null : observationData.croup ?? null,
+        legs: observationData.legs === '' ? null : observationData.legs ?? null,
+        hooves: observationData.hooves === '' ? null : observationData.hooves ?? null,
+        overallBehavior: observationData.overallBehavior === '' ? null : observationData.overallBehavior ?? null,
+        additionalNotes: observationData.additionalNotes === '' ? null : observationData.additionalNotes ?? null,
+        photoUrl: observationData.photoUrl === '' ? null : observationData.photoUrl ?? null,
       };
 
       await addObservation(selectedHorse.id, fullObservationData);
@@ -536,10 +560,9 @@ const handleSaveSessionAndNavigate = async () => {
                                       {block.title}
                                       {block.notes && <span className="text-sm text-muted-foreground ml-2">- {block.notes}</span>}
                                       {block.duration && <span className="text-sm text-muted-foreground ml-2">- Duración: {block.duration}</span>}
-                                      {block.goal && <span className="text-sm text-primary font-semibold ml-2">- Meta: {block.goal}</span>}
                                     </AccordionTrigger>
                                     <AccordionContent>
-                                      {block.goal && !block.duration && !block.notes && ( 
+                                      {block.goal && ( 
                                         <p className="text-sm text-primary font-semibold mb-2">
                                           Meta: <span className="font-normal text-muted-foreground">{block.goal}</span>
                                         </p>
@@ -647,7 +670,7 @@ const handleSaveSessionAndNavigate = async () => {
                                                         id={`plannedReps-${exercise.id}`}
                                                         type="text"
                                                         placeholder="Ej: 10 o 'Hasta lograr X'"
-                                                        value={currentResult.plannedReps}
+                                                        value={currentResult.plannedReps ?? ''}
                                                         onChange={(e) => handleSessionExerciseInputChange(exercise.id, 'plannedReps', e.target.value)}
                                                     />
                                                 </div>

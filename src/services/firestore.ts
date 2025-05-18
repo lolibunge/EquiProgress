@@ -111,9 +111,6 @@ export async function getExercises(planId: string, blockId: string): Promise<Exe
   console.log(`Fetching exercises for plan: ${planId}, block: ${blockId}`);
   try {
     const exercisesRef = collection(db, "exercises");
-    // Temporarily changed orderBy to "createdAt" to ensure old exercises without "order" field are shown.
-    // For drag-and-drop, this should ideally be orderBy("order", "asc").
-    // Ensure an index exists for planId, blockId, createdAt ASC.
     const q = query(
       exercisesRef,
       where("planId", "==", planId),
@@ -126,6 +123,7 @@ export async function getExercises(planId: string, blockId: string): Promise<Exe
     querySnapshot.forEach((doc) => {
       exercises.push({ id: doc.id, ...doc.data() } as Exercise);
     });
+    console.log(`Found ${exercises.length} exercises for plan ${planId}, block ${blockId}`);
     return exercises;
   } catch (error) {
     console.error(`Error fetching exercises for plan ${planId}, block ${blockId}:`, error);
@@ -189,11 +187,10 @@ export async function addExerciseToBlock(planId: string, blockId: string, exerci
     dataToSave.objective = exerciseData.objective;
   }
 
-  // Ensure suggestedReps is saved as string or null, not undefined.
   if (exerciseData.suggestedReps !== undefined && exerciseData.suggestedReps !== null && String(exerciseData.suggestedReps).trim() !== "") {
     dataToSave.suggestedReps = String(exerciseData.suggestedReps);
   } else {
-    dataToSave.suggestedReps = null; // Save as null if empty or undefined
+    dataToSave.suggestedReps = null; 
   }
 
 
