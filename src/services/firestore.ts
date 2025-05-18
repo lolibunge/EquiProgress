@@ -1,5 +1,5 @@
 
-import { collection, getDocs, query, where, addDoc, serverTimestamp, Timestamp, doc, getDoc, orderBy, limit } from "firebase/firestore";
+import { collection, getDocs, query, where, addDoc, serverTimestamp, Timestamp, doc, getDoc, orderBy, limit, writeBatch } from "firebase/firestore";
 import { db } from "@/firebase";
 import type { TrainingPlan, TrainingBlock, Exercise, TrainingPlanInput, TrainingBlockInput, ExerciseInput } from "@/types/firestore";
 
@@ -111,11 +111,15 @@ export async function getExercises(planId: string, blockId: string): Promise<Exe
   console.log(`Fetching exercises for plan: ${planId}, block: ${blockId}`);
   try {
     const exercisesRef = collection(db, "exercises");
+    // Temporarily changed orderBy to "createdAt" to ensure old exercises without "order" field are shown.
+    // For drag-and-drop, this should ideally be orderBy("order", "asc").
+    // Ensure an index exists for planId, blockId, createdAt ASC.
     const q = query(
       exercisesRef,
       where("planId", "==", planId),
       where("blockId", "==", blockId),
-      orderBy("order", "asc") // Order exercises by the 'order' field
+      orderBy("createdAt", "asc") // Temporarily order by creation time
+      // orderBy("order", "asc") // Original ordering, caused issues with old data
     );
     const querySnapshot = await getDocs(q);
     const exercises: Exercise[] = [];
@@ -153,28 +157,26 @@ export async function getExercise(exerciseId: string): Promise<Exercise | null> 
 export async function addExerciseToBlock(planId: string, blockId: string, exerciseData: ExerciseInput): Promise<string> {
   const exerciseCollectionRef = collection(db, "exercises");
 
-  // Determine the order for the new exercise
   const existingExercisesQuery = query(
     collection(db, "exercises"),
     where("planId", "==", planId),
     where("blockId", "==", blockId),
-    orderBy("order", "desc"), // Get the one with the highest order
-    limit(1) // We only need the highest
+    orderBy("order", "desc"),
+    limit(1)
   );
   const existingExercisesSnapshot = await getDocs(existingExercisesQuery);
   let newOrder = 0;
   if (!existingExercisesSnapshot.empty) {
     const lastExercise = existingExercisesSnapshot.docs[0].data() as Exercise;
-    newOrder = (lastExercise.order ?? -1) + 1; // Handle if order is somehow undefined or null, start from 0
+    newOrder = (lastExercise.order ?? -1) + 1;
   }
-
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const dataToSave: { [key: string]: any } = {
     planId: planId,
     blockId: blockId,
     title: exerciseData.title,
-    order: newOrder, // Assign the calculated order
+    order: newOrder,
     createdAt: serverTimestamp() as Timestamp,
     updatedAt: serverTimestamp() as Timestamp,
   };
@@ -187,10 +189,11 @@ export async function addExerciseToBlock(planId: string, blockId: string, exerci
     dataToSave.objective = exerciseData.objective;
   }
 
+  // Ensure suggestedReps is saved as string or null, not undefined.
   if (exerciseData.suggestedReps !== undefined && exerciseData.suggestedReps !== null && String(exerciseData.suggestedReps).trim() !== "") {
     dataToSave.suggestedReps = String(exerciseData.suggestedReps);
   } else {
-    dataToSave.suggestedReps = null;
+    dataToSave.suggestedReps = null; // Save as null if empty or undefined
   }
 
 
@@ -204,22 +207,16 @@ export async function addExerciseToBlock(planId: string, blockId: string, exerci
   }
 }
 
-// Function to update the order of exercises (e.g., after drag and drop)
-// This is a placeholder for now. A full implementation would involve batch writes.
 export async function updateExercisesOrder(
   planId: string,
   blockId: string,
   orderedExercises: Array<{ id: string; order: number }>
 ): Promise<void> {
-  // In a real implementation, you'd use a batch write to update all exercises at once.
-  // For simplicity, this example shows individual updates, which is less efficient.
   console.log("Updating exercises order for plan:", planId, "block:", blockId, orderedExercises);
-  const batch = db.batch(); // Firestore batch (need to import `writeBatch` from 'firebase/firestore')
+  const batch = writeBatch(db); 
   
   for (const exercise of orderedExercises) {
     const exerciseRef = doc(db, "exercises", exercise.id);
-    // Ensure planId and blockId match before updating, as a safety measure, though exercises are fetched by these.
-    // This check might be redundant if `orderedExercises` only contains exercises from the correct block.
     batch.update(exerciseRef, { order: exercise.order });
   }
   
