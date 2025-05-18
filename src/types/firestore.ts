@@ -1,3 +1,4 @@
+
 import type { Timestamp } from 'firebase/firestore';
 
 export interface UserProfile {
@@ -49,6 +50,7 @@ export interface Exercise {
     description?: string;
     suggestedReps?: string | null;
     objective?: string;
+    order?: number; // Order of the exercise within the block
     createdAt?: Timestamp;
     updatedAt?: Timestamp;
 }
@@ -74,6 +76,21 @@ export interface ExerciseResult {
     comment: string;
     createdAt: Timestamp;
     updatedAt?: Timestamp;
+
+    // Add a nested structure for observations related to this exercise
+    observations?: {
+        ears?: string; // Status/emoji/color for ears
+        eyes?: string;
+        neck?: string;
+        withers?: string; // Cruz
+        back?: string;
+        loins?: string; // Riñones
+        croup?: string; // Grupa
+        legs?: string; // Patas/Manos
+        hooves?: string; // Cascos
+        overallBehavior?: string; // General behavior notes for this exercise
+        additionalNotes?: string; // Any other notes for this exercise
+    };
 }
 
 export interface Observation {
@@ -81,18 +98,18 @@ export interface Observation {
   horseId: string; // ID of the horse, for query or denormalization
   userId: string; // ID of the user who made the observation
   date: Timestamp; // Date of the observation
-  ears?: string; // Status/emoji/color for ears
-  eyes?: string;
-  neck?: string;
-  withers?: string; // Cruz
-  back?: string;
-  loins?: string; // Riñones
-  croup?: string; // Grupa
-  legs?: string; // Patas/Manos
-  hooves?: string; // Cascos
-  overallBehavior?: string; // General behavior notes
-  additionalNotes?: string; // Any other notes
-  photoUrl?: string; // Optional photo of the observation
+  ears?: string | null;
+  eyes?: string | null;
+  neck?: string | null;
+  withers?: string | null;
+  back?: string | null;
+  loins?: string | null;
+  croup?: string | null;
+  legs?: string | null;
+  hooves?: string | null;
+  overallBehavior?: string | null;
+  additionalNotes?: string | null;
+  photoUrl?: string | null;
   createdAt: Timestamp;
   updatedAt?: Timestamp;
 }
@@ -116,6 +133,7 @@ export interface ExerciseInput {
   description?: string;
   suggestedReps?: string | null;
   objective?: string;
+  order?: number; // Order of the exercise within the block
 }
 
 // Input type for creating new SessionData
@@ -133,21 +151,34 @@ export interface ExerciseResultInput {
     doneReps: number;
     rating: number;
     comment: string;
+     observations?: {
+        ears?: string;
+        eyes?: string;
+        neck?: string;
+        withers?: string;
+        back?: string;
+        loins?: string;
+        croup?: string;
+        legs?: string;
+        hooves?: string;
+        overallBehavior?: string;
+        additionalNotes?: string;
+    };
 }
 
 // Input type for creating new Observation
 export interface ObservationInput {
   date: Timestamp;
-  ears?: string;
-  eyes?: string;
-  neck?: string;
-  withers?: string;
-  back?: string;
-  loins?: string;
-  croup?: string;
-  legs?: string;
-  hooves?: string;
-  overallBehavior?: string;
-  additionalNotes?: string;
-  photoUrl?: string;
+  ears?: string | null;
+  eyes?: string | null;
+  neck?: string | null;
+  withers?: string | null;
+  back?: string | null;
+  loins?: string | null;
+  croup?: string | null;
+  legs?: string | null;
+  hooves?: string | null;
+  overallBehavior?: string | null;
+  additionalNotes?: string | null;
+  photoUrl?: string | null;
 }
