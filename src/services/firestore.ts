@@ -108,25 +108,29 @@ export async function addTrainingBlock(planId: string, blockData: TrainingBlockI
 }
 
 export async function getExercises(planId: string, blockId: string): Promise<Exercise[]> {
-  console.log(`Fetching exercises for plan: ${planId}, block: ${blockId}`);
+  console.log(`[Firestore Service] Attempting to fetch exercises with planId: "${planId}" AND blockId: "${blockId}"`);
   try {
     const exercisesRef = collection(db, "exercises");
     const q = query(
       exercisesRef,
       where("planId", "==", planId),
       where("blockId", "==", blockId),
-      orderBy("createdAt", "asc") // Temporarily order by creation time
-      // orderBy("order", "asc") // Original ordering, caused issues with old data
+      orderBy("createdAt", "asc") // Using createdAt for now, as 'order' might not exist on old docs
     );
     const querySnapshot = await getDocs(q);
     const exercises: Exercise[] = [];
     querySnapshot.forEach((doc) => {
-      exercises.push({ id: doc.id, ...doc.data() } as Exercise);
+      const exercise = { id: doc.id, ...doc.data() } as Exercise;
+      console.log(`[Firestore Service] Fetched exercise: ${exercise.title} (ID: ${exercise.id}), planId: ${exercise.planId}, blockId: ${exercise.blockId}`);
+      exercises.push(exercise);
     });
-    console.log(`Found ${exercises.length} exercises for plan ${planId}, block ${blockId}`);
+    if (exercises.length === 0) {
+        console.log(`[Firestore Service] No exercises found matching planId: "${planId}" AND blockId: "${blockId}". Double-check these IDs in your 'exercises' collection in Firestore.`);
+    }
+    console.log(`[Firestore Service] Found ${exercises.length} exercises for plan ${planId}, block ${blockId}`);
     return exercises;
   } catch (error) {
-    console.error(`Error fetching exercises for plan ${planId}, block ${blockId}:`, error);
+    console.error(`[Firestore Service] Error fetching exercises for plan ${planId}, block ${blockId}:`, error);
     throw error;
   }
 }
@@ -190,7 +194,7 @@ export async function addExerciseToBlock(planId: string, blockId: string, exerci
   if (exerciseData.suggestedReps !== undefined && exerciseData.suggestedReps !== null && String(exerciseData.suggestedReps).trim() !== "") {
     dataToSave.suggestedReps = String(exerciseData.suggestedReps);
   } else {
-    dataToSave.suggestedReps = null; 
+    dataToSave.suggestedReps = null;
   }
 
 
@@ -210,13 +214,13 @@ export async function updateExercisesOrder(
   orderedExercises: Array<{ id: string; order: number }>
 ): Promise<void> {
   console.log("Updating exercises order for plan:", planId, "block:", blockId, orderedExercises);
-  const batch = writeBatch(db); 
-  
+  const batch = writeBatch(db);
+
   for (const exercise of orderedExercises) {
     const exerciseRef = doc(db, "exercises", exercise.id);
     batch.update(exerciseRef, { order: exercise.order });
   }
-  
+
   try {
     await batch.commit();
     console.log("Exercises order updated successfully.");
@@ -225,3 +229,4 @@ export async function updateExercisesOrder(
     throw error;
   }
 }
+

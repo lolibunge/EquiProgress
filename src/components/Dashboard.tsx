@@ -15,14 +15,14 @@ import { useState, useEffect, useCallback } from "react";
 import type { User } from 'firebase/auth';
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { useRouter } from 'next/navigation'; 
+import { useRouter } from 'next/navigation';
 
 import { createSession, addExerciseResult, getSession, getExerciseResults } from "@/services/session";
 import { getHorses as fetchHorsesService, getHorseById } from "@/services/horse";
 import { getTrainingPlans, getTrainingBlocks, getExercises, getExercise } from "@/services/firestore";
 import type { Horse, TrainingPlan, TrainingBlock, Exercise, ExerciseResult, SessionDataInput, ExerciseResultInput, SessionData, Observation, ObservationInput } from "@/types/firestore";
 import { addObservation, getObservationsByHorseId } from "@/services/observation";
- 
+
  import {
   Accordion,
   AccordionContent,
@@ -31,27 +31,27 @@ import { addObservation, getObservationsByHorseId } from "@/services/observation
 } from "@/components/ui/accordion";
  import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
  import { Label } from "@/components/ui/label";
- import { Input } from "@/components/ui/input"; 
+ import { Input } from "@/components/ui/input";
  import { Textarea } from "@/components/ui/textarea";
- import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuLabel, 
-  DropdownMenuSeparator, 
-  DropdownMenuTrigger 
+ import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
  import { Slider } from "@/components/ui/slider";
- import { 
-  Dialog, 
-  DialogContent, 
-  DialogDescription, 
-  DialogHeader, 
-  DialogTitle 
+ import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle
 } from "@/components/ui/dialog";
 import AddHorseForm from "./AddHorseForm";
 import AddPlanForm from "./AddPlanForm";
-import AddBlockForm from "./AddBlockForm"; 
+import AddBlockForm from "./AddBlockForm";
 import AddExerciseForm from "./AddExerciseForm";
 import { Icons } from "./icons";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -74,31 +74,31 @@ const OBSERVATION_ZONES = [
   { id: 'croup', label: 'Grupa' },
   { id: 'legs', label: 'Patas/Manos' },
   { id: 'hooves', label: 'Cascos' },
-] as const; 
+] as const;
 
 
 const Dashboard = () => {
   const { currentUser } = useAuth();
-  const { toast } = useToast();  
-  const router = useRouter(); 
+  const { toast } = useToast();
+  const router = useRouter();
   const [isAddHorseDialogOpen, setIsAddHorseDialogOpen] = useState(false);
   const [horses, setHorses] = useState<Horse[]>([]);
   const [isLoadingHorses, setIsLoadingHorses] = useState(true);
   const [selectedHorse, setSelectedHorse] = useState<Horse | null>(null);
-  
+
   const [trainingPlans, setTrainingPlans] = useState<TrainingPlan[]>([]);
   const [isLoadingPlans, setIsLoadingPlans] = useState(true);
   const [selectedPlan, setSelectedPlan] = useState<TrainingPlan | null>(null);
-  
-  const [blocks, setBlocks] = useState<TrainingBlock[]>([]); 
+
+  const [blocks, setBlocks] = useState<TrainingBlock[]>([]);
   const [isLoadingBlocks, setIsLoadingBlocks] = useState(false);
-  const [selectedBlock, setSelectedBlock] = useState<TrainingBlock | null>(null); 
-  
+  const [selectedBlock, setSelectedBlock] = useState<TrainingBlock | null>(null);
+
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [isLoadingExercises, setIsLoadingExercises] = useState(false);
 
   const [date, setDate] = useState<Date | undefined>(new Date());
-  
+
   const [sessionOverallNote, setSessionOverallNote] = useState("");
   const [sessionExerciseResults, setSessionExerciseResults] = useState<Map<string, Omit<ExerciseResultInput, 'exerciseId'>>>(new Map());
   const [isSavingSession, setIsSavingSession] = useState(false);
@@ -110,7 +110,7 @@ const Dashboard = () => {
 
 
   const [isCreatePlanDialogOpen, setIsCreatePlanDialogOpen] = useState(false);
-  const [isAddBlockDialogOpen, setIsAddBlockDialogOpen] = useState(false); 
+  const [isAddBlockDialogOpen, setIsAddBlockDialogOpen] = useState(false);
   const [isAddExerciseDialogOpen, setIsAddExerciseDialogOpen] = useState(false);
   const [currentBlockIdForExercise, setCurrentBlockIdForExercise] = useState<string | null>(null);
 
@@ -123,24 +123,24 @@ const Dashboard = () => {
       if (userHorses.length > 0 && !selectedHorse) {
         // setSelectedHorse(userHorses[0]); // Auto-select first horse removed as per previous updates
       } else if (userHorses.length === 0) {
-        setSelectedHorse(null); 
+        setSelectedHorse(null);
       }
     } catch (error) {
       console.error("Error fetching horses:", error);
       toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar los caballos." });
-      setHorses([]); 
+      setHorses([]);
     } finally {
       setIsLoadingHorses(false);
     }
-  }, [toast, selectedHorse]); 
+  }, [toast, selectedHorse]);
 
   useEffect(() => {
     if (currentUser?.uid) {
       performFetchHorses(currentUser.uid);
     } else {
-      setHorses([]); 
+      setHorses([]);
       setSelectedHorse(null);
-      setIsLoadingHorses(false); 
+      setIsLoadingHorses(false);
     }
   }, [currentUser?.uid, performFetchHorses]);
 
@@ -165,8 +165,8 @@ const Dashboard = () => {
 
   const performFetchBlocks = useCallback(async (planId: string) => {
     if (!planId) {
-      setBlocks([]); 
-      setSelectedBlock(null); 
+      setBlocks([]);
+      setSelectedBlock(null);
       return;
     }
     setIsLoadingBlocks(true);
@@ -174,7 +174,7 @@ const Dashboard = () => {
       const fetchedBlocks = await getTrainingBlocks(planId);
       setBlocks(fetchedBlocks);
       if (fetchedBlocks.length === 0) {
-        setSelectedBlock(null); 
+        setSelectedBlock(null);
       }
     } catch (error) {
       console.error(`Error fetching blocks for plan ${planId}:`, error);
@@ -183,15 +183,15 @@ const Dashboard = () => {
     } finally {
       setIsLoadingBlocks(false);
     }
-  }, [toast]); 
+  }, [toast]);
 
   useEffect(() => {
     if (selectedPlan) {
       performFetchBlocks(selectedPlan.id);
     } else {
       setBlocks([]);
-      setSelectedBlock(null); 
-      setExercises([]); 
+      setSelectedBlock(null);
+      setExercises([]);
     }
   }, [selectedPlan, performFetchBlocks]);
 
@@ -201,21 +201,28 @@ const Dashboard = () => {
       return;
     }
     setIsLoadingExercises(true);
-    console.log(`Starting to fetch exercises for plan: ${planId}`);
+    console.log(`[Dashboard] Starting to fetch exercises for plan: ${planId}`);
     try {
-      const planBlocks = await getTrainingBlocks(planId); 
-      console.log(`For plan ${planId}, found blocks:`, planBlocks.map(b => ({id: b.id, title: b.title})));
+      const planBlocks = await getTrainingBlocks(planId);
+      console.log(`[Dashboard] For plan ${planId}, found blocks:`, planBlocks.map(b => ({id: b.id, title: b.title})));
       let allExercisesForPlan: Exercise[] = [];
-      for (const block of planBlocks) {
-        console.log(`Fetching exercises for block: ${block.id} (${block.title}) of plan ${planId}`);
-        const blockExercises = await getExercises(planId, block.id);
-        console.log(`Found ${blockExercises.length} exercises for block ${block.id}:`, blockExercises.map(e => ({id: e.id, title: e.title})));
-        allExercisesForPlan = [...allExercisesForPlan, ...blockExercises];
+      if (planBlocks.length === 0) {
+        console.log(`[Dashboard] No blocks found for plan ${planId}. Cannot fetch exercises.`);
+      } else {
+        for (const block of planBlocks) {
+          console.log(`[Dashboard] Fetching exercises for planId: "${planId}", blockId: "${block.id}" (Etapa: "${block.title}")`);
+          const blockExercises = await getExercises(planId, block.id);
+          console.log(`[Dashboard] ---> Found ${blockExercises.length} exercises for blockId: "${block.id}" (Etapa: "${block.title}")`);
+          if (blockExercises.length > 0) {
+            console.log(`[Dashboard]      Exercises found:`, blockExercises.map(e => ({ title: e.title, id: e.id, planId: e.planId, blockId: e.blockId })));
+          }
+          allExercisesForPlan = [...allExercisesForPlan, ...blockExercises];
+        }
       }
       setExercises(allExercisesForPlan);
-      console.log(`Total exercises set for plan ${planId}: ${allExercisesForPlan.length}`);
+      console.log(`[Dashboard] Total exercises set for plan ${planId}: ${allExercisesForPlan.length}. If this is 0, check individual block fetches above.`);
     } catch (error) {
-      console.error(`Error fetching all exercises for plan ${planId}:`, error);
+      console.error(`[Dashboard] Error fetching all exercises for plan ${planId}:`, error);
       toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar todos los ejercicios del plan." });
       setExercises([]);
     } finally {
@@ -260,24 +267,24 @@ const Dashboard = () => {
 
   const handleHorseAdded = () => {
     setIsAddHorseDialogOpen(false);
-    if (currentUser?.uid) performFetchHorses(currentUser.uid); 
+    if (currentUser?.uid) performFetchHorses(currentUser.uid);
   };
   const handleAddHorseCancel = () => setIsAddHorseDialogOpen(false);
 
   const handlePlanAdded = (newPlanId: string) => {
     setIsCreatePlanDialogOpen(false);
     performFetchPlans().then(() => {
-      getTrainingPlans().then(refreshedPlans => { 
-        setTrainingPlans(refreshedPlans); 
+      getTrainingPlans().then(refreshedPlans => {
+        setTrainingPlans(refreshedPlans);
         const newPlan = refreshedPlans.find(p => p.id === newPlanId);
         if (newPlan) {
-          setSelectedPlan(newPlan); 
+          setSelectedPlan(newPlan);
         }
       });
     });
   };
 
-  const handleBlockAdded = (newBlockId: string) => { 
+  const handleBlockAdded = (newBlockId: string) => {
     setIsAddBlockDialogOpen(false);
     if (selectedPlan) {
       performFetchBlocks(selectedPlan.id).then(() => {
@@ -293,9 +300,9 @@ const Dashboard = () => {
       // Re-fetch all exercises for the plan, as a new one was added to one of its blocks
       performFetchExercisesForPlan(selectedPlan.id);
     }
-    setCurrentBlockIdForExercise(null); 
+    setCurrentBlockIdForExercise(null);
   };
-  
+
   const openAddExerciseDialog = (blockId: string) => {
     setCurrentBlockIdForExercise(blockId);
     setIsAddExerciseDialogOpen(true);
@@ -306,9 +313,9 @@ const Dashboard = () => {
     setSessionExerciseResults(prev => {
         const newMap = new Map(prev);
         const currentExercise = newMap.get(exerciseId) || { doneReps: 0, rating: 3, comment: "", plannedReps: "" };
-        
+
         if (field === 'doneReps' || field === 'rating') {
-            (currentExercise as any)[field] = Number(value); 
+            (currentExercise as any)[field] = Number(value);
         } else {
             (currentExercise as any)[field] = String(value);
         }
@@ -326,7 +333,7 @@ const handleSaveSessionAndNavigate = async () => {
       });
       return;
     }
-    
+
     if (!selectedPlan) {
         toast({
             variant: "destructive",
@@ -352,15 +359,15 @@ const handleSaveSessionAndNavigate = async () => {
       const sessionInput: SessionDataInput = {
         horseId: selectedHorse.id,
         date: Timestamp.fromDate(date),
-        blockId: selectedBlock.id, 
+        blockId: selectedBlock.id,
         overallNote: sessionOverallNote,
       };
-      
+
       const sessionId = await createSession(sessionInput);
 
       if (sessionId) {
         const exerciseResultsToSave: ExerciseResultInput[] = [];
-        
+
         // Ensure results are only saved for exercises actually in the selected block of the selected plan
         exercisesInSelectedBlock.forEach(exercise => {
             const resultData = sessionExerciseResults.get(exercise.id);
@@ -368,7 +375,7 @@ const handleSaveSessionAndNavigate = async () => {
             if (resultData || exercise) { // exercise always true here due to loop
                  exerciseResultsToSave.push({
                     exerciseId: exercise.id,
-                    plannedReps: resultData?.plannedReps ?? exercise?.suggestedReps ?? '', 
+                    plannedReps: resultData?.plannedReps ?? exercise?.suggestedReps ?? '',
                     doneReps: resultData?.doneReps ?? 0,
                     rating: resultData?.rating ?? 3, // Default rating
                     comment: resultData?.comment ?? "",
@@ -382,19 +389,19 @@ const handleSaveSessionAndNavigate = async () => {
                 await addExerciseResult(selectedHorse.id, sessionId, resultInput);
             }
         }
-        
+
         toast({ title: "Sesión Guardada", description: "La sesión y los resultados de los ejercicios han sido registrados." });
         setSessionOverallNote("");
         setSessionExerciseResults(new Map());
 
-        router.push(`/session/${sessionId}?horseId=${selectedHorse.id}`); 
+        router.push(`/session/${sessionId}?horseId=${selectedHorse.id}`);
       } else {
         toast({ variant: "destructive", title: "Error", description: "No se pudo crear la sesión." });
       }
     } catch (error) {
       console.error("Error saving session:", error);
       let errorMessage = "Ocurrió un error al guardar la sesión.";
-      if (error instanceof Error) { 
+      if (error instanceof Error) {
         errorMessage = error.message;
       }
       toast({ variant: "destructive", title: "Error al Guardar", description: errorMessage });
@@ -406,7 +413,7 @@ const handleSaveSessionAndNavigate = async () => {
   const handleObservationInputChange = (field: typeof OBSERVATION_ZONES[number]['id'] | 'overallBehavior' | 'additionalNotes' | 'photoUrl', value: string) => {
     setObservationData(prev => ({ ...prev, [field]: value }));
   };
-  
+
 
   const handleSaveObservation = async () => {
     if (!currentUser || !date || !selectedHorse || !selectedHorse.id) {
@@ -438,8 +445,8 @@ const handleSaveSessionAndNavigate = async () => {
 
       await addObservation(selectedHorse.id, fullObservationData);
       toast({ title: "Observación Guardada", description: "La observación ha sido registrada exitosamente." });
-      setObservationData({}); 
-      performFetchObservations(selectedHorse.id); 
+      setObservationData({});
+      performFetchObservations(selectedHorse.id);
     } catch (error) {
       console.error("Error saving observation:", error);
       let errorMessage = "Ocurrió un error al guardar la observación.";
@@ -511,7 +518,7 @@ const handleSaveSessionAndNavigate = async () => {
                     <TabsTrigger value="sesiones">Sesiones</TabsTrigger>
                     <TabsTrigger value="observaciones">Observaciones</TabsTrigger>
                   </TabsList>
-                  
+
                   <TabsContent value="plan">
                     <Card className="my-4">
                       <CardHeader>
@@ -554,7 +561,7 @@ const handleSaveSessionAndNavigate = async () => {
                            <>
                             {isLoadingBlocks ? <p>Cargando etapas...</p> : blocks.length > 0 ? (
                                <Accordion type="multiple" className="w-full">
-                                {blocks.map((block) => ( 
+                                {blocks.map((block) => (
                                   <AccordionItem value={block.id} key={block.id}>
                                     <AccordionTrigger>
                                       {block.title}
@@ -562,12 +569,14 @@ const handleSaveSessionAndNavigate = async () => {
                                       {block.duration && <span className="text-sm text-muted-foreground ml-2">- Duración: {block.duration}</span>}
                                     </AccordionTrigger>
                                     <AccordionContent>
-                                      {block.goal && ( 
+                                      {block.goal && (
                                         <p className="text-sm text-primary font-semibold mb-2">
                                           Meta: <span className="font-normal text-muted-foreground">{block.goal}</span>
                                         </p>
                                       )}
-                                      {isLoadingExercises && !exercises.some(ex => ex.blockId === block.id && ex.planId === selectedPlan.id) ? <p>Cargando ejercicios...</p> : exercises.filter(ex => ex.blockId === block.id && ex.planId === selectedPlan.id).length > 0 ? (
+                                      {isLoadingExercises && !exercises.some(ex => ex.blockId === block.id && ex.planId === selectedPlan.id) ? (
+                                        <p>Cargando ejercicios para la etapa: {block.title} (ID: {block.id})...</p>
+                                      ) : exercises.filter(ex => ex.blockId === block.id && selectedPlan && ex.planId === selectedPlan.id).length > 0 ? (
                                         <ul className="list-disc pl-5 space-y-1 text-sm">
                                           {exercises
                                             .filter(ex => ex.blockId === block.id && ex.planId === selectedPlan.id)
@@ -581,7 +590,10 @@ const handleSaveSessionAndNavigate = async () => {
                                           ))}
                                         </ul>
                                       ) : (
-                                        <p className="text-sm text-muted-foreground">No hay ejercicios en esta etapa.</p>
+                                        <p className="text-sm text-muted-foreground">
+                                            No se encontraron ejercicios para la etapa "{block.title}" (ID: {block.id}) en el plan "{selectedPlan?.title}" (ID: {selectedPlan?.id}).
+                                            Verifica que los ejercicios en Firestore tengan el `planId` y `blockId` correctos.
+                                        </p>
                                       )}
                                       <Button size="sm" variant="outline" className="mt-2" onClick={() => openAddExerciseDialog(block.id)}>
                                         <Icons.plus className="mr-2 h-4 w-4" /> Añadir Ejercicio a esta Etapa
@@ -595,7 +607,7 @@ const handleSaveSessionAndNavigate = async () => {
                             )}
                             <div className="flex flex-wrap justify-end mt-4 gap-2">
                                 <Button onClick={() => setIsAddBlockDialogOpen(true)} disabled={!selectedPlan || isLoadingBlocks}>
-                                    <Icons.plus className="mr-2 h-4 w-4" /> Añadir Etapa 
+                                    <Icons.plus className="mr-2 h-4 w-4" /> Añadir Etapa
                                 </Button>
                                 <Button variant="outline" disabled={!selectedPlan}>Editar Plan</Button>
                                 <Button variant="outline" disabled={!selectedPlan}>Clonar Plan</Button>
@@ -628,10 +640,10 @@ const handleSaveSessionAndNavigate = async () => {
                             {isLoadingBlocks ? (
                                 <DropdownMenuItem disabled>Cargando etapas...</DropdownMenuItem>
                             ) : blocks.length > 0 ? (
-                              blocks.map((block) => ( 
+                              blocks.map((block) => (
                                   <DropdownMenuItem key={block.id} onSelect={() => {
                                     setSelectedBlock(block);
-                                    setSessionExerciseResults(new Map()); 
+                                    setSessionExerciseResults(new Map());
                                   }}>
                                       {block.title}
                                       {block.notes && <span className="text-xs text-muted-foreground ml-1">({block.notes})</span>}
@@ -642,11 +654,11 @@ const handleSaveSessionAndNavigate = async () => {
                               )}
                           </DropdownMenuContent>
                         </DropdownMenu>
-                        
+
                         {selectedBlock && (
                             <>
                             <Label htmlFor="session-overall-note">Notas Generales de la Sesión</Label>
-                            <Textarea 
+                            <Textarea
                                 id="session-overall-note"
                                 placeholder="Comentarios generales sobre la sesión, estado del caballo, etc."
                                 value={sessionOverallNote}
@@ -662,11 +674,11 @@ const handleSaveSessionAndNavigate = async () => {
                                         <Card key={exercise.id} className="p-4">
                                             <Label className="font-semibold">{exercise.title}</Label>
                                             {exercise.description && <p className="text-xs text-muted-foreground mt-1 mb-2">{exercise.description}</p>}
-                                            
+
                                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
                                                 <div>
                                                     <Label htmlFor={`plannedReps-${exercise.id}`}>Repeticiones Planificadas</Label>
-                                                    <Input 
+                                                    <Input
                                                         id={`plannedReps-${exercise.id}`}
                                                         type="text"
                                                         placeholder="Ej: 10 o 'Hasta lograr X'"
@@ -676,16 +688,16 @@ const handleSaveSessionAndNavigate = async () => {
                                                 </div>
                                                 <div>
                                                     <Label htmlFor={`doneReps-${exercise.id}`}>Repeticiones Realizadas</Label>
-                                                    <Input 
+                                                    <Input
                                                         id={`doneReps-${exercise.id}`}
                                                         type="number"
                                                         placeholder="Ej: 8"
-                                                        value={String(currentResult.doneReps)} 
+                                                        value={String(currentResult.doneReps)}
                                                         onChange={(e) => handleSessionExerciseInputChange(exercise.id, 'doneReps', e.target.value)}
                                                     />
                                                 </div>
                                             </div>
-                                            
+
                                             <div className="mt-3">
                                                 <Label htmlFor={`rating-${exercise.id}`}>Calificación (1-5): {currentResult.rating}</Label>
                                                 <Slider
@@ -700,7 +712,7 @@ const handleSaveSessionAndNavigate = async () => {
                                             </div>
                                             <div className="mt-3">
                                                 <Label htmlFor={`comment-${exercise.id}`}>Comentarios del Ejercicio</Label>
-                                                <Textarea 
+                                                <Textarea
                                                     id={`comment-${exercise.id}`}
                                                     placeholder="Notas específicas sobre este ejercicio..."
                                                     value={currentResult.comment}
@@ -715,9 +727,9 @@ const handleSaveSessionAndNavigate = async () => {
                             )}
                             </>
                         )}
-                        
+
                         <div className="flex justify-end mt-2">
-                          <Button 
+                          <Button
                             onClick={handleSaveSessionAndNavigate}
                             disabled={isSavingSession || !date || !selectedHorse || !selectedBlock || (selectedBlock && selectedPlan && exercises.filter(ex => ex.blockId === selectedBlock.id && ex.planId === selectedPlan.id).length === 0) }
                           >
@@ -780,7 +792,7 @@ const handleSaveSessionAndNavigate = async () => {
                           onChange={(e) => handleObservationInputChange('additionalNotes', e.target.value)}
                         />
                       </div>
-                      
+
                       <Button variant="outline" disabled>Añadir Foto (próximamente)</Button>
 
                       <div className="flex justify-end mt-2">
@@ -794,12 +806,12 @@ const handleSaveSessionAndNavigate = async () => {
                       {!isLoadingObservations && horseObservations.length > 0 && (
                         <div className="mt-6 space-y-4">
                           <h4 className="text-md font-semibold">Observaciones Anteriores:</h4>
-                          {horseObservations.slice(0, 3).map(obs => ( 
+                          {horseObservations.slice(0, 3).map(obs => (
                             <Card key={obs.id} className="p-3 text-sm">
                               <p className="font-medium">{obs.date.toDate().toLocaleDateString("es-ES")}</p>
                               <ul className="list-disc list-inside text-muted-foreground">
                                 {OBSERVATION_ZONES.map(zone => {
-                                   const status = obs[zone.id as keyof Observation]; 
+                                   const status = obs[zone.id as keyof Observation];
                                    return status ? <li key={zone.id}>{zone.label}: {status}</li> : null;
                                 })}
                                 {obs.overallBehavior && <li>Comportamiento: {obs.overallBehavior}</li>}
@@ -819,13 +831,13 @@ const handleSaveSessionAndNavigate = async () => {
           ) : (
             <Card>
               <CardContent className="flex flex-col items-center justify-center h-64 text-center">
-                <Icons.logo className="w-16 h-16 mb-4 text-muted-foreground" data-ai-hint="horse head" /> 
+                <Icons.logo className="w-16 h-16 mb-4 text-muted-foreground" data-ai-hint="horse head" />
                 <p className="text-muted-foreground">Selecciona un caballo para ver sus detalles o registra uno nuevo usando el menú desplegable de arriba.</p>
               </CardContent>
             </Card>
           )}
         </div>
-        
+
         <Card className="col-span-1 md:col-span-1">
           <CardHeader>
             <CardTitle>Calendario</CardTitle>
@@ -865,9 +877,9 @@ const handleSaveSessionAndNavigate = async () => {
               Completa los detalles para registrar un nuevo caballo.
             </DialogDescription>
           </DialogHeader>
-          <AddHorseForm 
-            onSuccess={handleHorseAdded} 
-            onCancel={handleAddHorseCancel} 
+          <AddHorseForm
+            onSuccess={handleHorseAdded}
+            onCancel={handleAddHorseCancel}
           />
         </DialogContent>
       </Dialog>
@@ -885,14 +897,14 @@ const handleSaveSessionAndNavigate = async () => {
       <Dialog open={isAddBlockDialogOpen} onOpenChange={setIsAddBlockDialogOpen}>
         <DialogContent className="sm:max-w-[480px]">
           <DialogHeader>
-            <DialogTitle>Añadir Nueva Etapa al Plan</DialogTitle> 
+            <DialogTitle>Añadir Nueva Etapa al Plan</DialogTitle>
             <DialogDescription>Añade una etapa a "{selectedPlan?.title}".</DialogDescription>
           </DialogHeader>
           {selectedPlan && (
-            <AddBlockForm 
-              planId={selectedPlan.id} 
-              onSuccess={handleBlockAdded} 
-              onCancel={() => setIsAddBlockDialogOpen(false)} 
+            <AddBlockForm
+              planId={selectedPlan.id}
+              onSuccess={handleBlockAdded}
+              onCancel={() => setIsAddBlockDialogOpen(false)}
             />
           )}
         </DialogContent>
@@ -907,14 +919,14 @@ const handleSaveSessionAndNavigate = async () => {
             </DialogDescription>
           </DialogHeader>
           {selectedPlan && currentBlockIdForExercise && (
-            <AddExerciseForm 
-              planId={selectedPlan.id} 
-              blockId={currentBlockIdForExercise} 
-              onSuccess={handleExerciseAdded} 
+            <AddExerciseForm
+              planId={selectedPlan.id}
+              blockId={currentBlockIdForExercise}
+              onSuccess={handleExerciseAdded}
               onCancel={() => {
                 setIsAddExerciseDialogOpen(false);
-                setCurrentBlockIdForExercise(null); 
-              }} 
+                setCurrentBlockIdForExercise(null);
+              }}
             />
           )}
         </DialogContent>
@@ -926,4 +938,4 @@ const handleSaveSessionAndNavigate = async () => {
 
 export default Dashboard;
 
-    
+
