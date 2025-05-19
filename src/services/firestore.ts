@@ -115,19 +115,19 @@ export async function getExercises(planId: string, blockId: string): Promise<Exe
       exercisesRef,
       where("planId", "==", planId),
       where("blockId", "==", blockId),
-      orderBy("createdAt", "asc") // Using createdAt for now, as 'order' might not exist on old docs
+      orderBy("order", "asc") // Reverted to order by 'order'
     );
     const querySnapshot = await getDocs(q);
     const exercises: Exercise[] = [];
     querySnapshot.forEach((doc) => {
       const exercise = { id: doc.id, ...doc.data() } as Exercise;
-      console.log(`[Firestore Service] Fetched exercise: ${exercise.title} (ID: ${exercise.id}), planId: ${exercise.planId}, blockId: ${exercise.blockId}`);
+      console.log(`[Firestore Service] Fetched exercise: ${exercise.title} (ID: ${exercise.id}), planId: ${exercise.planId}, blockId: ${exercise.blockId}, order: ${exercise.order}`);
       exercises.push(exercise);
     });
     if (exercises.length === 0) {
-        console.log(`[Firestore Service] No exercises found matching planId: "${planId}" AND blockId: "${blockId}". Double-check these IDs in your 'exercises' collection in Firestore.`);
+        console.log(`[Firestore Service] No exercises found matching planId: "${planId}" AND blockId: "${blockId}" when ordering by "order". Double-check these IDs and the presence of the 'order' field in your 'exercises' collection in Firestore.`);
     }
-    console.log(`[Firestore Service] Found ${exercises.length} exercises for plan ${planId}, block ${blockId}`);
+    console.log(`[Firestore Service] Found ${exercises.length} exercises for plan ${planId}, block ${blockId} (ordered by 'order')`);
     return exercises;
   } catch (error) {
     console.error(`[Firestore Service] Error fetching exercises for plan ${planId}, block ${blockId}:`, error);
@@ -170,7 +170,7 @@ export async function addExerciseToBlock(planId: string, blockId: string, exerci
   let newOrder = 0;
   if (!existingExercisesSnapshot.empty) {
     const lastExercise = existingExercisesSnapshot.docs[0].data() as Exercise;
-    newOrder = (lastExercise.order ?? -1) + 1;
+    newOrder = (lastExercise.order ?? -1) + 1; // Ensure order is a number, default to -1 if null/undefined
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -194,7 +194,7 @@ export async function addExerciseToBlock(planId: string, blockId: string, exerci
   if (exerciseData.suggestedReps !== undefined && exerciseData.suggestedReps !== null && String(exerciseData.suggestedReps).trim() !== "") {
     dataToSave.suggestedReps = String(exerciseData.suggestedReps);
   } else {
-    dataToSave.suggestedReps = null;
+    dataToSave.suggestedReps = null; // Explicitly set to null if empty or undefined
   }
 
 
