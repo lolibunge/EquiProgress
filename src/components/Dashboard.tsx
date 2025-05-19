@@ -22,6 +22,7 @@ import { getHorses as fetchHorsesService, getHorseById } from "@/services/horse"
 import { getTrainingPlans, getTrainingBlocks, getExercises, getExercise } from "@/services/firestore";
 import type { Horse, TrainingPlan, TrainingBlock, Exercise, ExerciseResult, SessionDataInput, ExerciseResultInput, SessionData, Observation, ObservationInput } from "@/types/firestore";
 import { addObservation, getObservationsByHorseId } from "@/services/observation";
+import HorseHistory from "@/components/HorseHistory"; // Added import
 
  import {
   Accordion,
@@ -958,6 +959,7 @@ const handleSaveSessionAndNavigate = async () => {
 };
 
 export default Dashboard;
+
 
 
 
