@@ -39,18 +39,38 @@ export async function addTrainingPlan(planData: TrainingPlanInput): Promise<stri
 }
 
 export async function getTrainingBlocks(planId: string): Promise<TrainingBlock[]> {
-  console.log(`Fetching training blocks for plan: ${planId}`);
+  console.log(`[Firestore Service] getTrainingBlocks called for planId: ${planId}`);
+  if (!planId) {
+    console.warn("[Firestore Service] getTrainingBlocks: planId is null or empty. Returning empty array.");
+    return [];
+  }
   try {
     const trainingBlocksRef = collection(db, "trainingBlocks");
-    const q = query(trainingBlocksRef, where("planId", "==", planId), orderBy("createdAt", "asc")); // Order blocks by creation time
+    // TEMPORARILY REMOVE orderBy to see if planId filter alone works
+    const q = query(trainingBlocksRef, where("planId", "==", planId));
+    console.log(`[Firestore Service] Querying trainingBlocks with planId: "${planId}" (orderBy createdAt temporarily REMOVED for debugging)`);
     const querySnapshot = await getDocs(q);
     const trainingBlocks: TrainingBlock[] = [];
-    querySnapshot.forEach((doc) => {
-      trainingBlocks.push({ id: doc.id, ...doc.data() } as TrainingBlock);
+    console.log(`[Firestore Service] Query snapshot for planId "${planId}" has ${querySnapshot.size} documents.`);
+    querySnapshot.forEach((docSnap) => {
+      const blockData = docSnap.data();
+      console.log(`[Firestore Service]   Block found: ID=${docSnap.id}, Title="${blockData.title}", planId="${blockData.planId}", createdAt=${blockData.createdAt}`);
+      if (blockData.planId === planId) {
+        trainingBlocks.push({ id: docSnap.id, ...blockData } as TrainingBlock);
+      } else {
+        console.warn(`[Firestore Service]   Block ID=${docSnap.id} with planId="${blockData.planId}" was fetched but does not match target planId="${planId}". This should not happen with a 'where' clause.`);
+      }
     });
+
+    if (trainingBlocks.length === 0 && querySnapshot.size > 0) {
+        console.error(`[Firestore Service] No blocks were added to the 'trainingBlocks' array for planId "${planId}", but the query snapshot was NOT empty. This indicates a potential issue with the data structure or the 'as TrainingBlock' type assertion, or the secondary client-side filter.`);
+    } else if (trainingBlocks.length === 0 && querySnapshot.size === 0) {
+        console.log(`[Firestore Service] NO blocks matched the query for planId: "${planId}". Double-check the 'planId' field value and existence in your 'trainingBlocks' collection in Firestore. Ensure it is exactly "${planId}".`);
+    }
+    console.log(`[Firestore Service] getTrainingBlocks for planId "${planId}" is returning ${trainingBlocks.length} blocks.`);
     return trainingBlocks;
   } catch (error) {
-    console.error(`Error fetching training blocks for plan ${planId}:`, error);
+    console.error(`[Firestore Service] Error fetching training blocks for plan ${planId}:`, error);
     throw error;
   }
 }
@@ -115,12 +135,12 @@ export async function getExercises(planId: string, blockId: string): Promise<Exe
       exercisesRef,
       where("planId", "==", planId),
       where("blockId", "==", blockId),
-      orderBy("order", "asc") // Reverted to order by 'order'
+      orderBy("order", "asc")
     );
     const querySnapshot = await getDocs(q);
     const exercises: Exercise[] = [];
-    querySnapshot.forEach((doc) => {
-      const exercise = { id: doc.id, ...doc.data() } as Exercise;
+    querySnapshot.forEach((docSnap) => {
+      const exercise = { id: docSnap.id, ...docSnap.data() } as Exercise;
       console.log(`[Firestore Service] Fetched exercise: ${exercise.title} (ID: ${exercise.id}), planId: ${exercise.planId}, blockId: ${exercise.blockId}, order: ${exercise.order}`);
       exercises.push(exercise);
     });
@@ -157,6 +177,7 @@ export async function getExercise(exerciseId: string): Promise<Exercise | null> 
 
 
 export async function addExerciseToBlock(planId: string, blockId: string, exerciseData: ExerciseInput): Promise<string> {
+  console.log(`[Firestore Service] Attempting to add exercise to planId: "${planId}", blockId: "${blockId}"`);
   const exerciseCollectionRef = collection(db, "exercises");
 
   const existingExercisesQuery = query(
@@ -166,12 +187,16 @@ export async function addExerciseToBlock(planId: string, blockId: string, exerci
     orderBy("order", "desc"),
     limit(1)
   );
-  const existingExercisesSnapshot = await getDocs(existingExercisesQuery);
   let newOrder = 0;
-  if (!existingExercisesSnapshot.empty) {
+  try {
+    const existingExercisesSnapshot = await getDocs(existingExercisesQuery);
+    if (!existingExercisesSnapshot.empty) {
     const lastExercise = existingExercisesSnapshot.docs[0].data() as Exercise;
-    newOrder = (lastExercise.order ?? -1) + 1; // Ensure order is a number, default to -1 if null/undefined
-  }
+      newOrder = (typeof lastExercise.order === 'number' ? lastExercise.order : -1) + 1;
+       console.log(`[Firestore Service] Found existing exercises, calculating new order based on last order (${lastExercise.order}): ${newOrder}`);
+    } else {
+        console.log(`[Firestore Service] No existing exercises found for planId: "${planId}", blockId: "${blockId}". Starting order from 0.`);
+    }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const dataToSave: { [key: string]: any } = {
@@ -186,10 +211,16 @@ export async function addExerciseToBlock(planId: string, blockId: string, exerci
   if (exerciseData.description !== undefined && exerciseData.description.trim() !== "") {
     dataToSave.description = exerciseData.description;
   }
+ else {
+         dataToSave.description = null; // Explicitly set to null if empty
+    }
 
   if (exerciseData.objective !== undefined && exerciseData.objective.trim() !== "") {
     dataToSave.objective = exerciseData.objective;
   }
+ else {
+        dataToSave.objective = null; // Explicitly set to null if empty
+    }
 
   if (exerciseData.suggestedReps !== undefined && exerciseData.suggestedReps !== null && String(exerciseData.suggestedReps).trim() !== "") {
     dataToSave.suggestedReps = String(exerciseData.suggestedReps);
@@ -197,13 +228,15 @@ export async function addExerciseToBlock(planId: string, blockId: string, exerci
     dataToSave.suggestedReps = null; // Explicitly set to null if empty or undefined
   }
 
+  console.log("[Firestore Service] Data to save:", dataToSave);
 
-  try {
+
     const docRef = await addDoc(exerciseCollectionRef, dataToSave);
     console.log("Exercise added with ID:", docRef.id, "and order:", newOrder);
     return docRef.id;
   } catch (error) {
-    console.error("Error adding exercise:", error);
+    console.error("[Firestore Service] Error adding exercise:", error);
+    // Re-throw the error so the calling function can handle it
     throw error;
   }
 }
@@ -230,3 +263,20 @@ export async function updateExercisesOrder(
   }
 }
 
+// Add this function temporarily for debugging
+export async function debugGetBlocksForPlan(planId: string): Promise<void> {
+  console.log(`[DEBUG] Fetching blocks for plan: ${planId}`);
+  try {
+    const trainingBlocksRef = collection(db, "trainingBlocks");
+    const q = query(trainingBlocksRef, where("planId", "==", planId));
+    const querySnapshot = await getDocs(q);
+    const blocks: { id: string; title: string }[] = []; // Simplified type for logging
+    querySnapshot.forEach((docSnap) => {
+      const blockData = docSnap.data();
+      blocks.push({ id: docSnap.id, title: blockData.title });
+    });
+    console.log(`[DEBUG] Found ${blocks.length} blocks for plan ${planId}:`, blocks);
+  } catch (error) {
+    console.error(`[DEBUG] Error fetching blocks for plan ${planId}:`, error);
+  }
+}
