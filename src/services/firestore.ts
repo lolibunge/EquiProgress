@@ -45,24 +45,11 @@ export async function getTrainingBlocks(planId: string): Promise<TrainingBlock[]
     return [];
   }
   try {
-    // --- TEMPORARY DEBUGGING FOR A SPECIFIC BLOCK ---
-    const specificBlockId = "0N2EljBQHCN04mOuSxLn"; // The ID user mentioned
-    if (specificBlockId) { // Check if specificBlockId is defined, though it's hardcoded here
-      const specificBlockRef = doc(db, "trainingBlocks", specificBlockId);
-      const specificBlockSnap = await getDoc(specificBlockRef);
-      if (specificBlockSnap.exists()) {
-        console.log(`[Firestore Service - DEBUG] Specific Block ID ${specificBlockId} DATA:`, specificBlockSnap.data());
-        console.log(`[Firestore Service - DEBUG] Specific Block ID ${specificBlockId} - Its planId is: "${specificBlockSnap.data().planId}" - Does it match target planId "${planId}"? (${specificBlockSnap.data().planId === planId})`);
-      } else {
-        console.log(`[Firestore Service - DEBUG] Specific Block ID ${specificBlockId} does NOT exist.`);
-      }
-    }
-    // --- END TEMPORARY DEBUGGING ---
-
     const trainingBlocksRef = collection(db, "trainingBlocks");
-    // Restore orderBy, if an index is needed, Firebase console will prompt.
-    const q = query(trainingBlocksRef, where("planId", "==", planId), orderBy("createdAt", "asc"));
-    console.log(`[Firestore Service] Querying trainingBlocks with planId: "${planId}" (orderBy createdAt ASC)`);
+    // Temporarily removing orderBy to see if blocks appear.
+    // If blocks appear, the issue might be with 'createdAt' field or index for ordering.
+    const q = query(trainingBlocksRef, where("planId", "==", planId));
+    console.log(`[Firestore Service] Querying trainingBlocks with planId: "${planId}" (NO explicit order)`);
 
     const querySnapshot = await getDocs(q);
     const trainingBlocks: TrainingBlock[] = [];
@@ -70,8 +57,7 @@ export async function getTrainingBlocks(planId: string): Promise<TrainingBlock[]
 
     querySnapshot.forEach((docSnap) => {
       const blockData = docSnap.data();
-      console.log(`[Firestore Service]   Block found: ID=${docSnap.id}, Title="${blockData.title}", planId="${blockData.planId}", createdAt=${blockData.createdAt}`);
-      // The where clause should handle this, but double-checking planId
+      console.log(`[Firestore Service]   Block found: ID=${docSnap.id}, Title="${blockData.title}", planId="${blockData.planId}"`);
       if (blockData.planId === planId) {
         trainingBlocks.push({ id: docSnap.id, ...blockData } as TrainingBlock);
       } else {
@@ -82,7 +68,7 @@ export async function getTrainingBlocks(planId: string): Promise<TrainingBlock[]
     if (trainingBlocks.length === 0 && querySnapshot.size > 0) {
         console.error(`[Firestore Service] No blocks were added to the 'trainingBlocks' array for planId "${planId}", but the query snapshot was NOT empty. This indicates a potential issue with the data structure or the 'as TrainingBlock' type assertion, or the secondary client-side filter.`);
     } else if (trainingBlocks.length === 0 && querySnapshot.size === 0) {
-        console.log(`[Firestore Service] NO blocks matched the query for planId: "${planId}". Double-check the 'planId' field value and existence in your 'trainingBlocks' collection in Firestore. Ensure it is exactly "${planId}". Also check if 'createdAt' field exists and is a valid Timestamp for all relevant blocks, or if an index on (planId ASC, createdAt ASC) is needed.`);
+        console.log(`[Firestore Service] NO blocks matched the query for planId: "${planId}". Double-check the 'planId' field value and existence in your 'trainingBlocks' collection in Firestore. Ensure it is exactly "${planId}".`);
     }
     console.log(`[Firestore Service] getTrainingBlocks for planId "${planId}" is returning ${trainingBlocks.length} blocks.`);
     return trainingBlocks;
@@ -302,3 +288,4 @@ export async function debugGetBlocksForPlan(planId: string): Promise<void> {
     console.error(`[DEBUG] Error fetching blocks for plan ${planId}:`, error);
   }
 }
+
