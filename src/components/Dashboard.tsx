@@ -122,12 +122,12 @@ const Dashboard = () => {
       const userHorses = await fetchHorsesService(uid);
       setHorses(userHorses);
       if (userHorses.length > 0 && !selectedHorse) {
-        // setSelectedHorse(userHorses[0]); // Auto-select first horse removed as per previous updates
+        // setSelectedHorse(userHorses[0]); // Auto-select first horse removed
       } else if (userHorses.length === 0) {
         setSelectedHorse(null);
       }
     } catch (error) {
-      console.error("Error fetching horses:", error);
+      console.error("[Dashboard] Error fetching horses:", error);
       toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar los caballos." });
       setHorses([]);
     } finally {
@@ -151,8 +151,9 @@ const Dashboard = () => {
     try {
       const plans = await getTrainingPlans();
       setTrainingPlans(plans);
+      console.log("[Dashboard] Training plans fetched:", JSON.parse(JSON.stringify(plans)));
     } catch (error) {
-      console.error("Error fetching training plans:", error);
+      console.error("[Dashboard] Error fetching training plans:", error);
       toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar los planes de entrenamiento." });
       setTrainingPlans([]);
     } finally {
@@ -173,10 +174,7 @@ const Dashboard = () => {
     setIsLoadingBlocks(true);
     try {
       console.log(`[Dashboard] Calling getTrainingBlocks for planId: ${planId}`);
-      // DEBUG: Call the debug function from firestore.ts
-      if (planId === "5xVnhR192DNSfOSCdxu4") { // Example: only debug specific plan
-          await debugGetBlocksForPlan(planId);
-      }
+      // await debugGetBlocksForPlan(planId); // Keep for specific plan debugging if needed
       const fetchedBlocks = await getTrainingBlocks(planId);
       console.log(`[Dashboard] Blocks fetched by getTrainingBlocks for planId ${planId}:`, JSON.parse(JSON.stringify(fetchedBlocks)));
       setBlocks(fetchedBlocks);
@@ -187,7 +185,7 @@ const Dashboard = () => {
         console.log(`[Dashboard] ${fetchedBlocks.length} blocks found for planId ${planId}.`);
       }
     } catch (error) {
-      console.error(`Error fetching blocks for plan ${planId}:`, error);
+      console.error(`[Dashboard] Error fetching blocks for plan ${planId}:`, error);
       toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar las etapas para este plan." });
       setBlocks([]);
     } finally {
@@ -202,7 +200,7 @@ const Dashboard = () => {
     } else {
       setBlocks([]);
       setSelectedBlock(null);
-      setExercises([]);
+      setExercises([]); // Also clear exercises if no plan is selected
     }
   }, [selectedPlan, performFetchBlocks]);
 
@@ -214,20 +212,19 @@ const Dashboard = () => {
     setIsLoadingExercises(true);
     console.log(`[Dashboard] Starting to fetch exercises for plan: ${planId}`);
     try {
-      // Fetch blocks again, or ensure 'blocks' state is up-to-date if performFetchBlocks was just called.
-      // For simplicity, let's re-fetch or rely on existing 'blocks' state. Here, we'll use existing state.
-      // Consider that 'blocks' might not be immediately up-to-date if performFetchBlocks is async and just triggered.
-      // A more robust way might be to await performFetchBlocks or pass blocks if available.
-      
-      // Let's ensure we are using the most up-to-date blocks list for THIS planId
-      const planBlocks = await getTrainingBlocks(planId); 
-      console.log(`[Dashboard] Plan blocks for exercise fetch (planId ${planId}):`, JSON.parse(JSON.stringify(planBlocks)));
+      // Fetch blocks for the current plan to iterate through.
+      // Using 'blocks' state directly might be stale if performFetchBlocks just ran.
+      // It's safer to re-fetch or ensure 'blocks' is up-to-date.
+      // For simplicity here, we'll assume `blocks` state is fresh enough if `performFetchBlocks` was awaited or called in `useEffect` on `selectedPlan`.
+      // However, directly using the `blocks` state from `useEffect` on `selectedPlan` is better.
+      const currentPlanBlocks = blocks.filter(b => b.planId === planId); // Use current blocks state filtered for this plan
+      console.log(`[Dashboard] Plan blocks for exercise fetch (planId ${planId}):`, JSON.parse(JSON.stringify(currentPlanBlocks)));
 
       let allExercisesForPlan: Exercise[] = [];
-      if (planBlocks.length === 0) {
-        console.log(`[Dashboard] No blocks found for plan ${planId} during exercise fetch. Cannot fetch exercises.`);
+      if (currentPlanBlocks.length === 0) {
+        console.log(`[Dashboard] No blocks currently in state for plan ${planId} during exercise fetch. Cannot fetch exercises if blocks array is empty for this plan.`);
       } else {
-        for (const block of planBlocks) {
+        for (const block of currentPlanBlocks) {
           console.log(`[Dashboard] Processing block for exercises: planId "${planId}", blockId: "${block.id}" (Etapa: "${block.title}")`);
           const blockExercises = await getExercises(planId, block.id);
           console.log(`[Dashboard] ---> Found ${blockExercises.length} exercises for blockId: "${block.id}" (Etapa: "${block.title}")`);
@@ -246,15 +243,18 @@ const Dashboard = () => {
     } finally {
       setIsLoadingExercises(false);
     }
-  }, [toast]); // Removed blocks from dependency array as we fetch it inside now
+  }, [toast, blocks]); // Depend on `blocks` state as it contains the blocks to iterate
 
   useEffect(() => {
     if (selectedPlan) {
+      // performFetchBlocks(selectedPlan.id) was already called when selectedPlan changed.
+      // Now that blocks for the selectedPlan *should* be in the `blocks` state, we can fetch exercises.
       performFetchExercisesForPlan(selectedPlan.id);
     } else {
       setExercises([]);
     }
-  }, [selectedPlan, performFetchExercisesForPlan]); // Ensure it re-runs if selectedPlan changes or the fetch function itself changes (e.g. due to parent state)
+  }, [selectedPlan, blocks, performFetchExercisesForPlan]); // Re-run if selectedPlan or blocks change, or the fetch function itself
+
 
   const performFetchObservations = useCallback(async (horseId: string) => {
     if (!horseId) {
@@ -266,7 +266,7 @@ const Dashboard = () => {
       const observations = await getObservationsByHorseId(horseId);
       setHorseObservations(observations);
     } catch (error) {
-      console.error(`Error fetching observations for horse ${horseId}:`, error);
+      console.error(`[Dashboard] Error fetching observations for horse ${horseId}:`, error);
       toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar las observaciones." });
       setHorseObservations([]);
     } finally {
@@ -291,12 +291,13 @@ const Dashboard = () => {
 
   const handlePlanAdded = (newPlanId: string) => {
     setIsCreatePlanDialogOpen(false);
-    performFetchPlans().then(() => {
-      getTrainingPlans().then(refreshedPlans => {
+    performFetchPlans().then(() => { // Re-fetch all plans
+      // Then find the new plan from the updated list and select it
+      getTrainingPlans().then(refreshedPlans => { // This ensures we get the very latest list after add
         setTrainingPlans(refreshedPlans);
         const newPlan = refreshedPlans.find(p => p.id === newPlanId);
         if (newPlan) {
-          setSelectedPlan(newPlan);
+          setSelectedPlan(newPlan); // This will trigger useEffect to fetch its blocks
           console.log('[Dashboard] New plan added and selected:', JSON.parse(JSON.stringify(newPlan)));
         }
       });
@@ -306,18 +307,17 @@ const Dashboard = () => {
   const handleBlockAdded = (newBlockId: string) => {
     setIsAddBlockDialogOpen(false);
     if (selectedPlan) {
-      performFetchBlocks(selectedPlan.id).then(() => {
-        performFetchExercisesForPlan(selectedPlan.id);
-      });
+      performFetchBlocks(selectedPlan.id); // This will re-fetch blocks, and useEffect will re-fetch exercises
     }
   };
 
   const handleExerciseAdded = (newExerciseId: string) => {
     setIsAddExerciseDialogOpen(false);
     if (selectedPlan && currentBlockIdForExercise) {
+       // Re-fetch all exercises for the current plan, as a new one was added to one of its blocks
       performFetchExercisesForPlan(selectedPlan.id);
     }
-    setCurrentBlockIdForExercise(null);
+    setCurrentBlockIdForExercise(null); // Reset after use
   };
 
   const openAddExerciseDialog = (blockId: string) => {
@@ -368,7 +368,7 @@ const handleSaveSessionAndNavigate = async () => {
     }
 
 
-    const exercisesInSelectedBlock = exercises.filter(ex => ex.blockId === selectedBlock.id && selectedPlan && ex.planId === selectedPlan.id);
+    const exercisesInSelectedBlock = exercises.filter(ex => ex.blockId === selectedBlock?.id && selectedPlan && ex.planId === selectedPlan.id);
     if (exercisesInSelectedBlock.length === 0) {
         toast({
             variant: "destructive",
@@ -423,7 +423,7 @@ const handleSaveSessionAndNavigate = async () => {
         toast({ variant: "destructive", title: "Error", description: "No se pudo crear la sesión." });
       }
     } catch (error) {
-      console.error("Error saving session:", error);
+      console.error("[Dashboard] Error saving session:", error);
       let errorMessage = "Ocurrió un error al guardar la sesión.";
       if (error instanceof Error) {
         errorMessage = error.message;
@@ -472,7 +472,7 @@ const handleSaveSessionAndNavigate = async () => {
       setObservationData({}); 
       if (selectedHorse) performFetchObservations(selectedHorse.id); 
     } catch (error) {
-      console.error("Error saving observation:", error);
+      console.error("[Dashboard] Error saving observation:", error);
       let errorMessage = "Ocurrió un error al guardar la observación.";
       if (error instanceof Error) {
         errorMessage = error.message;

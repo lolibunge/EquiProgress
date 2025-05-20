@@ -38,6 +38,7 @@ export interface TrainingBlock {
     notes?: string; // Subtitle or additional notes for the block
     duration?: string; // Optional duration for the block, e.g., "1 semana"
     goal?: string; // Optional goal for the training block
+    order?: number; // Order of the block within the plan
     createdAt?: Timestamp;
     updatedAt?: Timestamp;
 }
@@ -125,7 +126,8 @@ export interface TrainingBlockInput {
   title: string;
   notes?: string;
   duration?: string;
-  goal?: string; // Optional goal for the training block
+  goal?: string; 
+  order?: number; // Order of the block within the plan
 }
 
 export interface ExerciseInput {
