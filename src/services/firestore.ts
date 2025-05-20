@@ -41,41 +41,42 @@ export async function addTrainingPlan(planData: TrainingPlanInput): Promise<stri
 
 export async function getTrainingBlocks(planId: string): Promise<TrainingBlock[]> {
   const trimmedPlanId = planId.trim();
-  console.log(`[Firestore Service] Attempting to fetch trainingBlocks with planId: "${trimmedPlanId}" (NO ordering - diagnostic)`);
+  console.log(`[Firestore Service] Attempting to fetch trainingBlocks with planId: "${trimmedPlanId}" (ordering by 'order' asc)`);
   if (!trimmedPlanId) {
     console.warn("[Firestore Service] getTrainingBlocks: planId is null or empty. Returning empty array.");
     return [];
   }
   try {
     const trainingBlocksRef = collection(db, "trainingBlocks");
-    // TEMPORARILY REMOVED orderBy("order", "asc") for diagnostics
-    const q = query(trainingBlocksRef, where("planId", "==", trimmedPlanId));
-    console.log(`[Firestore Service] Querying trainingBlocks with planId: "${trimmedPlanId}" (NO ordering - diagnostic).`);
+    const q = query(trainingBlocksRef, where("planId", "==", trimmedPlanId), orderBy("order", "asc"));
+    console.log(`[Firestore Service] Querying trainingBlocks with planId: "${trimmedPlanId}" and orderBy('order', 'asc').`);
 
     const querySnapshot = await getDocs(q);
     const trainingBlocks: TrainingBlock[] = [];
-    console.log(`[Firestore Service] Query snapshot for planId "${trimmedPlanId}" (NO ordering - diagnostic) has ${querySnapshot.size} documents.`);
+    console.log(`[Firestore Service] Query snapshot for planId "${trimmedPlanId}" (orderBy 'order') has ${querySnapshot.size} documents.`);
 
     querySnapshot.forEach((docSnap) => {
       const blockData = docSnap.data();
       const orderValue = blockData.order !== undefined ? blockData.order : 'N/A (field missing)';
       console.log(`[Firestore Service] Raw block data being processed: ID=${docSnap.id}, Title="${blockData.title}", planId="${blockData.planId}", order=${orderValue}, createdAt exists: ${!!blockData.createdAt}`);
+      if (blockData.order === undefined) {
+        console.warn(`[Firestore Service] Block ID=${docSnap.id}, Title="${blockData.title}" is MISSING the 'order' field and might not appear as expected or at all when ordering by 'order'.`);
+      }
       trainingBlocks.push({ id: docSnap.id, ...blockData } as TrainingBlock);
     });
     
     if (trainingBlocks.length === 0 && querySnapshot.size > 0) {
-        console.warn(`[Firestore Service] No blocks were added to 'trainingBlocks' array for planId "${trimmedPlanId}", but query snapshot was NOT empty. This might indicate a data processing issue.`);
+        console.warn(`[Firestore Service] No blocks were added to 'trainingBlocks' array for planId "${trimmedPlanId}" (orderBy 'order'), but query snapshot was NOT empty. This might indicate a data processing issue or all matching blocks are missing the 'order' field.`);
     } else if (querySnapshot.size === 0) {
-        console.log(`[Firestore Service] NO blocks matched the query for planId: "${trimmedPlanId}". Ensure blocks have correct planId field.`);
+        console.log(`[Firestore Service] NO blocks matched the query for planId: "${trimmedPlanId}" with orderBy('order', 'asc'). Ensure blocks have correct planId field and the 'order' field.`);
     }
-    console.log(`[Firestore Service] getTrainingBlocks for planId "${trimmedPlanId}" is returning ${trainingBlocks.length} blocks (NO ordering - diagnostic).`);
+    console.log(`[Firestore Service] getTrainingBlocks for planId "${trimmedPlanId}" is returning ${trainingBlocks.length} blocks (orderBy 'order' asc).`);
     return trainingBlocks;
   } catch (error: any) {
     console.error(`[Firestore Service] Error fetching training blocks for plan ${trimmedPlanId}:`, error);
-    // Keep error for missing index if orderBy was present, but now it's removed for diagnostics.
-    // if (error.code === 'failed-precondition') {
-    //     console.error(`[Firestore Service] INDEX REQUIRED for trainingBlocks: The query (planId: ${trimmedPlanId}, orderBy: order) requires a composite index on 'planId' (asc) and 'order' (asc). Please create it in Firebase Firestore.`);
-    // }
+    if (error.code === 'failed-precondition') {
+        console.error(`[Firestore Service] INDEX REQUIRED for trainingBlocks: The query (planId: ${trimmedPlanId}, orderBy: order) requires a composite index on 'planId' (asc) and 'order' (asc). Please create it in Firebase Firestore.`);
+    }
     throw error;
   }
 }
@@ -106,7 +107,7 @@ export async function addTrainingBlock(planId: string, blockData: TrainingBlockI
   const q = query(
     collection(db, "trainingBlocks"),
     where("planId", "==", planId),
-    orderBy("order", "desc"), // This query is to find the current max order
+    orderBy("order", "desc"), 
     limit(1)
   );
   let newOrder = 0;
@@ -121,7 +122,7 @@ export async function addTrainingBlock(planId: string, blockData: TrainingBlockI
     const newBlockData: { [key: string]: any } = {
       planId: planId,
       title: blockData.title,
-      order: newOrder, // Assign calculated order
+      order: newOrder,
       createdAt: serverTimestamp() as Timestamp,
       updatedAt: serverTimestamp() as Timestamp,
     };
@@ -152,18 +153,18 @@ export async function addTrainingBlock(planId: string, blockData: TrainingBlockI
 export async function getExercises(planId: string, blockId: string): Promise<Exercise[]> {
   const trimmedPlanId = planId.trim();
   const trimmedBlockId = blockId.trim();
-  console.log(`[Firestore Service] Attempting to fetch exercises with planId: "${trimmedPlanId}" AND blockId: "${trimmedBlockId}" (NO ordering - diagnostic)`);
+  console.log(`[Firestore Service] Attempting to fetch exercises with planId: "${trimmedPlanId}" AND blockId: "${trimmedBlockId}" (ordering by 'order' asc)`);
   try {
     const exercisesRef = collection(db, "exercises");
-    // TEMPORARILY REMOVED orderBy("order", "asc") for diagnostics
     const q = query(
       exercisesRef,
       where("planId", "==", trimmedPlanId),
-      where("blockId", "==", trimmedBlockId)
+      where("blockId", "==", trimmedBlockId),
+      orderBy("order", "asc")
     );
     const querySnapshot = await getDocs(q);
     const exercises: Exercise[] = [];
-    console.log(`[Firestore Service] Exercise query snapshot for planId "${trimmedPlanId}", blockId "${trimmedBlockId}" (NO ordering - diagnostic) has ${querySnapshot.size} documents.`);
+    console.log(`[Firestore Service] Exercise query snapshot for planId "${trimmedPlanId}", blockId "${trimmedBlockId}" (orderBy 'order') has ${querySnapshot.size} documents.`);
     
     querySnapshot.forEach((docSnap) => {
       const exerciseData = docSnap.data();
@@ -171,21 +172,23 @@ export async function getExercises(planId: string, blockId: string): Promise<Exe
       const orderValue = exerciseData.order !== undefined ? exerciseData.order : 'N/A (field missing)';
       const createdAtValue = exerciseData.createdAt ? 'Present' : 'N/A (field missing)';
       console.log(`[Firestore Service] Raw exercise data being processed: ${exercise.title} (ID: ${exercise.id}), planId: ${exerciseData.planId}, blockId: ${exerciseData.blockId}, createdAt: ${createdAtValue}, order: ${orderValue}`);
+      if (exerciseData.order === undefined) {
+        console.warn(`[Firestore Service] Exercise ID=${docSnap.id}, Title="${exerciseData.title}" is MISSING the 'order' field and might not appear as expected or at all when ordering by 'order'.`);
+      }
       exercises.push(exercise);
     });
 
     if (exercises.length === 0 && querySnapshot.size > 0) {
-        console.warn(`[Firestore Service] No exercises were added to array for planId "${trimmedPlanId}", blockId "${trimmedBlockId}", but query snapshot was NOT empty. This might indicate a data processing issue.`);
+        console.warn(`[Firestore Service] No exercises were added to array for planId "${trimmedPlanId}", blockId "${trimmedBlockId}" (orderBy 'order'), but query snapshot was NOT empty. This might indicate a data processing issue or all matching exercises are missing the 'order' field.`);
     } else if (querySnapshot.size === 0) {
-        console.log(`[Firestore Service] No exercises found matching planId: "${trimmedPlanId}" AND blockId: "${trimmedBlockId}" (NO ordering - diagnostic). Ensure exercises have correct IDs.`);
+        console.log(`[Firestore Service] No exercises found matching planId: "${trimmedPlanId}" AND blockId: "${trimmedBlockId}" with orderBy('order', 'asc'). Ensure exercises have correct IDs and the 'order' field.`);
     }
     return exercises;
   } catch (error: any) {
     console.error(`[Firestore Service] Error fetching exercises for plan ${trimmedPlanId}, block ${trimmedBlockId}:`, error);
-    // Keep error for missing index if orderBy was present, but now it's removed for diagnostics.
-    // if (error.code === 'failed-precondition') {
-    //     console.error(`[Firestore Service] INDEX REQUIRED for exercises: The query (planId: ${trimmedPlanId}, blockId: ${trimmedBlockId}, orderBy: order) requires a composite index on 'planId' (asc), 'blockId' (asc), and 'order' (asc). Please create this index in Firebase Firestore.`);
-    // }
+    if (error.code === 'failed-precondition') {
+        console.error(`[Firestore Service] INDEX REQUIRED for exercises: The query (planId: ${trimmedPlanId}, blockId: ${trimmedBlockId}, orderBy: order) requires a composite index on 'planId' (asc), 'blockId' (asc), and 'order' (asc). Please create this index in Firebase Firestore.`);
+    }
     throw error;
   }
 }
@@ -219,7 +222,7 @@ export async function addExerciseToBlock(planId: string, blockId: string, exerci
     collection(db, "exercises"),
     where("planId", "==", planId),
     where("blockId", "==", blockId),
-    orderBy("order", "desc"), // This query is to find the current max order
+    orderBy("order", "desc"), 
     limit(1)
   );
   let newOrder = 0;
@@ -237,7 +240,7 @@ export async function addExerciseToBlock(planId: string, blockId: string, exerci
     planId: planId,
     blockId: blockId,
     title: exerciseData.title,
-    order: newOrder, // Assign calculated order
+    order: newOrder, 
     createdAt: serverTimestamp() as Timestamp,
     updatedAt: serverTimestamp() as Timestamp,
   };
