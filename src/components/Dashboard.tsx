@@ -172,9 +172,9 @@ const Dashboard = () => {
       return;
     }
     setIsLoadingBlocks(true);
+    setExercises([]); // Clear exercises when blocks are about to be fetched for a new plan
     try {
       console.log(`[Dashboard] Calling getTrainingBlocks for planId: ${planId}`);
-      // await debugGetBlocksForPlan(planId); // Keep for specific plan debugging if needed
       const fetchedBlocks = await getTrainingBlocks(planId);
       console.log(`[Dashboard] Blocks fetched by getTrainingBlocks for planId ${planId}:`, JSON.parse(JSON.stringify(fetchedBlocks)));
       setBlocks(fetchedBlocks);
@@ -193,50 +193,31 @@ const Dashboard = () => {
     }
   }, [toast]);
 
-
-  useEffect(() => {
-    if (selectedPlan) {
-      performFetchBlocks(selectedPlan.id);
-    } else {
-      setBlocks([]);
-      setSelectedBlock(null);
-      setExercises([]); // Also clear exercises if no plan is selected
-    }
-  }, [selectedPlan, performFetchBlocks]);
-
-   const performFetchExercisesForPlan = useCallback(async (planId: string) => {
+  const performFetchExercisesForPlan = useCallback(async (planId: string, currentPlanBlocks: TrainingBlock[]) => {
     console.log(`[Dashboard] performFetchExercisesForPlan called for planId: ${planId}`);
-    if (!planId || blocks.length === 0) { // Only fetch if planId is valid and there are blocks in state
-      setExercises([]);
-      setIsLoadingExercises(false); // Ensure loading is false if no blocks are present
-      console.log(`[Dashboard] No planId provided or no blocks found in state for exercise fetch (planId: ${planId}, blocks count: ${blocks.length}). Clearing exercises.`);
-      // Continue to fetch exercises even if blocks is initially empty - performFetchBlocks should update it.
+    if (!planId) {
+        setExercises([]);
+        console.log(`[Dashboard] No planId provided for exercise fetch. Clearing exercises.`);
+        return;
     }
-    setIsLoadingExercises(true);
-    console.log(`[Dashboard] Starting to fetch exercises for plan: ${planId}`);
-    try {
-      // Fetch blocks for the current plan to iterate through.
-      // Using 'blocks' state directly might be stale if performFetchBlocks just ran.
-      // It's safer to re-fetch or ensure 'blocks' is up-to-date.
-      // For simplicity here, we'll assume `blocks` state is fresh enough if `performFetchBlocks` was awaited or called in `useEffect` on `selectedPlan`.
-      // However, directly using the `blocks` state from `useEffect` on `selectedPlan` is better.
-      // Use the blocks array that is currently in the state. The useEffect dependency on `blocks` will handle re-fetching exercises if blocks change.
-      const currentPlanBlocks = blocks; // Use the current blocks state directly, assuming it's for the selectedPlan due to useEffect chain
-      console.log(`[Dashboard] Plan blocks for exercise fetch (planId ${planId}):`, JSON.parse(JSON.stringify(currentPlanBlocks)));
+    if (currentPlanBlocks.length === 0) {
+        setExercises([]);
+        console.log(`[Dashboard] No blocks provided for planId ${planId} during exercise fetch. Clearing exercises.`);
+        return;
+    }
 
+    setIsLoadingExercises(true);
+    console.log(`[Dashboard] Starting to fetch exercises for plan: ${planId} using ${currentPlanBlocks.length} blocks.`);
+    try {
       let allExercisesForPlan: Exercise[] = [];
-      if (currentPlanBlocks.length === 0) {
-        console.log(`[Dashboard] No blocks currently in state for plan ${planId} during exercise fetch. Cannot fetch exercises if blocks array is empty for this plan.`);
-      } else {
-        for (const block of currentPlanBlocks) {
-          console.log(`[Dashboard] Processing block for exercises: planId "${planId}", blockId: "${block.id}" (Etapa: "${block.title}")`);
-          const blockExercises = await getExercises(planId, block.id);
-          console.log(`[Dashboard] ---> Found ${blockExercises.length} exercises for blockId: "${block.id}" (Etapa: "${block.title}")`);
-          if (blockExercises.length > 0) {
-            console.log(`[Dashboard]      Exercises found:`, JSON.parse(JSON.stringify(blockExercises.map(e => ({ title: e.title, id: e.id, planId: e.planId, blockId: e.blockId, order: e.order })))));
-          }
-          allExercisesForPlan = [...allExercisesForPlan, ...blockExercises];
+      for (const block of currentPlanBlocks) {
+        console.log(`[Dashboard] Processing block for exercises: planId "${planId}", blockId: "${block.id}" (Etapa: "${block.title}")`);
+        const blockExercises = await getExercises(planId, block.id);
+        console.log(`[Dashboard] ---> Found ${blockExercises.length} exercises for blockId: "${block.id}" (Etapa: "${block.title}")`);
+        if (blockExercises.length > 0) {
+          console.log(`[Dashboard]      Exercises found:`, JSON.parse(JSON.stringify(blockExercises.map(e => ({ title: e.title, id: e.id, planId: e.planId, blockId: e.blockId, order: e.order })))));
         }
+        allExercisesForPlan = [...allExercisesForPlan, ...blockExercises];
       }
       setExercises(allExercisesForPlan);
       console.log(`[Dashboard] Total exercises set for plan ${planId}: ${allExercisesForPlan.length}. If this is 0, check individual block/exercise fetches above.`);
@@ -247,22 +228,29 @@ const Dashboard = () => {
     } finally {
       setIsLoadingExercises(false);
     }
-  }, [toast]); // Removed 'blocks' from dependencies
+  }, [toast]);
 
   useEffect(() => {
     if (selectedPlan) {
-      const fetchBlocksAndExercises = async () => {
-        console.log('[Dashboard] useEffect on selectedPlan - fetching blocks then exercises');
-        await performFetchBlocks(selectedPlan.id); // Ensure blocks are fetched first
-        performFetchExercisesForPlan(selectedPlan.id); // Then fetch exercises using the updated blocks state
-      };
-      fetchBlocksAndExercises();
+      performFetchBlocks(selectedPlan.id);
     } else {
-      console.log('[Dashboard] useEffect on selectedPlan - No selected plan, clearing blocks and exercises.');
+      setBlocks([]);
+      setSelectedBlock(null);
       setExercises([]);
-      setBlocks([]); // Clear blocks if no plan is selected
     }
-  }, [selectedPlan, performFetchBlocks, performFetchExercisesForPlan]); // Depend only on selectedPlan and the fetch functions
+  }, [selectedPlan, performFetchBlocks]);
+
+  useEffect(() => {
+    if (selectedPlan && !isLoadingBlocks) { // Only run if selectedPlan is set and blocks are done loading
+      if (blocks.length > 0) {
+        console.log(`[Dashboard] useEffect[selectedPlan, blocks, isLoadingBlocks] - Fetching exercises for plan ${selectedPlan.id} as blocks are loaded.`);
+        performFetchExercisesForPlan(selectedPlan.id, blocks);
+      } else {
+        console.log(`[Dashboard] useEffect[selectedPlan, blocks, isLoadingBlocks] - Plan ${selectedPlan.id} selected, blocks loaded, but no blocks found. Clearing exercises.`);
+        setExercises([]); // Clear exercises if no blocks were found for the selected plan
+      }
+    }
+  }, [selectedPlan, blocks, isLoadingBlocks, performFetchExercisesForPlan]);
 
 
   const performFetchObservations = useCallback(async (horseId: string) => {
@@ -300,13 +288,12 @@ const Dashboard = () => {
 
   const handlePlanAdded = (newPlanId: string) => {
     setIsCreatePlanDialogOpen(false);
-    performFetchPlans().then(() => { // Re-fetch all plans
-      // Then find the new plan from the updated list and select it
-      getTrainingPlans().then(refreshedPlans => { // This ensures we get the very latest list after add
+    performFetchPlans().then(() => { 
+      getTrainingPlans().then(refreshedPlans => { 
         setTrainingPlans(refreshedPlans);
         const newPlan = refreshedPlans.find(p => p.id === newPlanId);
         if (newPlan) {
-          setSelectedPlan(newPlan); // This will trigger useEffect to fetch its blocks
+          setSelectedPlan(newPlan); 
           console.log('[Dashboard] New plan added and selected:', JSON.parse(JSON.stringify(newPlan)));
         }
       });
@@ -316,17 +303,16 @@ const Dashboard = () => {
   const handleBlockAdded = (newBlockId: string) => {
     setIsAddBlockDialogOpen(false);
     if (selectedPlan) {
-      performFetchBlocks(selectedPlan.id); // This will re-fetch blocks, and useEffect will re-fetch exercises
+      performFetchBlocks(selectedPlan.id); 
     }
   };
 
   const handleExerciseAdded = (newExerciseId: string) => {
     setIsAddExerciseDialogOpen(false);
-    if (selectedPlan && currentBlockIdForExercise) {
-       // Re-fetch all exercises for the current plan, as a new one was added to one of its blocks
-      performFetchExercisesForPlan(selectedPlan.id);
+    if (selectedPlan && currentBlockIdForExercise && blocks.length > 0) {
+      performFetchExercisesForPlan(selectedPlan.id, blocks);
     }
-    setCurrentBlockIdForExercise(null); // Reset after use
+    setCurrentBlockIdForExercise(null); 
   };
 
   const openAddExerciseDialog = (blockId: string) => {
@@ -611,12 +597,12 @@ const handleSaveSessionAndNavigate = async () => {
                                           Meta: <span className="font-normal text-muted-foreground">{block.goal}</span>
                                         </p>
                                       )}
-                                      {isLoadingExercises && !exercises.some(ex => ex.blockId === block.id && selectedPlan && ex.planId === selectedPlan.id) ? (
-                                        <p>Cargando ejercicios para la etapa: {block.title} (ID: {block.id})...</p>
+                                     {isLoadingExercises ? (
+                                        <p>Cargando ejercicios...</p>
                                       ) : exercises.filter(ex => ex.blockId === block.id && selectedPlan && ex.planId === selectedPlan.id).length > 0 ? (
                                         <ul className="list-disc pl-5 space-y-1 text-sm">
                                           {exercises
-                                            .filter(ex => ex.blockId === block.id && ex.planId === selectedPlan.id)
+                                            .filter(ex => ex.blockId === block.id && selectedPlan && ex.planId === selectedPlan.id)
                                             .map(exercise => (
                                               <li key={exercise.id}>
                                                 <span className="font-medium">{exercise.title}</span>
@@ -629,7 +615,7 @@ const handleSaveSessionAndNavigate = async () => {
                                       ) : (
                                         <p className="text-sm text-muted-foreground">
                                             No se encontraron ejercicios para la etapa "{block.title}" (ID: {block.id}) en el plan "{selectedPlan?.title}" (ID: {selectedPlan?.id}).
-                                            Verifica que los ejercicios en Firestore tengan el `planId` y `blockId` correctos y el campo `order` si es necesario para la consulta.
+                                            Verifica que los ejercicios en Firestore tengan el `planId` y `blockId` correctos.
                                         </p>
                                       )}
                                       <Button size="sm" variant="outline" className="mt-2" onClick={() => openAddExerciseDialog(block.id)}>
@@ -977,3 +963,6 @@ const handleSaveSessionAndNavigate = async () => {
 };
 
 export default Dashboard;
+
+
+    
