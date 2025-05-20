@@ -47,32 +47,33 @@ export async function getTrainingBlocks(planId: string): Promise<TrainingBlock[]
   }
   try {
     const trainingBlocksRef = collection(db, "trainingBlocks");
-    // Query by planId and order by the 'order' field
-    const q = query(trainingBlocksRef, where("planId", "==", planId), orderBy("order", "asc"));
-    console.log(`[Firestore Service] Querying trainingBlocks with planId: "${planId}", ordered by "order" asc.`);
+    // TEMPORARILY REMOVED orderBy("order", "asc") for diagnostics.
+    // Original query: const q = query(trainingBlocksRef, where("planId", "==", planId), orderBy("order", "asc"));
+    const q = query(trainingBlocksRef, where("planId", "==", planId));
+    console.log(`[Firestore Service] Querying trainingBlocks with planId: "${planId}" (NO ordering - diagnostic).`);
 
     const querySnapshot = await getDocs(q);
     const trainingBlocks: TrainingBlock[] = [];
-    console.log(`[Firestore Service] Query snapshot for planId "${planId}" (ordered by 'order') has ${querySnapshot.size} documents.`);
+    console.log(`[Firestore Service] Query snapshot for planId "${planId}" (NO ordering - diagnostic) has ${querySnapshot.size} documents.`);
 
     querySnapshot.forEach((docSnap) => {
       const blockData = docSnap.data();
-      console.log(`[Firestore Service] Raw block data being processed for planId "${planId}": ID=${docSnap.id}, Title="${blockData.title}", planId="${blockData.planId}", order=${blockData.order}`);
+      const orderValue = blockData.order !== undefined ? blockData.order : 'N/A (field missing)';
+      console.log(`[Firestore Service] Raw block data being processed for planId "${planId}": ID=${docSnap.id}, Title="${blockData.title}", planId="${blockData.planId}", order=${orderValue}`);
       trainingBlocks.push({ id: docSnap.id, ...blockData } as TrainingBlock);
     });
     
     if (trainingBlocks.length === 0 && querySnapshot.size > 0) {
-        console.warn(`[Firestore Service] No blocks were added to 'trainingBlocks' array for planId "${planId}", but query snapshot was NOT empty. This indicates documents might be missing 'order' field or a type mismatch for 'order'.`);
+        console.warn(`[Firestore Service] No blocks were added to 'trainingBlocks' array for planId "${planId}", but query snapshot was NOT empty. This indicates a potential issue in processing the fetched documents or a type mismatch if fields are unexpectedly undefined.`);
     } else if (trainingBlocks.length === 0) {
-        console.log(`[Firestore Service] NO blocks matched the query for planId: "${planId}" ordered by "order". Ensure blocks have correct planId and the 'order' field.`);
+        console.log(`[Firestore Service] NO blocks matched the query for planId: "${planId}" (NO ordering - diagnostic). Ensure blocks have correct planId field.`);
     }
-    console.log(`[Firestore Service] getTrainingBlocks for planId "${planId}" is returning ${trainingBlocks.length} blocks.`);
+    console.log(`[Firestore Service] getTrainingBlocks for planId "${planId}" (NO ordering - diagnostic) is returning ${trainingBlocks.length} blocks.`);
     return trainingBlocks;
   } catch (error: any) {
     console.error(`[Firestore Service] Error fetching training blocks for plan ${planId}:`, error);
-    if (error.code === 'failed-precondition') {
-        console.error(`[Firestore Service] INDEX REQUIRED for trainingBlocks: The query (planId: ${planId}, orderBy: order) requires a composite index on 'planId' (asc) and 'order' (asc). Please create it in Firebase Firestore.`);
-    }
+    // The specific index error for orderBy("order") won't appear with the current diagnostic query.
+    // If an error still occurs, it might be a more general permission issue or a problem with the 'planId' where clause.
     throw error;
   }
 }
@@ -100,7 +101,6 @@ export async function getBlockById(blockId: string): Promise<TrainingBlock | nul
 export async function addTrainingBlock(planId: string, blockData: TrainingBlockInput): Promise<string> {
   const blockCollectionRef = collection(db, "trainingBlocks");
 
-  // Determine the next order value
   const q = query(
     collection(db, "trainingBlocks"),
     where("planId", "==", planId),
@@ -118,7 +118,7 @@ export async function addTrainingBlock(planId: string, blockData: TrainingBlockI
     const newBlockData: { [key: string]: any } = {
       planId: planId,
       title: blockData.title,
-      order: newOrder,
+      order: newOrder, // New blocks will get an order
       createdAt: serverTimestamp() as Timestamp,
       updatedAt: serverTimestamp() as Timestamp,
     };
@@ -139,45 +139,45 @@ export async function addTrainingBlock(planId: string, blockData: TrainingBlockI
   } catch (error: any) {
     console.error("[Firestore Service] Error adding training block:", error);
      if (error.code === 'failed-precondition' && (error.message.includes('order') || error.message.includes('planId'))) {
-        console.error("[Firestore Service] INDEX REQUIRED for adding training block: The query for existing blocks (to determine the new order) requires an index on 'planId' and 'order' (descending). Please create this index in Firebase Firestore: planId (ASC), order (DESC).");
+        console.error("[Firestore Service] INDEX REQUIRED for adding training block: The query for existing blocks (to determine the new order) requires an index on 'planId' (ASC) and 'order' (DESC). Please create this index in Firebase Firestore: planId (ASC), order (DESC).");
     }
     throw error;
   }
 }
 
 export async function getExercises(planId: string, blockId: string): Promise<Exercise[]> {
-  console.log(`[Firestore Service] Attempting to fetch exercises with planId: "${planId}" AND blockId: "${blockId}" (ordering by 'order' asc)`);
+  console.log(`[Firestore Service] Attempting to fetch exercises with planId: "${planId}" AND blockId: "${blockId}" (NO ordering - diagnostic)`);
   try {
     const exercisesRef = collection(db, "exercises");
+    // TEMPORARILY REMOVED orderBy("order", "asc") for diagnostics.
+    // Original query: const q = query(exercisesRef, where("planId", "==", planId), where("blockId", "==", blockId), orderBy("order", "asc"));
     const q = query(
       exercisesRef,
       where("planId", "==", planId),
-      where("blockId", "==", blockId),
-      orderBy("order", "asc") 
+      where("blockId", "==", blockId)
     );
     const querySnapshot = await getDocs(q);
     const exercises: Exercise[] = [];
-    console.log(`[Firestore Service] Exercise query snapshot for planId "${planId}", blockId "${blockId}" (ordered by 'order') has ${querySnapshot.size} documents.`);
+    console.log(`[Firestore Service] Exercise query snapshot for planId "${planId}", blockId "${blockId}" (NO ordering - diagnostic) has ${querySnapshot.size} documents.`);
     
     querySnapshot.forEach((docSnap) => {
       const exerciseData = docSnap.data();
       const exercise = { id: docSnap.id, ...exerciseData } as Exercise;
       const orderValue = exerciseData.order !== undefined ? exerciseData.order : 'N/A (field missing)';
-      console.log(`[Firestore Service] Fetched exercise: ${exercise.title} (ID: ${exercise.id}), planId: ${exerciseData.planId}, blockId: ${exerciseData.blockId}, order: ${orderValue}`);
+      const createdAtValue = exerciseData.createdAt ? 'Present' : 'N/A (field missing)';
+      console.log(`[Firestore Service] Raw exercise data being processed: ${exercise.title} (ID: ${exercise.id}), planId: ${exerciseData.planId}, blockId: ${exerciseData.blockId}, createdAt: ${createdAtValue}, order: ${orderValue}`);
       exercises.push(exercise);
     });
 
     if (exercises.length === 0 && querySnapshot.size > 0) {
-        console.warn(`[Firestore Service] No exercises were added to array for planId "${planId}", blockId "${blockId}", but query snapshot was NOT empty. This indicates exercises might be missing 'order' field or type mismatch.`);
+        console.warn(`[Firestore Service] No exercises were added to array for planId "${planId}", blockId "${blockId}" (NO ordering - diagnostic), but query snapshot was NOT empty. This indicates a potential issue in processing the fetched documents.`);
     } else if (exercises.length === 0) {
-        console.log(`[Firestore Service] No exercises found matching planId: "${planId}" AND blockId: "${blockId}" (ordered by 'order'). Ensure exercises have correct IDs and 'order' field.`);
+        console.log(`[Firestore Service] No exercises found matching planId: "${planId}" AND blockId: "${blockId}" (NO ordering - diagnostic). Ensure exercises have correct IDs.`);
     }
     return exercises;
   } catch (error: any) {
     console.error(`[Firestore Service] Error fetching exercises for plan ${planId}, block ${blockId}:`, error);
-    if (error.code === 'failed-precondition') {
-        console.error(`[Firestore Service] INDEX REQUIRED for exercises: The query (planId: ${planId}, blockId: ${blockId}, orderBy: order) requires a composite index. Please create it in Firebase Firestore: planId (ASC), blockId (ASC), order (ASC).`);
-    }
+    // The specific index error for orderBy("order") won't appear with the current diagnostic query.
     throw error;
   }
 }
@@ -229,7 +229,7 @@ export async function addExerciseToBlock(planId: string, blockId: string, exerci
     planId: planId,
     blockId: blockId,
     title: exerciseData.title,
-    order: newOrder, 
+    order: newOrder,  // New exercises will get an order
     createdAt: serverTimestamp() as Timestamp,
     updatedAt: serverTimestamp() as Timestamp,
   };
@@ -294,35 +294,25 @@ export async function debugGetBlocksForPlan(planId: string): Promise<void> {
   try {
     const trainingBlocksRef = collection(db, "trainingBlocks");
     // Query by planId and order by the 'order' field
-    const q = query(trainingBlocksRef, where("planId", "==", planId), orderBy("order", "asc")); 
+    const q = query(trainingBlocksRef, where("planId", "==", planId)); // Temporarily remove order for debug
     const querySnapshot = await getDocs(q);
     const blocks: { id: string; title: string, planId?: string; order?: number, createdAt?: any }[] = [];
     
-    console.log(`[DEBUG Firestore Service] Query snapshot for planId "${planId}" (ordered by 'order' asc - debug) has ${querySnapshot.size} documents.`);
+    console.log(`[DEBUG Firestore Service] Query snapshot for planId "${planId}" (NO ordering - debug) has ${querySnapshot.size} documents.`);
     querySnapshot.forEach((docSnap) => {
       const blockData = docSnap.data();
       console.log(`[DEBUG Firestore Service] Raw block data (debug): ID=${docSnap.id}, Title=${blockData.title}, planId=${blockData.planId}, order=${blockData.order}`);
       blocks.push({ id: docSnap.id, title: blockData.title, planId: blockData.planId, order: blockData.order, createdAt: blockData.createdAt });
     });
-    console.log(`[DEBUG Firestore Service] Found ${blocks.length} blocks for plan ${planId} (ordered by 'order' asc - debug):`, JSON.parse(JSON.stringify(blocks)));
+    console.log(`[DEBUG Firestore Service] Found ${blocks.length} blocks for plan ${planId} (NO ordering - debug):`, JSON.parse(JSON.stringify(blocks)));
 
-    // Example of fetching a specific block if needed for deeper debugging
-    // const specificBlockId = "YOUR_SPECIFIC_BLOCK_ID_HERE"; 
-    // if (planId === "YOUR_SPECIFIC_PLAN_ID_HERE") { 
-    //     console.log(`[DEBUG Firestore Service] Attempting to fetch specific block ID ${specificBlockId} directly.`);
-    //     const specificBlockRef = doc(db, "trainingBlocks", specificBlockId);
-    //     const specificBlockSnap = await getDoc(specificBlockRef);
-    //     if (specificBlockSnap.exists()) {
-    //       console.log(`[DEBUG Firestore Service] Specific Block ID ${specificBlockId} - Data:`, JSON.parse(JSON.stringify(specificBlockSnap.data())));
-    //     } else {
-    //       console.log(`[DEBUG Firestore Service] Specific Block ID ${specificBlockId} - Does not exist.`);
-    //     }
-    // }
 
   } catch (error: any) {
     console.error(`[DEBUG Firestore Service] Error in debugGetBlocksForPlan for plan ${planId}:`, error);
-     if ((error as any).code === 'failed-precondition') {
-        console.error(`[DEBUG Firestore Service] INDEX REQUIRED for trainingBlocks (debug): The query for blocks (planId: ${planId}, orderBy: order) requires an index. Please create it in Firebase Firestore: planId (ASC), order (ASC).`);
+     if ((error as any).code === 'failed-precondition') { // This specific error for orderBy won't show now
+        console.error(`[DEBUG Firestore Service] Potential INDEX REQUIRED for trainingBlocks (debug) if re-adding orderBy('order'): The query for blocks (planId: ${planId}, orderBy: order) would require an index. Please create it in Firebase Firestore: planId (ASC), order (ASC).`);
     }
   }
 }
+
+    

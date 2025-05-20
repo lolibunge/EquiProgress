@@ -205,9 +205,12 @@ const Dashboard = () => {
   }, [selectedPlan, performFetchBlocks]);
 
    const performFetchExercisesForPlan = useCallback(async (planId: string) => {
-    if (!planId) {
+    console.log(`[Dashboard] performFetchExercisesForPlan called for planId: ${planId}`);
+    if (!planId || blocks.length === 0) { // Only fetch if planId is valid and there are blocks in state
       setExercises([]);
-      return;
+      setIsLoadingExercises(false); // Ensure loading is false if no blocks are present
+      console.log(`[Dashboard] No planId provided or no blocks found in state for exercise fetch (planId: ${planId}, blocks count: ${blocks.length}). Clearing exercises.`);
+      // Continue to fetch exercises even if blocks is initially empty - performFetchBlocks should update it.
     }
     setIsLoadingExercises(true);
     console.log(`[Dashboard] Starting to fetch exercises for plan: ${planId}`);
@@ -217,7 +220,8 @@ const Dashboard = () => {
       // It's safer to re-fetch or ensure 'blocks' is up-to-date.
       // For simplicity here, we'll assume `blocks` state is fresh enough if `performFetchBlocks` was awaited or called in `useEffect` on `selectedPlan`.
       // However, directly using the `blocks` state from `useEffect` on `selectedPlan` is better.
-      const currentPlanBlocks = blocks.filter(b => b.planId === planId); // Use current blocks state filtered for this plan
+      // Use the blocks array that is currently in the state. The useEffect dependency on `blocks` will handle re-fetching exercises if blocks change.
+      const currentPlanBlocks = blocks; // Use the current blocks state directly, assuming it's for the selectedPlan due to useEffect chain
       console.log(`[Dashboard] Plan blocks for exercise fetch (planId ${planId}):`, JSON.parse(JSON.stringify(currentPlanBlocks)));
 
       let allExercisesForPlan: Exercise[] = [];
@@ -243,17 +247,22 @@ const Dashboard = () => {
     } finally {
       setIsLoadingExercises(false);
     }
-  }, [toast, blocks]); // Depend on `blocks` state as it contains the blocks to iterate
+  }, [toast]); // Removed 'blocks' from dependencies
 
   useEffect(() => {
     if (selectedPlan) {
-      // performFetchBlocks(selectedPlan.id) was already called when selectedPlan changed.
-      // Now that blocks for the selectedPlan *should* be in the `blocks` state, we can fetch exercises.
-      performFetchExercisesForPlan(selectedPlan.id);
+      const fetchBlocksAndExercises = async () => {
+        console.log('[Dashboard] useEffect on selectedPlan - fetching blocks then exercises');
+        await performFetchBlocks(selectedPlan.id); // Ensure blocks are fetched first
+        performFetchExercisesForPlan(selectedPlan.id); // Then fetch exercises using the updated blocks state
+      };
+      fetchBlocksAndExercises();
     } else {
+      console.log('[Dashboard] useEffect on selectedPlan - No selected plan, clearing blocks and exercises.');
       setExercises([]);
+      setBlocks([]); // Clear blocks if no plan is selected
     }
-  }, [selectedPlan, blocks, performFetchExercisesForPlan]); // Re-run if selectedPlan or blocks change, or the fetch function itself
+  }, [selectedPlan, performFetchBlocks, performFetchExercisesForPlan]); // Depend only on selectedPlan and the fetch functions
 
 
   const performFetchObservations = useCallback(async (horseId: string) => {

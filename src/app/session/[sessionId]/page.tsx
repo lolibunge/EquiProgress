@@ -119,35 +119,6 @@ function SessionDetailContent() {
     }
   };
 
-  const handleSaveSession = async () => {
-    if (!currentUser || !horseId || !sessionId) {
-      toast({
-        title: "Error al guardar",
-        description: "Falta información de usuario o sesión.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsSaving(true);
-    try {
-      // Here you will implement the logic to update exerciseResults in Firestore
-      // This will involve iterating through the exerciseResults state and calling an update function
-      // on your Firestore service for each ExerciseResult document that has changes.
-      console.log("Saving session data:", exerciseResults); // Placeholder for actual save logic
-
-      toast({
-        title: "Cambios guardados",
-        description: "La sesión ha sido actualizada con éxito.",
-      });
-    } catch (err) {
-      console.error("Error saving session:", err);
-      toast({ title: "Error al guardar", description: "Ocurrió un error al guardar la sesión.", variant: "destructive" });
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
   if (loading) {
     return (
       <div className="flex h-[calc(100vh-4rem)] w-full items-center justify-center">
