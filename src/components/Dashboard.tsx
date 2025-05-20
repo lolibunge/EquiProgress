@@ -19,10 +19,10 @@ import { useRouter } from 'next/navigation';
 
 import { createSession, addExerciseResult, getSession, getExerciseResults } from "@/services/session";
 import { getHorses as fetchHorsesService, getHorseById } from "@/services/horse";
-import { getTrainingPlans, getTrainingBlocks, getExercises, getExercise } from "@/services/firestore";
+import { getTrainingPlans, getTrainingBlocks, getExercises, getExercise, debugGetBlocksForPlan } from "@/services/firestore";
 import type { Horse, TrainingPlan, TrainingBlock, Exercise, ExerciseResult, SessionDataInput, ExerciseResultInput, SessionData, Observation, ObservationInput } from "@/types/firestore";
 import { addObservation, getObservationsByHorseId } from "@/services/observation";
-import HorseHistory from "@/components/HorseHistory"; // Added import
+import HorseHistory from "@/components/HorseHistory"; 
 
  import {
   Accordion,
@@ -172,10 +172,19 @@ const Dashboard = () => {
     }
     setIsLoadingBlocks(true);
     try {
+      console.log(`[Dashboard] Calling getTrainingBlocks for planId: ${planId}`);
+      // DEBUG: Call the debug function from firestore.ts
+      if (planId === "5xVnhR192DNSfOSCdxu4") { // Example: only debug specific plan
+          await debugGetBlocksForPlan(planId);
+      }
       const fetchedBlocks = await getTrainingBlocks(planId);
+      console.log(`[Dashboard] Blocks fetched by getTrainingBlocks for planId ${planId}:`, JSON.parse(JSON.stringify(fetchedBlocks)));
       setBlocks(fetchedBlocks);
       if (fetchedBlocks.length === 0) {
         setSelectedBlock(null);
+        console.log(`[Dashboard] No blocks were found for planId ${planId} by getTrainingBlocks. Setting selectedBlock to null.`);
+      } else {
+        console.log(`[Dashboard] ${fetchedBlocks.length} blocks found for planId ${planId}.`);
       }
     } catch (error) {
       console.error(`Error fetching blocks for plan ${planId}:`, error);
@@ -185,6 +194,7 @@ const Dashboard = () => {
       setIsLoadingBlocks(false);
     }
   }, [toast]);
+
 
   useEffect(() => {
     if (selectedPlan) {
@@ -204,24 +214,31 @@ const Dashboard = () => {
     setIsLoadingExercises(true);
     console.log(`[Dashboard] Starting to fetch exercises for plan: ${planId}`);
     try {
-      const planBlocks = await getTrainingBlocks(planId);
-      console.log(`[Dashboard] For plan ${planId}, found blocks:`, planBlocks.map(b => ({id: b.id, title: b.title})));
+      // Fetch blocks again, or ensure 'blocks' state is up-to-date if performFetchBlocks was just called.
+      // For simplicity, let's re-fetch or rely on existing 'blocks' state. Here, we'll use existing state.
+      // Consider that 'blocks' might not be immediately up-to-date if performFetchBlocks is async and just triggered.
+      // A more robust way might be to await performFetchBlocks or pass blocks if available.
+      
+      // Let's ensure we are using the most up-to-date blocks list for THIS planId
+      const planBlocks = await getTrainingBlocks(planId); 
+      console.log(`[Dashboard] Plan blocks for exercise fetch (planId ${planId}):`, JSON.parse(JSON.stringify(planBlocks)));
+
       let allExercisesForPlan: Exercise[] = [];
       if (planBlocks.length === 0) {
-        console.log(`[Dashboard] No blocks found for plan ${planId}. Cannot fetch exercises.`);
+        console.log(`[Dashboard] No blocks found for plan ${planId} during exercise fetch. Cannot fetch exercises.`);
       } else {
         for (const block of planBlocks) {
-          console.log(`[Dashboard] Fetching exercises for planId: "${planId}", blockId: "${block.id}" (Etapa: "${block.title}")`);
+          console.log(`[Dashboard] Processing block for exercises: planId "${planId}", blockId: "${block.id}" (Etapa: "${block.title}")`);
           const blockExercises = await getExercises(planId, block.id);
           console.log(`[Dashboard] ---> Found ${blockExercises.length} exercises for blockId: "${block.id}" (Etapa: "${block.title}")`);
           if (blockExercises.length > 0) {
-            console.log(`[Dashboard]      Exercises found:`, blockExercises.map(e => ({ title: e.title, id: e.id, planId: e.planId, blockId: e.blockId })));
+            console.log(`[Dashboard]      Exercises found:`, JSON.parse(JSON.stringify(blockExercises.map(e => ({ title: e.title, id: e.id, planId: e.planId, blockId: e.blockId, order: e.order })))));
           }
           allExercisesForPlan = [...allExercisesForPlan, ...blockExercises];
         }
       }
       setExercises(allExercisesForPlan);
-      console.log(`[Dashboard] Total exercises set for plan ${planId}: ${allExercisesForPlan.length}. If this is 0, check individual block fetches above.`);
+      console.log(`[Dashboard] Total exercises set for plan ${planId}: ${allExercisesForPlan.length}. If this is 0, check individual block/exercise fetches above.`);
     } catch (error) {
       console.error(`[Dashboard] Error fetching all exercises for plan ${planId}:`, error);
       toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar todos los ejercicios del plan." });
@@ -229,7 +246,7 @@ const Dashboard = () => {
     } finally {
       setIsLoadingExercises(false);
     }
-  }, [toast]);
+  }, [toast]); // Removed blocks from dependency array as we fetch it inside now
 
   useEffect(() => {
     if (selectedPlan) {
@@ -237,7 +254,7 @@ const Dashboard = () => {
     } else {
       setExercises([]);
     }
-  }, [selectedPlan, performFetchExercisesForPlan]);
+  }, [selectedPlan, performFetchExercisesForPlan]); // Ensure it re-runs if selectedPlan changes or the fetch function itself changes (e.g. due to parent state)
 
   const performFetchObservations = useCallback(async (horseId: string) => {
     if (!horseId) {
@@ -280,7 +297,7 @@ const Dashboard = () => {
         const newPlan = refreshedPlans.find(p => p.id === newPlanId);
         if (newPlan) {
           setSelectedPlan(newPlan);
-          console.log('[Dashboard] New plan added and selected:', newPlan);
+          console.log('[Dashboard] New plan added and selected:', JSON.parse(JSON.stringify(newPlan)));
         }
       });
     });
@@ -290,7 +307,6 @@ const Dashboard = () => {
     setIsAddBlockDialogOpen(false);
     if (selectedPlan) {
       performFetchBlocks(selectedPlan.id).then(() => {
-         // After blocks are fetched, re-fetch exercises for the plan to include new block's potential exercises (though unlikely just after adding a block)
         performFetchExercisesForPlan(selectedPlan.id);
       });
     }
@@ -299,7 +315,6 @@ const Dashboard = () => {
   const handleExerciseAdded = (newExerciseId: string) => {
     setIsAddExerciseDialogOpen(false);
     if (selectedPlan && currentBlockIdForExercise) {
-      // Re-fetch all exercises for the plan, as a new one was added to one of its blocks
       performFetchExercisesForPlan(selectedPlan.id);
     }
     setCurrentBlockIdForExercise(null);
@@ -369,7 +384,7 @@ const handleSaveSessionAndNavigate = async () => {
       const sessionInput: SessionDataInput = {
         horseId: selectedHorse.id,
         date: Timestamp.fromDate(date),
-        blockId: selectedBlock.id, // This is now guaranteed to be non-null
+        blockId: selectedBlock.id, 
         overallNote: sessionOverallNote,
       };
 
@@ -378,24 +393,18 @@ const handleSaveSessionAndNavigate = async () => {
       if (sessionId) {
         const exerciseResultsToSave: ExerciseResultInput[] = [];
 
-        // Ensure results are only saved for exercises actually in the selected block of the selected plan
         exercisesInSelectedBlock.forEach(exercise => {
             const resultData = sessionExerciseResults.get(exercise.id);
-            // If there's data for this exercise or we want to save a default entry
-            // if (resultData || exercise) { // exercise always true here due to loop // Old logic, removed
-            // Ensure plannedReps and doneReps are correctly typed
             const plannedRepsValue = resultData?.plannedReps ?? exercise?.suggestedReps ?? '';
             const doneRepsValue = resultData?.doneReps ?? 0;
 
             exerciseResultsToSave.push({
                 exerciseId: exercise.id,
-                plannedReps: String(plannedRepsValue), // Ensure it's a string
-                doneReps: Number(doneRepsValue),       // Ensure it's a number
-                rating: resultData?.rating ?? 3, // Default rating
+                plannedReps: String(plannedRepsValue), 
+                doneReps: Number(doneRepsValue),       
+                rating: resultData?.rating ?? 3, 
                 comment: resultData?.comment ?? "",
-                // observations are not handled here, they are on session detail page
             });
-            // }
         });
 
 
@@ -460,8 +469,8 @@ const handleSaveSessionAndNavigate = async () => {
 
       await addObservation(selectedHorse.id, fullObservationData);
       toast({ title: "Observación Guardada", description: "La observación ha sido registrada exitosamente." });
-      setObservationData({}); // Clear form
-      if (selectedHorse) performFetchObservations(selectedHorse.id); // Refresh observations list
+      setObservationData({}); 
+      if (selectedHorse) performFetchObservations(selectedHorse.id); 
     } catch (error) {
       console.error("Error saving observation:", error);
       let errorMessage = "Ocurrió un error al guardar la observación.";
@@ -528,11 +537,11 @@ const handleSaveSessionAndNavigate = async () => {
               </CardHeader>
               <CardContent>
                 <Tabs defaultValue="plan" className="w-full">
-                   <TabsList className="grid w-full grid-cols-4"> {/* Updated to 4 cols */}
+                   <TabsList className="grid w-full grid-cols-4"> 
                     <TabsTrigger value="plan">Plan</TabsTrigger>
                     <TabsTrigger value="sesiones">Sesiones</TabsTrigger>
                     <TabsTrigger value="observaciones">Observaciones</TabsTrigger>
-                    <TabsTrigger value="historial">Historial</TabsTrigger> {/* New Tab */}
+                    <TabsTrigger value="historial">Historial</TabsTrigger> 
                   </TabsList>
 
                   <TabsContent value="plan">
@@ -557,7 +566,7 @@ const handleSaveSessionAndNavigate = async () => {
                                     <DropdownMenuItem
                                         key={plan.id}
                                         onSelect={() => {
-                                            console.log('[Dashboard] Plan selected in UI:', plan);
+                                            console.log('[Dashboard] Plan selected in UI:', JSON.parse(JSON.stringify(plan)));
                                             setSelectedPlan(plan);
                                         }}
                                     >
@@ -580,7 +589,7 @@ const handleSaveSessionAndNavigate = async () => {
                            <>
                             {isLoadingBlocks ? <p>Cargando etapas...</p> : blocks.length > 0 ? (
                                <Accordion type="multiple" className="w-full">
-                                {blocks.map((block) => ( // 'block' here represents an 'etapa'
+                                {blocks.map((block) => ( 
                                   <AccordionItem value={block.id} key={block.id}>
                                     <AccordionTrigger>
                                       {block.title}
@@ -593,7 +602,7 @@ const handleSaveSessionAndNavigate = async () => {
                                           Meta: <span className="font-normal text-muted-foreground">{block.goal}</span>
                                         </p>
                                       )}
-                                      {isLoadingExercises && !exercises.some(ex => ex.blockId === block.id && ex.planId === selectedPlan.id) ? (
+                                      {isLoadingExercises && !exercises.some(ex => ex.blockId === block.id && selectedPlan && ex.planId === selectedPlan.id) ? (
                                         <p>Cargando ejercicios para la etapa: {block.title} (ID: {block.id})...</p>
                                       ) : exercises.filter(ex => ex.blockId === block.id && selectedPlan && ex.planId === selectedPlan.id).length > 0 ? (
                                         <ul className="list-disc pl-5 space-y-1 text-sm">
@@ -611,7 +620,7 @@ const handleSaveSessionAndNavigate = async () => {
                                       ) : (
                                         <p className="text-sm text-muted-foreground">
                                             No se encontraron ejercicios para la etapa "{block.title}" (ID: {block.id}) en el plan "{selectedPlan?.title}" (ID: {selectedPlan?.id}).
-                                            Verifica que los ejercicios en Firestore tengan el `planId` y `blockId` correctos.
+                                            Verifica que los ejercicios en Firestore tengan el `planId` y `blockId` correctos y el campo `order` si es necesario para la consulta.
                                         </p>
                                       )}
                                       <Button size="sm" variant="outline" className="mt-2" onClick={() => openAddExerciseDialog(block.id)}>
@@ -622,7 +631,7 @@ const handleSaveSessionAndNavigate = async () => {
                                 ))}
                               </Accordion>
                             ) : (
-                              <p className="text-sm text-muted-foreground">Este plan no tiene etapas definidas.</p>
+                              <p className="text-sm text-muted-foreground">Este plan no tiene etapas definidas. (Plan ID: {selectedPlan.id})</p>
                             )}
                             <div className="flex flex-wrap justify-end mt-4 gap-2">
                                 <Button onClick={() => setIsAddBlockDialogOpen(true)} disabled={!selectedPlan || isLoadingBlocks}>
@@ -659,9 +668,9 @@ const handleSaveSessionAndNavigate = async () => {
                             {isLoadingBlocks ? (
                                 <DropdownMenuItem disabled>Cargando etapas...</DropdownMenuItem>
                             ) : blocks.length > 0 ? (
-                              blocks.map((block) => ( // 'block' here represents an 'etapa'
+                              blocks.map((block) => ( 
                                   <DropdownMenuItem key={block.id} onSelect={() => {
-                                    setSelectedBlock(block); // 'block' is an 'etapa'
+                                    setSelectedBlock(block); 
                                     setSessionExerciseResults(new Map());
                                   }}>
                                       {block.title}
@@ -674,7 +683,7 @@ const handleSaveSessionAndNavigate = async () => {
                           </DropdownMenuContent>
                         </DropdownMenu>
 
-                        {selectedBlock && ( // 'selectedBlock' is the selected 'etapa'
+                        {selectedBlock && ( 
                             <>
                             <Label htmlFor="session-overall-note">Notas Generales de la Sesión</Label>
                             <Textarea
@@ -959,7 +968,3 @@ const handleSaveSessionAndNavigate = async () => {
 };
 
 export default Dashboard;
-
-
-
-
