@@ -5,10 +5,10 @@ import { useEffect, useState, Suspense } from 'react';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
-import { getSession, getExerciseResults } from '@/services/session';
+import { getSession, getExerciseResults, updateExerciseResultObservations } from '@/services/session'; // Added update function
 import { getHorseById } from '@/services/horse';
-import { getBlockById, getExercise } from '@/services/firestore'; // Assuming getExercise exists
-import type { SessionData, ExerciseResult, Horse, TrainingBlock, Exercise } from '@/types/firestore';
+import { getBlockById, getExercise } from '@/services/firestore';
+import type { SessionData, ExerciseResult, Horse, TrainingBlock, Exercise, ExerciseResultObservations } from '@/types/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Icons } from '@/components/icons';
@@ -17,6 +17,29 @@ import { es } from 'date-fns/locale';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from '@/components/ui/use-toast';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea'; // For editable notes
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'; // For selects
+
+
+const TENSION_STATUS_OPTIONS = [
+  { value: '🟢', label: '🟢 Relajado' },
+  { value: '🟡', label: '🟡 Neutral/Tenso' },
+  { value: '🔴', label: '🔴 Muy Tenso/Dolor' },
+  { value: 'N/A', label: 'N/A (No aplica)' },
+];
+
+const OBSERVATION_ZONES = [
+  { id: 'ears', label: 'Orejas' },
+  { id: 'eyes', label: 'Ojos' },
+  { id: 'neck', label: 'Cuello' },
+  { id: 'withers', label: 'Cruz' },
+  { id: 'back', label: 'Dorso' },
+  { id: 'loins', label: 'Riñones' },
+  { id: 'croup', label: 'Grupa' },
+  { id: 'legs', label: 'Patas/Manos' },
+  { id: 'hooves', label: 'Cascos' },
+] as const;
+
 
 interface ExerciseResultWithDetails extends ExerciseResult {
   exerciseDetails?: Exercise | null;
@@ -90,11 +113,33 @@ function SessionDetailContent() {
     fetchData();
   }, [sessionId, currentUser, horseId]);
 
+  const handleObservationChange = (
+    resultId: string,
+    field: keyof ExerciseResultObservations,
+    value: string | null
+  ) => {
+    setExerciseResults(prevResults =>
+      prevResults.map(result => {
+        if (result.id === resultId) {
+          return {
+            ...result,
+            observations: {
+              ...(result.observations || {}),
+              [field]: value,
+            },
+          };
+        }
+        return result;
+      })
+    );
+  };
+
+
   const handleSaveSession = async () => {
-    if (!currentUser || !horseId || !sessionId) {
+    if (!currentUser || !horseId || !sessionId || exerciseResults.length === 0) {
       toast({
         title: "Error al guardar",
-        description: "Falta información de usuario o sesión.",
+        description: "Falta información de usuario, sesión o resultados de ejercicios.",
         variant: "destructive",
       });
       return;
@@ -102,18 +147,18 @@ function SessionDetailContent() {
 
     setIsSaving(true);
     try {
-      // Here you will implement the logic to update exerciseResults in Firestore
-      // This will involve iterating through the exerciseResults state and calling an update function
-      // on your Firestore service for each ExerciseResult document that has changes.
-      console.log("Saving session data:", exerciseResults); // Placeholder for actual save logic
-
+      for (const result of exerciseResults) {
+        if (result.observations && Object.keys(result.observations).length > 0) { // Check if observations exist and are not empty
+            await updateExerciseResultObservations(horseId, sessionId, result.id, result.observations);
+        }
+      }
       toast({
         title: "Cambios guardados",
-        description: "La sesión ha sido actualizada con éxito.",
+        description: "Las observaciones de la sesión han sido actualizadas con éxito.",
       });
     } catch (err) {
-      console.error("Error saving session:", err);
-      toast({ title: "Error al guardar", description: "Ocurrió un error al guardar la sesión.", variant: "destructive" });
+      console.error("Error saving session observations:", err);
+      toast({ title: "Error al guardar", description: "Ocurrió un error al guardar las observaciones de la sesión.", variant: "destructive" });
     } finally {
       setIsSaving(false);
     }
@@ -194,263 +239,41 @@ function SessionDetailContent() {
                       </div>
                     )}
 
-                    {/* New section for exercise-specific observations */}
-                    <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                      <h5 className="font-semibold text-md mb-2">Observaciones del Ejercicio:</h5>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                        <div>
-                          <Label htmlFor={`ears-${result.id}`}>Orejas:</Label>
-                          <input
-                            id={`ears-${result.id}`}
-                            type="text"
-                            className="w-full p-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-700"
-                            value={result.observations?.ears || ''}
-                            onChange={(e) => {
-                              const updatedResults = exerciseResults.map(item =>
-                                item.id === result.id
-                                  ? {
-                                      ...item,
-                                      observations: {
-                                        ...(item.observations || {}),
-                                        ears: e.target.value
-                                      }
-                                    }
-                                  : item
-                              );
-                              setExerciseResults(updatedResults);
-                            }}
-                          />
+                    {/* Display exercise-specific observations (not editable here, but can be made editable) */}
+                    {result.observations && (
+                       <div className="mt-4 pt-4 border-t">
+                        <h5 className="font-semibold text-md mb-2">Observaciones del Ejercicio:</h5>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+                          {OBSERVATION_ZONES.map(zone => {
+                            const obsValue = result.observations?.[zone.id];
+                            return obsValue ? (
+                              <div key={zone.id}>
+                                <Label htmlFor={`display-obs-${result.id}-${zone.id}`}>{zone.label}:</Label>
+                                <p id={`display-obs-${result.id}-${zone.id}`} className="text-muted-foreground">
+                                  {TENSION_STATUS_OPTIONS.find(opt => opt.value === obsValue)?.label || obsValue}
+                                </p>
+                              </div>
+                            ) : null;
+                          })}
                         </div>
-                        <div>
-                          <Label htmlFor={`eyes-${result.id}`}>Ojos:</Label>
-                          <input
-                            id={`eyes-${result.id}`}
-                            type="text"
-                            className="w-full p-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-700"
-                            value={result.observations?.eyes || ''}
-                            onChange={(e) => {
-                              const updatedResults = exerciseResults.map(item =>
-                                item.id === result.id
-                                  ? {
-                                      ...item,
-                                      observations: {
-                                        ...(item.observations || {}),
-                                        eyes: e.target.value
-                                      }
-                                    }
-                                  : item
-                              );
-                              setExerciseResults(updatedResults);
-                            }}
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor={`neck-${result.id}`}>Cuello:</Label>
-                          <input
-                            id={`neck-${result.id}`}
-                            type="text"
-                            className="w-full p-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-700"
-                            value={result.observations?.neck || ''}
-                            onChange={(e) => {
-                              const updatedResults = exerciseResults.map(item =>
-                                item.id === result.id
-                                  ? {
-                                      ...item,
-                                      observations: {
-                                        ...(item.observations || {}),
-                                        neck: e.target.value
-                                      }
-                                    }
-                                  : item
-                              );
-                              setExerciseResults(updatedResults);
-                            }}
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor={`withers-${result.id}`}>Cruz:</Label>
-                          <input
-                            id={`withers-${result.id}`}
-                            type="text"
-                            className="w-full p-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-700"
-                            value={result.observations?.withers || ''}
-                            onChange={(e) => {
-                              const updatedResults = exerciseResults.map(item =>
-                                item.id === result.id
-                                  ? {
-                                      ...item,
-                                      observations: {
-                                        ...(item.observations || {}),
-                                        withers: e.target.value
-                                      }
-                                    }
-                                  : item
-                              );
-                              setExerciseResults(updatedResults);
-                            }}
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor={`back-${result.id}`}>Dorso:</Label>
-                          <input
-                            id={`back-${result.id}`}
-                            type="text"
-                            className="w-full p-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-700"
-                            value={result.observations?.back || ''}
-                            onChange={(e) => {
-                              const updatedResults = exerciseResults.map(item =>
-                                item.id === result.id
-                                  ? {
-                                      ...item,
-                                      observations: {
-                                        ...(item.observations || {}),
-                                        back: e.target.value
-                                      }
-                                    }
-                                  : item
-                              );
-                              setExerciseResults(updatedResults);
-                            }}
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor={`loins-${result.id}`}>Riñones:</Label>
-                          <input
-                            id={`loins-${result.id}`}
-                            type="text"
-                            className="w-full p-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-700"
-                            value={result.observations?.loins || ''}
-                            onChange={(e) => {
-                              const updatedResults = exerciseResults.map(item =>
-                                item.id === result.id
-                                  ? {
-                                      ...item,
-                                      observations: {
-                                        ...(item.observations || {}),
-                                        loins: e.target.value
-                                      }
-                                    }
-                                  : item
-                              );
-                              setExerciseResults(updatedResults);
-                            }}
-                          />
-                        </div>
-                         <div>
-                          <Label htmlFor={`croup-${result.id}`}>Grupa:</Label>
-                          <input
-                            id={`croup-${result.id}`}
-                            type="text"
-                            className="w-full p-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-700"
-                            value={result.observations?.croup || ''}
-                            onChange={(e) => {
-                              const updatedResults = exerciseResults.map(item =>
-                                item.id === result.id
-                                  ? {
-                                      ...item,
-                                      observations: {
-                                        ...(item.observations || {}),
-                                        croup: e.target.value
-                                      }
-                                    }
-                                  : item
-                              );
-                              setExerciseResults(updatedResults);
-                            }}
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor={`legs-${result.id}`}>Patas/Manos:</Label>
-                          <input
-                            id={`legs-${result.id}`}
-                            type="text"
-                            className="w-full p-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-700"
-                            value={result.observations?.legs || ''}
-                            onChange={(e) => {
-                              const updatedResults = exerciseResults.map(item =>
-                                item.id === result.id
-                                  ? {
-                                      ...item,
-                                      observations: {
-                                        ...(item.observations || {}),
-                                        legs: e.target.value
-                                      }
-                                    }
-                                  : item
-                              );
-                              setExerciseResults(updatedResults);
-                            }}
-                          />
-                        </div>
-                         <div>
-                          <Label htmlFor={`hooves-${result.id}`}>Cascos:</Label>
-                          <input
-                            id={`hooves-${result.id}`}
-                            type="text"
-                            className="w-full p-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-700"
-                            value={result.observations?.hooves || ''}
-                            onChange={(e) => {
-                              const updatedResults = exerciseResults.map(item =>
-                                item.id === result.id
-                                  ? {
-                                      ...item,
-                                      observations: {
-                                        ...(item.observations || {}),
-                                        hooves: e.target.value
-                                      }
-                                    }
-                                  : item
-                              );
-                              setExerciseResults(updatedResults);
-                            }}
-                          />
-                        </div>
+                         {result.observations.overallBehavior && (
+                            <div className="mt-3">
+                                <Label htmlFor={`display-obs-behavior-${result.id}`}>Comportamiento General:</Label>
+                                <p id={`display-obs-behavior-${result.id}`} className="text-sm text-muted-foreground whitespace-pre-wrap">
+                                {result.observations.overallBehavior}
+                                </p>
+                            </div>
+                         )}
+                         {result.observations.additionalNotes && (
+                            <div className="mt-3">
+                                <Label htmlFor={`display-obs-notes-${result.id}`}>Notas Adicionales:</Label>
+                                <p id={`display-obs-notes-${result.id}`} className="text-sm text-muted-foreground whitespace-pre-wrap">
+                                {result.observations.additionalNotes}
+                                </p>
+                            </div>
+                         )}
                       </div>
-                      <div className="mt-4">
-                        <Label htmlFor={`overallBehavior-${result.id}`}>Comportamiento General:</Label>
-                        <textarea
-                          id={`overallBehavior-${result.id}`}
-                          className="w-full p-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-700 min-h-[80px]"
-                          value={result.observations?.overallBehavior || ''}
-                           onChange={(e) => {
-                              const updatedResults = exerciseResults.map(item =>
-                                item.id === result.id
-                                  ? {
-                                      ...item,
-                                      observations: {
-                                        ...(item.observations || {}),
-                                        overallBehavior: e.target.value
-                                      }
-                                    }
-                                  : item
-                              );
-                              setExerciseResults(updatedResults);
-                            }}
-                        ></textarea>
-                      </div>
-                       <div className="mt-4">
-                        <Label htmlFor={`additionalNotes-${result.id}`}>Notas Adicionales:</Label>
-                        <textarea
-                          id={`additionalNotes-${result.id}`}
-                          className="w-full p-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-700 min-h-[80px]"
-                          value={result.observations?.additionalNotes || ''}
-                           onChange={(e) => {
-                              const updatedResults = exerciseResults.map(item =>
-                                item.id === result.id
-                                  ? {
-                                      ...item,
-                                      observations: {
-                                        ...(item.observations || {}),
-                                        additionalNotes: e.target.value
-                                      }
-                                    }
-                                  : item
-                              );
-                              setExerciseResults(updatedResults);
-                            }}
-                        ></textarea>
-                      </div>
-                    </div>
+                    )}
                   </Card>
                 ))}
               </div>
@@ -462,7 +285,7 @@ function SessionDetailContent() {
           <div className="mt-8 flex justify-center">
              <Button onClick={handleSaveSession} disabled={isSaving} className="mr-4">
               {isSaving ? <Icons.spinner className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Guardar Cambios
+              Guardar Cambios en Observaciones (si aplica)
             </Button>
             <Button onClick={() => router.back()} variant="outline">
               <Icons.arrowRight className="mr-2 h-4 w-4 rotate-180" /> Volver
@@ -482,3 +305,5 @@ export default function SessionDetailPage() {
     </Suspense>
   );
 }
+
+    

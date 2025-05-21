@@ -1,7 +1,7 @@
 
 import { auth, db } from '@/firebase';
-import type { SessionData, SessionDataInput, ExerciseResult, ExerciseResultInput } from '@/types/firestore';
-import { collection, addDoc, getDoc, getDocs, doc, serverTimestamp, Timestamp, query, where, orderBy } from 'firebase/firestore';
+import type { SessionData, SessionDataInput, ExerciseResult, ExerciseResultInput, ExerciseResultObservations } from '@/types/firestore';
+import { collection, addDoc, getDoc, getDocs, doc, serverTimestamp, Timestamp, query, where, orderBy, updateDoc } from 'firebase/firestore';
 import type { User } from 'firebase/auth';
 
 /**
@@ -50,8 +50,14 @@ export async function addExerciseResult(horseId: string, sessionId: string, exer
   }
   const exerciseResultsCollectionRef = collection(db, 'horses', horseId, 'sessions', sessionId, 'exerciseResults');
   
+  // Ensure observations is either a valid object or null/undefined, not an empty object if it has no meaningful data.
+  const observationsToSave = exerciseResultData.observations && Object.values(exerciseResultData.observations).some(v => v !== null && v !== undefined && v !== '')
+    ? exerciseResultData.observations
+    : null;
+
   const newExerciseResultDoc: Omit<ExerciseResult, 'id' | 'createdAt' | 'updatedAt'> & { createdAt: Timestamp, updatedAt: Timestamp } = {
     ...exerciseResultData,
+    observations: observationsToSave || undefined, // Store undefined if observationsToSave is null
     createdAt: serverTimestamp() as Timestamp,
     updatedAt: serverTimestamp() as Timestamp,
   };
@@ -65,6 +71,37 @@ export async function addExerciseResult(horseId: string, sessionId: string, exer
     throw e;
   }
 }
+
+
+/**
+ * Updates the observations for a specific exercise result within a session.
+ * @param horseId The ID of the horse.
+ * @param sessionId The ID of the session.
+ * @param exerciseResultId The ID of the exercise result to update.
+ * @param observations The new or updated observation data.
+ */
+export async function updateExerciseResultObservations(
+  horseId: string,
+  sessionId: string,
+  exerciseResultId: string,
+  observations: ExerciseResultObservations
+): Promise<void> {
+  if (!horseId || !sessionId || !exerciseResultId) {
+    throw new Error("Horse ID, Session ID, and Exercise Result ID are required.");
+  }
+  const exerciseResultDocRef = doc(db, 'horses', horseId, 'sessions', sessionId, 'exerciseResults', exerciseResultId);
+  try {
+    await updateDoc(exerciseResultDocRef, {
+      observations: observations, // This will overwrite the existing observations object
+      updatedAt: serverTimestamp() as Timestamp,
+    });
+    console.log(`Observations for exercise result ${exerciseResultId} updated successfully.`);
+  } catch (e) {
+    console.error(`Error updating observations for exercise result ${exerciseResultId}:`, e);
+    throw e;
+  }
+}
+
 
 /**
  * Fetches a specific training session.
@@ -105,7 +142,8 @@ export async function getExerciseResults(horseId: string, sessionId: string): Pr
   }
   try {
     const exerciseResultsRef = collection(db, 'horses', horseId, 'sessions', sessionId, 'exerciseResults');
-    const q = query(exerciseResultsRef, orderBy("createdAt", "asc")); // Order by creation time or another relevant field
+    // Ordering by 'createdAt' or 'order' if you add an order to exercise results within a session
+    const q = query(exerciseResultsRef, orderBy("createdAt", "asc")); 
     const querySnapshot = await getDocs(q);
     const results: ExerciseResult[] = [];
     querySnapshot.forEach((doc) => {
@@ -130,7 +168,7 @@ export async function getSessionsByHorseId(horseId: string): Promise<SessionData
   }
   try {
     const sessionsRef = collection(db, 'horses', horseId, 'sessions');
-    const q = query(sessionsRef, orderBy("date", "desc")); // Assuming 'date' is a Timestamp field
+    const q = query(sessionsRef, orderBy("date", "desc")); 
     const querySnapshot = await getDocs(q);
     const sessions: SessionData[] = [];
     querySnapshot.forEach((doc) => {
@@ -142,3 +180,5 @@ export async function getSessionsByHorseId(horseId: string): Promise<SessionData
     throw e;
   }
 }
+
+    

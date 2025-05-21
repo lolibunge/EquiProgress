@@ -19,9 +19,9 @@ import { useRouter } from 'next/navigation';
 
 import { createSession, addExerciseResult, getSession, getExerciseResults } from "@/services/session";
 import { getHorses as fetchHorsesService, getHorseById } from "@/services/horse";
-import { getTrainingPlans, getTrainingBlocks, getExercises, getExercise, debugGetBlocksForPlan } from "@/services/firestore";
-import type { Horse, TrainingPlan, TrainingBlock, Exercise, ExerciseResult, SessionDataInput, ExerciseResultInput, SessionData, Observation, ObservationInput } from "@/types/firestore";
-import { addObservation, getObservationsByHorseId } from "@/services/observation";
+import { getTrainingPlans, getTrainingBlocks, getExercises, getExercise, debugGetBlocksForPlan, getBlockById } from "@/services/firestore";
+import type { Horse, TrainingPlan, TrainingBlock, Exercise, ExerciseResult, SessionDataInput, ExerciseResultInput, SessionData, ObservationInput, ExerciseResultObservations } from "@/types/firestore";
+// Removed: import { addObservation, getObservationsByHorseId } from "@/services/observation";
 import HorseHistory from "@/components/HorseHistory"; 
 
  import {
@@ -78,6 +78,9 @@ const OBSERVATION_ZONES = [
 ] as const;
 
 
+type SessionExerciseResultState = Omit<ExerciseResultInput, 'exerciseId'>;
+
+
 const Dashboard = () => {
   const { currentUser } = useAuth();
   const { toast } = useToast();
@@ -101,13 +104,14 @@ const Dashboard = () => {
   const [date, setDate] = useState<Date | undefined>(new Date());
 
   const [sessionOverallNote, setSessionOverallNote] = useState("");
-  const [sessionExerciseResults, setSessionExerciseResults] = useState<Map<string, Omit<ExerciseResultInput, 'exerciseId' | 'observations'>>>(new Map());
+  const [sessionExerciseResults, setSessionExerciseResults] = useState<Map<string, SessionExerciseResultState>>(new Map());
   const [isSavingSession, setIsSavingSession] = useState(false);
 
-  const [observationData, setObservationData] = useState<Partial<ObservationInput>>({});
-  const [isSavingObservation, setIsSavingObservation] = useState(false);
-  const [horseObservations, setHorseObservations] = useState<Observation[]>([]);
-  const [isLoadingObservations, setIsLoadingObservations] = useState(false);
+  // Removed states related to general observations tab
+  // const [observationData, setObservationData] = useState<Partial<ObservationInput>>({});
+  // const [isSavingObservation, setIsSavingObservation] = useState(false);
+  // const [horseObservations, setHorseObservations] = useState<Observation[]>([]);
+  // const [isLoadingObservations, setIsLoadingObservations] = useState(false);
 
 
   const [isCreatePlanDialogOpen, setIsCreatePlanDialogOpen] = useState(false);
@@ -172,9 +176,9 @@ const Dashboard = () => {
       return;
     }
     setIsLoadingBlocks(true);
-    setExercises([]); // Clear exercises when blocks are about to be fetched for a new plan
+    setExercises([]); 
     try {
-      console.log(`[Dashboard] Calling getTrainingBlocks for planId: ${planId}`);
+      console.log(`[Firestore Service] Attempting to fetch trainingBlocks with planId: "${planId}" (ordering by 'order' asc)`);
       const fetchedBlocks = await getTrainingBlocks(planId);
       console.log(`[Dashboard] Blocks fetched by getTrainingBlocks for planId ${planId}:`, JSON.parse(JSON.stringify(fetchedBlocks)));
       setBlocks(fetchedBlocks);
@@ -194,20 +198,14 @@ const Dashboard = () => {
   }, [toast]);
 
   const performFetchExercisesForPlan = useCallback(async (planId: string, currentPlanBlocks: TrainingBlock[]) => {
-    console.log(`[Dashboard] performFetchExercisesForPlan called for planId: ${planId}`);
-    if (!planId) {
+    console.log(`[Dashboard] performFetchExercisesForPlan called for planId: ${planId} with ${currentPlanBlocks.length} blocks.`);
+    if (!planId || currentPlanBlocks.length === 0) {
         setExercises([]);
-        console.log(`[Dashboard] No planId provided for exercise fetch. Clearing exercises.`);
-        return;
-    }
-    if (currentPlanBlocks.length === 0) {
-        setExercises([]);
-        console.log(`[Dashboard] No blocks provided for planId ${planId} during exercise fetch. Clearing exercises.`);
+        console.log(`[Dashboard] No planId or no blocks provided for exercise fetch. Clearing exercises.`);
         return;
     }
 
     setIsLoadingExercises(true);
-    console.log(`[Dashboard] Starting to fetch exercises for plan: ${planId} using ${currentPlanBlocks.length} blocks.`);
     try {
       let allExercisesForPlan: Exercise[] = [];
       for (const block of currentPlanBlocks) {
@@ -230,6 +228,7 @@ const Dashboard = () => {
     }
   }, [toast]);
 
+
   useEffect(() => {
     if (selectedPlan) {
       performFetchBlocks(selectedPlan.id);
@@ -241,43 +240,23 @@ const Dashboard = () => {
   }, [selectedPlan, performFetchBlocks]);
 
   useEffect(() => {
-    if (selectedPlan && !isLoadingBlocks) { // Only run if selectedPlan is set and blocks are done loading
-      if (blocks.length > 0) {
+    if (selectedPlan && !isLoadingBlocks && blocks.length > 0) {
         console.log(`[Dashboard] useEffect[selectedPlan, blocks, isLoadingBlocks] - Fetching exercises for plan ${selectedPlan.id} as blocks are loaded.`);
         performFetchExercisesForPlan(selectedPlan.id, blocks);
-      } else {
+    } else if (selectedPlan && !isLoadingBlocks && blocks.length === 0) {
         console.log(`[Dashboard] useEffect[selectedPlan, blocks, isLoadingBlocks] - Plan ${selectedPlan.id} selected, blocks loaded, but no blocks found. Clearing exercises.`);
-        setExercises([]); // Clear exercises if no blocks were found for the selected plan
-      }
+        setExercises([]);
     }
   }, [selectedPlan, blocks, isLoadingBlocks, performFetchExercisesForPlan]);
 
-
-  const performFetchObservations = useCallback(async (horseId: string) => {
-    if (!horseId) {
-      setHorseObservations([]);
-      return;
-    }
-    setIsLoadingObservations(true);
-    try {
-      const observations = await getObservationsByHorseId(horseId);
-      setHorseObservations(observations);
-    } catch (error) {
-      console.error(`[Dashboard] Error fetching observations for horse ${horseId}:`, error);
-      toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar las observaciones." });
-      setHorseObservations([]);
-    } finally {
-      setIsLoadingObservations(false);
-    }
-  }, [toast]);
-
-  useEffect(() => {
-    if (selectedHorse) {
-      performFetchObservations(selectedHorse.id);
-    } else {
-      setHorseObservations([]);
-    }
-  }, [selectedHorse, performFetchObservations]);
+  // Removed useEffect for fetching general observations
+  // useEffect(() => {
+  //   if (selectedHorse) {
+  //     performFetchObservations(selectedHorse.id);
+  //   } else {
+  //     setHorseObservations([]);
+  //   }
+  // }, [selectedHorse, performFetchObservations]);
 
 
   const handleHorseAdded = () => {
@@ -320,21 +299,43 @@ const Dashboard = () => {
     setIsAddExerciseDialogOpen(true);
   };
 
-
-  const handleSessionExerciseInputChange = (exerciseId: string, field: keyof Omit<ExerciseResultInput, 'exerciseId' | 'observations'>, value: string | number) => {
+  const handleSessionExerciseInputChange = (
+    exerciseId: string,
+    field: keyof Omit<SessionExerciseResultState, 'observations'> | `observations.${keyof ExerciseResultObservations}`,
+    value: string | number
+  ) => {
     setSessionExerciseResults(prev => {
         const newMap = new Map(prev);
-        const currentExercise = newMap.get(exerciseId) || { doneReps: 0, rating: 3, comment: "", plannedReps: "" };
+        // Find the exercise to get its suggestedReps for default plannedReps
+        const exerciseDetails = exercises.find(ex => ex.id === exerciseId);
+        let currentExerciseData = newMap.get(exerciseId) || {
+            plannedReps: exerciseDetails?.suggestedReps ?? "",
+            doneReps: 0,
+            rating: 3,
+            comment: "",
+            observations: {} // Ensure observations object exists
+        };
 
-        if (field === 'doneReps' || field === 'rating') {
-            (currentExercise as any)[field] = Number(value);
+        if (field.startsWith('observations.')) {
+            const obsField = field.split('.')[1] as keyof ExerciseResultObservations;
+            currentExerciseData = {
+                ...currentExerciseData,
+                observations: {
+                    ...(currentExerciseData.observations || {}), // Ensure currentExerciseData.observations is not null/undefined
+                    [obsField]: value === '' ? null : String(value) // Store empty strings as null or handle as needed
+                }
+            };
+        } else if (field === 'doneReps' || field === 'rating') {
+            (currentExerciseData as any)[field] = Number(value);
         } else {
-            (currentExercise as any)[field] = String(value);
+             // Ensure 'plannedReps' and 'comment' are handled as strings
+            (currentExerciseData as any)[field] = String(value);
         }
-        newMap.set(exerciseId, currentExercise);
+        newMap.set(exerciseId, currentExerciseData);
         return newMap;
     });
   };
+
 
 const handleSaveSessionAndNavigate = async () => {
     if (!currentUser || !date || !selectedHorse || !selectedHorse.id ) {
@@ -392,13 +393,26 @@ const handleSaveSessionAndNavigate = async () => {
             const resultData = sessionExerciseResults.get(exercise.id);
             const plannedRepsValue = resultData?.plannedReps ?? exercise?.suggestedReps ?? '';
             const doneRepsValue = resultData?.doneReps ?? 0;
+            const ratingValue = resultData?.rating ?? 3;
+            const commentValue = resultData?.comment ?? "";
+            
+            const observationsToSave: ExerciseResultObservations = {};
+            if (resultData?.observations) {
+                for (const zone of OBSERVATION_ZONES) {
+                    observationsToSave[zone.id] = resultData.observations[zone.id] || null;
+                }
+                observationsToSave.overallBehavior = resultData.observations.overallBehavior || null;
+                observationsToSave.additionalNotes = resultData.observations.additionalNotes || null;
+            }
+
 
             exerciseResultsToSave.push({
                 exerciseId: exercise.id,
                 plannedReps: String(plannedRepsValue), 
                 doneReps: Number(doneRepsValue),       
-                rating: resultData?.rating ?? 3, 
-                comment: resultData?.comment ?? "",
+                rating: Number(ratingValue), 
+                comment: String(commentValue),
+                observations: Object.keys(observationsToSave).length > 0 ? observationsToSave : undefined,
             });
         });
 
@@ -429,55 +443,7 @@ const handleSaveSessionAndNavigate = async () => {
     }
   };
 
-  const handleObservationInputChange = (field: typeof OBSERVATION_ZONES[number]['id'] | 'overallBehavior' | 'additionalNotes' | 'photoUrl', value: string) => {
-    setObservationData(prev => ({ ...prev, [field]: value }));
-  };
-
-
-  const handleSaveObservation = async () => {
-    if (!currentUser || !date || !selectedHorse || !selectedHorse.id) {
-      toast({
-        variant: "destructive",
-        title: "Error de Validación",
-        description: "Por favor, asegúrate de que la fecha y el caballo estén seleccionados.",
-      });
-      return;
-    }
-
-    setIsSavingObservation(true);
-    try {
-      const fullObservationData: ObservationInput = {
-        date: Timestamp.fromDate(date),
-        ears: observationData.ears === '' ? null : observationData.ears ?? null,
-        eyes: observationData.eyes === '' ? null : observationData.eyes ?? null,
-        neck: observationData.neck === '' ? null : observationData.neck ?? null,
-        withers: observationData.withers === '' ? null : observationData.withers ?? null,
-        back: observationData.back === '' ? null : observationData.back ?? null,
-        loins: observationData.loins === '' ? null : observationData.loins ?? null,
-        croup: observationData.croup === '' ? null : observationData.croup ?? null,
-        legs: observationData.legs === '' ? null : observationData.legs ?? null,
-        hooves: observationData.hooves === '' ? null : observationData.hooves ?? null,
-        overallBehavior: observationData.overallBehavior === '' ? null : observationData.overallBehavior ?? null,
-        additionalNotes: observationData.additionalNotes === '' ? null : observationData.additionalNotes ?? null,
-        photoUrl: observationData.photoUrl === '' ? null : observationData.photoUrl ?? null,
-      };
-
-      await addObservation(selectedHorse.id, fullObservationData);
-      toast({ title: "Observación Guardada", description: "La observación ha sido registrada exitosamente." });
-      setObservationData({}); 
-      if (selectedHorse) performFetchObservations(selectedHorse.id); 
-    } catch (error) {
-      console.error("[Dashboard] Error saving observation:", error);
-      let errorMessage = "Ocurrió un error al guardar la observación.";
-      if (error instanceof Error) {
-        errorMessage = error.message;
-      }
-      toast({ variant: "destructive", title: "Error al Guardar", description: errorMessage });
-    } finally {
-      setIsSavingObservation(false);
-    }
-  };
-
+  // Removed handleObservationInputChange and handleSaveObservation
 
   return (
     <div className="container py-10">
@@ -531,11 +497,10 @@ const handleSaveSessionAndNavigate = async () => {
                 <CardDescription>Edad: {selectedHorse.age} años, Sexo: {selectedHorse.sex}, Color: {selectedHorse.color}</CardDescription>
               </CardHeader>
               <CardContent>
-                <Tabs defaultValue="plan" className="w-full">
-                   <TabsList className="grid w-full grid-cols-4"> 
+                 <Tabs defaultValue="plan" className="w-full">
+                   <TabsList className="grid w-full grid-cols-3"> {/* Adjusted for 3 tabs */}
                     <TabsTrigger value="plan">Plan</TabsTrigger>
                     <TabsTrigger value="sesiones">Sesiones</TabsTrigger>
-                    <TabsTrigger value="observaciones">Observaciones</TabsTrigger>
                     <TabsTrigger value="historial">Historial</TabsTrigger> 
                   </TabsList>
 
@@ -590,11 +555,12 @@ const handleSaveSessionAndNavigate = async () => {
                                       {block.title}
                                       {block.notes && <span className="text-sm text-muted-foreground ml-2">- {block.notes}</span>}
                                       {block.duration && <span className="text-sm text-muted-foreground ml-2">- Duración: {block.duration}</span>}
+                                      {block.goal && <span className="text-sm text-muted-foreground ml-2">- Meta: {block.goal}</span>}
                                     </AccordionTrigger>
                                     <AccordionContent>
                                       {block.goal && (
                                         <p className="text-sm text-primary font-semibold mb-2">
-                                          Meta: <span className="font-normal text-muted-foreground">{block.goal}</span>
+                                          Meta de la Etapa: <span className="font-normal text-muted-foreground">{block.goal}</span>
                                         </p>
                                       )}
                                      {isLoadingExercises ? (
@@ -692,13 +658,19 @@ const handleSaveSessionAndNavigate = async () => {
                                 <p>Cargando ejercicios...</p>
                             ) : exercises.filter(ex => ex.blockId === selectedBlock.id && selectedPlan && ex.planId === selectedPlan.id).length > 0 ? (
                                 exercises.filter(ex => ex.blockId === selectedBlock.id && selectedPlan && ex.planId === selectedPlan.id).map(exercise => {
-                                    const currentResult = sessionExerciseResults.get(exercise.id) || { doneReps: 0, rating: 3, comment: "", plannedReps: exercise.suggestedReps ?? "" };
+                                    const currentResult = sessionExerciseResults.get(exercise.id) || { 
+                                        doneReps: 0, 
+                                        rating: 3, 
+                                        comment: "", 
+                                        plannedReps: exercise.suggestedReps ?? "",
+                                        observations: {} 
+                                    };
                                     return (
-                                        <Card key={exercise.id} className="p-4">
-                                            <Label className="font-semibold">{exercise.title}</Label>
-                                            {exercise.description && <p className="text-xs text-muted-foreground mt-1 mb-2">{exercise.description}</p>}
+                                        <Card key={exercise.id} className="p-4 space-y-3">
+                                            <Label className="font-semibold text-lg">{exercise.title}</Label>
+                                            {exercise.description && <p className="text-xs text-muted-foreground">{exercise.description}</p>}
 
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                                 <div>
                                                     <Label htmlFor={`plannedReps-${exercise.id}`}>Repeticiones Planificadas</Label>
                                                     <Input
@@ -721,7 +693,7 @@ const handleSaveSessionAndNavigate = async () => {
                                                 </div>
                                             </div>
 
-                                            <div className="mt-3">
+                                            <div>
                                                 <Label htmlFor={`rating-${exercise.id}`}>Calificación (1-5): {currentResult.rating}</Label>
                                                 <Slider
                                                     id={`rating-${exercise.id}`}
@@ -733,7 +705,7 @@ const handleSaveSessionAndNavigate = async () => {
                                                     onValueChange={(value) => handleSessionExerciseInputChange(exercise.id, 'rating', value[0])}
                                                 />
                                             </div>
-                                            <div className="mt-3">
+                                            <div>
                                                 <Label htmlFor={`comment-${exercise.id}`}>Comentarios del Ejercicio</Label>
                                                 <Textarea
                                                     id={`comment-${exercise.id}`}
@@ -741,6 +713,51 @@ const handleSaveSessionAndNavigate = async () => {
                                                     value={currentResult.comment}
                                                     onChange={(e) => handleSessionExerciseInputChange(exercise.id, 'comment', e.target.value)}
                                                 />
+                                            </div>
+
+                                            {/* Observations for this exercise */}
+                                            <div className="pt-3 border-t mt-3">
+                                                <h4 className="text-md font-semibold mb-2">Observaciones del Ejercicio:</h4>
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                                                    {OBSERVATION_ZONES.map(zone => (
+                                                      <div key={zone.id} className="space-y-1">
+                                                        <Label htmlFor={`obs-${exercise.id}-${zone.id}`}>{zone.label}</Label>
+                                                        <Select
+                                                          value={currentResult.observations?.[zone.id] || ''}
+                                                          onValueChange={(value) => handleSessionExerciseInputChange(exercise.id, `observations.${zone.id}`, value)}
+                                                        >
+                                                          <SelectTrigger id={`obs-${exercise.id}-${zone.id}`}>
+                                                            <SelectValue placeholder={`Estado de ${zone.label.toLowerCase()}`} />
+                                                          </SelectTrigger>
+                                                          <SelectContent>
+                                                            {TENSION_STATUS_OPTIONS.map(option => (
+                                                              <SelectItem key={option.value} value={option.value}>
+                                                                {option.label}
+                                                              </SelectItem>
+                                                            ))}
+                                                          </SelectContent>
+                                                        </Select>
+                                                      </div>
+                                                    ))}
+                                                </div>
+                                                <div className="mt-3 space-y-1">
+                                                    <Label htmlFor={`obs-overallBehavior-${exercise.id}`}>Comportamiento General (del ejercicio)</Label>
+                                                    <Textarea
+                                                      id={`obs-overallBehavior-${exercise.id}`}
+                                                      placeholder="Comportamiento durante este ejercicio..."
+                                                      value={currentResult.observations?.overallBehavior || ''}
+                                                      onChange={(e) => handleSessionExerciseInputChange(exercise.id, `observations.overallBehavior`, e.target.value)}
+                                                    />
+                                                </div>
+                                                <div className="mt-3 space-y-1">
+                                                    <Label htmlFor={`obs-additionalNotes-${exercise.id}`}>Notas Adicionales (del ejercicio)</Label>
+                                                    <Textarea
+                                                      id={`obs-additionalNotes-${exercise.id}`}
+                                                      placeholder="Otras notas específicas del ejercicio..."
+                                                      value={currentResult.observations?.additionalNotes || ''}
+                                                      onChange={(e) => handleSessionExerciseInputChange(exercise.id, `observations.additionalNotes`, e.target.value)}
+                                                    />
+                                                </div>
                                             </div>
                                         </Card>
                                     )
@@ -763,91 +780,9 @@ const handleSaveSessionAndNavigate = async () => {
                       </CardContent>
                     </Card>
                   </TabsContent>
+                  
+                  {/* Removed Observations Tab Content */}
 
-                  <TabsContent value="observaciones">
-                  <Card className="my-4">
-                    <CardHeader>
-                      <CardTitle>Registrar Observación de Tensión</CardTitle>
-                      <CardDescription>
-                        Para {selectedHorse.name} en {date ? date.toLocaleDateString("es-ES") : 'fecha no seleccionada'}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-6">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                        {OBSERVATION_ZONES.map(zone => (
-                          <div key={zone.id} className="space-y-1">
-                            <Label htmlFor={`obs-${zone.id}`}>{zone.label}</Label>
-                            <Select
-                              value={observationData[zone.id] || ''}
-                              onValueChange={(value) => handleObservationInputChange(zone.id, value)}
-                            >
-                              <SelectTrigger id={`obs-${zone.id}`}>
-                                <SelectValue placeholder={`Estado de ${zone.label.toLowerCase()}`} />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {TENSION_STATUS_OPTIONS.map(option => (
-                                  <SelectItem key={option.value} value={option.value}>
-                                    {option.label}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        ))}
-                      </div>
-
-                      <div className="space-y-1">
-                        <Label htmlFor="obs-overallBehavior">Comportamiento General</Label>
-                        <Textarea
-                          id="obs-overallBehavior"
-                          placeholder="Describe el comportamiento general del caballo..."
-                          value={observationData.overallBehavior || ''}
-                          onChange={(e) => handleObservationInputChange('overallBehavior', e.target.value)}
-                        />
-                      </div>
-
-                      <div className="space-y-1">
-                        <Label htmlFor="obs-additionalNotes">Notas Adicionales</Label>
-                        <Textarea
-                          id="obs-additionalNotes"
-                          placeholder="Añade cualquier otra observación relevante..."
-                          value={observationData.additionalNotes || ''}
-                          onChange={(e) => handleObservationInputChange('additionalNotes', e.target.value)}
-                        />
-                      </div>
-
-                      <Button variant="outline" disabled>Añadir Foto (próximamente)</Button>
-
-                      <div className="flex justify-end mt-2">
-                        <Button onClick={handleSaveObservation} disabled={isSavingObservation || !selectedHorse || !date}>
-                          {isSavingObservation && <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />}
-                          Guardar Observación
-                        </Button>
-                      </div>
-
-                      {isLoadingObservations && <p>Cargando observaciones anteriores...</p>}
-                      {!isLoadingObservations && horseObservations.length > 0 && (
-                        <div className="mt-6 space-y-4">
-                          <h4 className="text-md font-semibold">Observaciones Anteriores:</h4>
-                          {horseObservations.slice(0, 3).map(obs => (
-                            <Card key={obs.id} className="p-3 text-sm">
-                              <p className="font-medium">{obs.date.toDate().toLocaleDateString("es-ES")}</p>
-                              <ul className="list-disc list-inside text-muted-foreground">
-                                {OBSERVATION_ZONES.map(zone => {
-                                   const status = obs[zone.id as keyof Observation];
-                                   return status ? <li key={zone.id}>{zone.label}: {status}</li> : null;
-                                })}
-                                {obs.overallBehavior && <li>Comportamiento: {obs.overallBehavior}</li>}
-                                {obs.additionalNotes && <li>Notas: {obs.additionalNotes}</li>}
-                              </ul>
-                            </Card>
-                          ))}
-                        </div>
-                      )}
-
-                    </CardContent>
-                  </Card>
-                  </TabsContent>
                    <TabsContent value="historial">
                      <HorseHistory />
                    </TabsContent>
@@ -963,6 +898,6 @@ const handleSaveSessionAndNavigate = async () => {
 };
 
 export default Dashboard;
-
+    
 
     
