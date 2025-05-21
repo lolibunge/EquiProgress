@@ -21,7 +21,6 @@ import { createSession, addExerciseResult, getSession, getExerciseResults } from
 import { getHorses as fetchHorsesService, getHorseById } from "@/services/horse";
 import { getTrainingPlans, getTrainingBlocks, getExercises, getExercise, debugGetBlocksForPlan, getBlockById } from "@/services/firestore";
 import type { Horse, TrainingPlan, TrainingBlock, Exercise, ExerciseResult, SessionDataInput, ExerciseResultInput, SessionData, ObservationInput, ExerciseResultObservations } from "@/types/firestore";
-// Removed: import { addObservation, getObservationsByHorseId } from "@/services/observation";
 import HorseHistory from "@/components/HorseHistory"; 
 
  import {
@@ -106,12 +105,6 @@ const Dashboard = () => {
   const [sessionOverallNote, setSessionOverallNote] = useState("");
   const [sessionExerciseResults, setSessionExerciseResults] = useState<Map<string, SessionExerciseResultState>>(new Map());
   const [isSavingSession, setIsSavingSession] = useState(false);
-
-  // Removed states related to general observations tab
-  // const [observationData, setObservationData] = useState<Partial<ObservationInput>>({});
-  // const [isSavingObservation, setIsSavingObservation] = useState(false);
-  // const [horseObservations, setHorseObservations] = useState<Observation[]>([]);
-  // const [isLoadingObservations, setIsLoadingObservations] = useState(false);
 
 
   const [isCreatePlanDialogOpen, setIsCreatePlanDialogOpen] = useState(false);
@@ -249,15 +242,6 @@ const Dashboard = () => {
     }
   }, [selectedPlan, blocks, isLoadingBlocks, performFetchExercisesForPlan]);
 
-  // Removed useEffect for fetching general observations
-  // useEffect(() => {
-  //   if (selectedHorse) {
-  //     performFetchObservations(selectedHorse.id);
-  //   } else {
-  //     setHorseObservations([]);
-  //   }
-  // }, [selectedHorse, performFetchObservations]);
-
 
   const handleHorseAdded = () => {
     setIsAddHorseDialogOpen(false);
@@ -306,14 +290,13 @@ const Dashboard = () => {
   ) => {
     setSessionExerciseResults(prev => {
         const newMap = new Map(prev);
-        // Find the exercise to get its suggestedReps for default plannedReps
         const exerciseDetails = exercises.find(ex => ex.id === exerciseId);
         let currentExerciseData = newMap.get(exerciseId) || {
             plannedReps: exerciseDetails?.suggestedReps ?? "",
             doneReps: 0,
             rating: 3,
             comment: "",
-            observations: {} // Ensure observations object exists
+            observations: {} 
         };
 
         if (field.startsWith('observations.')) {
@@ -321,14 +304,13 @@ const Dashboard = () => {
             currentExerciseData = {
                 ...currentExerciseData,
                 observations: {
-                    ...(currentExerciseData.observations || {}), // Ensure currentExerciseData.observations is not null/undefined
-                    [obsField]: value === '' ? null : String(value) // Store empty strings as null or handle as needed
+                    ...(currentExerciseData.observations || {}), 
+                    [obsField]: value === '' ? null : String(value) 
                 }
             };
         } else if (field === 'doneReps' || field === 'rating') {
             (currentExerciseData as any)[field] = Number(value);
         } else {
-             // Ensure 'plannedReps' and 'comment' are handled as strings
             (currentExerciseData as any)[field] = String(value);
         }
         newMap.set(exerciseId, currentExerciseData);
@@ -412,7 +394,7 @@ const handleSaveSessionAndNavigate = async () => {
                 doneReps: Number(doneRepsValue),       
                 rating: Number(ratingValue), 
                 comment: String(commentValue),
-                observations: Object.keys(observationsToSave).length > 0 ? observationsToSave : undefined,
+                observations: Object.values(observationsToSave).some(v => v !== null && v !== undefined && v !== '') ? observationsToSave : undefined,
             });
         });
 
@@ -443,7 +425,6 @@ const handleSaveSessionAndNavigate = async () => {
     }
   };
 
-  // Removed handleObservationInputChange and handleSaveObservation
 
   return (
     <div className="container py-10">
@@ -498,7 +479,7 @@ const handleSaveSessionAndNavigate = async () => {
               </CardHeader>
               <CardContent>
                  <Tabs defaultValue="plan" className="w-full">
-                   <TabsList className="grid w-full grid-cols-3"> {/* Adjusted for 3 tabs */}
+                   <TabsList className="grid w-full grid-cols-3"> 
                     <TabsTrigger value="plan">Plan</TabsTrigger>
                     <TabsTrigger value="sesiones">Sesiones</TabsTrigger>
                     <TabsTrigger value="historial">Historial</TabsTrigger> 
@@ -715,7 +696,6 @@ const handleSaveSessionAndNavigate = async () => {
                                                 />
                                             </div>
 
-                                            {/* Observations for this exercise */}
                                             <div className="pt-3 border-t mt-3">
                                                 <h4 className="text-md font-semibold mb-2">Observaciones del Ejercicio:</h4>
                                                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
@@ -781,10 +761,8 @@ const handleSaveSessionAndNavigate = async () => {
                     </Card>
                   </TabsContent>
                   
-                  {/* Removed Observations Tab Content */}
-
                    <TabsContent value="historial">
-                     <HorseHistory />
+                     <HorseHistory preselectedHorse={selectedHorse} />
                    </TabsContent>
                 </Tabs>
               </CardContent>
@@ -898,6 +876,8 @@ const handleSaveSessionAndNavigate = async () => {
 };
 
 export default Dashboard;
+    
+
     
 
     
