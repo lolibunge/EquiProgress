@@ -50,14 +50,14 @@ export async function addExerciseResult(horseId: string, sessionId: string, exer
   }
   const exerciseResultsCollectionRef = collection(db, 'horses', horseId, 'sessions', sessionId, 'exerciseResults');
   
-  // Ensure observations is either a valid object or null/undefined, not an empty object if it has no meaningful data.
-  const observationsToSave = exerciseResultData.observations && Object.values(exerciseResultData.observations).some(v => v !== null && v !== undefined && v !== '')
+  // Ensure observations is either a valid object or null, not an empty object if it has no meaningful data.
+  const observationsToSave = exerciseResultData.observations && Object.values(exerciseResultData.observations).some(v => v !== null && v !== undefined && String(v).trim() !== '')
     ? exerciseResultData.observations
     : null;
 
   const newExerciseResultDoc: Omit<ExerciseResult, 'id' | 'createdAt' | 'updatedAt'> & { createdAt: Timestamp, updatedAt: Timestamp } = {
     ...exerciseResultData,
-    observations: observationsToSave || undefined, // Store undefined if observationsToSave is null
+    observations: observationsToSave, // Changed from observationsToSave || undefined
     createdAt: serverTimestamp() as Timestamp,
     updatedAt: serverTimestamp() as Timestamp,
   };
@@ -180,5 +180,3 @@ export async function getSessionsByHorseId(horseId: string): Promise<SessionData
     throw e;
   }
 }
-
-    
