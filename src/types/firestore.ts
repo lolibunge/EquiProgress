@@ -67,6 +67,20 @@ export interface SessionData {
     updatedAt?: Timestamp;
 }
 
+export interface ExerciseResultObservations {
+    ears?: string | null;
+    eyes?: string | null;
+    neck?: string | null;
+    withers?: string | null; // Cruz
+    back?: string | null;
+    loins?: string | null; // Riñones
+    croup?: string | null; // Grupa
+    legs?: string | null; // Patas/Manos
+    hooves?: string | null; // Cascos
+    overallBehavior?: string | null; // General behavior notes for this exercise
+    additionalNotes?: string | null; // Any other notes for this exercise
+}
+
 export interface ExerciseResult {
     id: string; // Firestore document ID, added when fetched
     // sessionId is implicit as this is a subcollection of a session
@@ -77,21 +91,7 @@ export interface ExerciseResult {
     comment: string;
     createdAt: Timestamp;
     updatedAt?: Timestamp;
-
-    // Add a nested structure for observations related to this exercise
-    observations?: {
-        ears?: string; // Status/emoji/color for ears
-        eyes?: string;
-        neck?: string;
-        withers?: string; // Cruz
-        back?: string;
-        loins?: string; // Riñones
-        croup?: string; // Grupa
-        legs?: string; // Patas/Manos
-        hooves?: string; // Cascos
-        overallBehavior?: string; // General behavior notes for this exercise
-        additionalNotes?: string; // Any other notes for this exercise
-    };
+    observations?: ExerciseResultObservations | null;
 }
 
 export interface Observation {
@@ -124,9 +124,9 @@ export interface TrainingPlanInput {
 
 export interface TrainingBlockInput {
   title: string;
-  notes?: string;
-  duration?: string;
-  goal?: string; 
+  notes?: string; // Subtitle or additional notes for the block
+  duration?: string; // Optional duration for the block, e.g., "1 semana"
+  goal?: string; // Optional goal for the training block
   order?: number; // Order of the block within the plan
 }
 
@@ -153,19 +153,7 @@ export interface ExerciseResultInput {
     doneReps: number;
     rating: number;
     comment: string;
-     observations?: {
-        ears?: string;
-        eyes?: string;
-        neck?: string;
-        withers?: string;
-        back?: string;
-        loins?: string;
-        croup?: string;
-        legs?: string;
-        hooves?: string;
-        overallBehavior?: string;
-        additionalNotes?: string;
-    };
+    observations?: ExerciseResultObservations | null;
 }
 
 // Input type for creating new Observation

@@ -1,5 +1,5 @@
 
-import { collection, getDocs, query, where, addDoc, serverTimestamp, Timestamp, doc, getDoc, orderBy, limit, writeBatch } from "firebase/firestore";
+import { collection, getDocs, query, where, addDoc, serverTimestamp, Timestamp, doc, getDoc, orderBy, limit, writeBatch, updateDoc } from "firebase/firestore";
 import { db } from "@/firebase";
 import type { TrainingPlan, TrainingBlock, Exercise, TrainingPlanInput, TrainingBlockInput, ExerciseInput } from "@/types/firestore";
 
@@ -150,6 +150,25 @@ export async function addTrainingBlock(planId: string, blockData: TrainingBlockI
   }
 }
 
+export async function updateTrainingBlock(planId: string, blockId: string, blockData: TrainingBlockInput): Promise<void> {
+  const blockDocRef = doc(db, "trainingBlocks", blockId);
+  const dataToUpdate: Partial<TrainingBlockInput & { updatedAt: Timestamp }> = {
+    ...blockData,
+    updatedAt: serverTimestamp() as Timestamp,
+  };
+  // Ensure planId is not accidentally changed if it's part of blockData for some reason
+  delete (dataToUpdate as any).planId; 
+  delete (dataToUpdate as any).order; // Order should be handled by a separate reordering function
+
+  try {
+    await updateDoc(blockDocRef, dataToUpdate);
+    console.log(`[Firestore Service] Training block ${blockId} updated successfully.`);
+  } catch (error) {
+    console.error(`[Firestore Service] Error updating training block ${blockId}:`, error);
+    throw error;
+  }
+}
+
 export async function getExercises(planId: string, blockId: string): Promise<Exercise[]> {
   const trimmedPlanId = planId.trim();
   const trimmedBlockId = blockId.trim();
@@ -260,6 +279,26 @@ export async function addExerciseToBlock(planId: string, blockId: string, exerci
      if ((error as any).code === 'failed-precondition' && (error as any).message.includes('order')) {
         console.error("[Firestore Service] INDEX REQUIRED for adding exercise (determining new order): The query requires an index on 'planId' (ASC), 'blockId' (ASC) and 'order' (DESC). Please create this index in Firebase Firestore.");
     }
+    throw error;
+  }
+}
+
+export async function updateExercise(planId: string, blockId: string, exerciseId: string, exerciseData: ExerciseInput): Promise<void> {
+  const exerciseDocRef = doc(db, "exercises", exerciseId);
+  const dataToUpdate: Partial<ExerciseInput & { updatedAt: Timestamp }> = {
+    ...exerciseData,
+    updatedAt: serverTimestamp() as Timestamp,
+  };
+  // Ensure planId, blockId and order are not accidentally changed
+  delete (dataToUpdate as any).planId;
+  delete (dataToUpdate as any).blockId;
+  delete (dataToUpdate as any).order; // Order should be handled by a separate reordering function
+
+  try {
+    await updateDoc(exerciseDocRef, dataToUpdate);
+    console.log(`[Firestore Service] Exercise ${exerciseId} updated successfully.`);
+  } catch (error) {
+    console.error(`[Firestore Service] Error updating exercise ${exerciseId}:`, error);
     throw error;
   }
 }

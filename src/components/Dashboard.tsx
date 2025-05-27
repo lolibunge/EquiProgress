@@ -20,7 +20,7 @@ import { useRouter } from 'next/navigation';
 import { createSession, addExerciseResult, getSession, getExerciseResults } from "@/services/session";
 import { getHorses as fetchHorsesService, getHorseById } from "@/services/horse";
 import { getTrainingPlans, getTrainingBlocks, getExercises, getExercise, debugGetBlocksForPlan, getBlockById } from "@/services/firestore";
-import type { Horse, TrainingPlan, TrainingBlock, Exercise, ExerciseResult, SessionDataInput, ExerciseResultInput, SessionData, ObservationInput, ExerciseResultObservations } from "@/types/firestore";
+import type { Horse, TrainingPlan, TrainingBlock, Exercise, ExerciseResult, SessionDataInput, ExerciseResultInput, SessionData, ExerciseResultObservations } from "@/types/firestore";
 import HorseHistory from "@/components/HorseHistory"; 
 
  import {
@@ -53,6 +53,8 @@ import AddHorseForm from "./AddHorseForm";
 import AddPlanForm from "./AddPlanForm";
 import AddBlockForm from "./AddBlockForm";
 import AddExerciseForm from "./AddExerciseForm";
+import EditBlockForm from "./EditBlockForm";
+import EditExerciseForm from "./EditExerciseForm";
 import { Icons } from "./icons";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -111,6 +113,11 @@ const Dashboard = () => {
   const [isAddBlockDialogOpen, setIsAddBlockDialogOpen] = useState(false);
   const [isAddExerciseDialogOpen, setIsAddExerciseDialogOpen] = useState(false);
   const [currentBlockIdForExercise, setCurrentBlockIdForExercise] = useState<string | null>(null);
+
+  const [isEditBlockDialogOpen, setIsEditBlockDialogOpen] = useState(false);
+  const [editingBlock, setEditingBlock] = useState<TrainingBlock | null>(null);
+  const [isEditExerciseDialogOpen, setIsEditExerciseDialogOpen] = useState(false);
+  const [editingExercise, setEditingExercise] = useState<Exercise | null>(null);
 
 
   const performFetchHorses = useCallback(async (uid: string) => {
@@ -263,25 +270,54 @@ const Dashboard = () => {
     });
   };
 
-  const handleBlockAdded = (newBlockId: string) => {
+  const handleBlockAdded = () => {
     setIsAddBlockDialogOpen(false);
     if (selectedPlan) {
       performFetchBlocks(selectedPlan.id); 
     }
   };
 
-  const handleExerciseAdded = (newExerciseId: string) => {
+  const handleBlockUpdated = () => {
+    setIsEditBlockDialogOpen(false);
+    setEditingBlock(null);
+    if (selectedPlan) {
+      performFetchBlocks(selectedPlan.id);
+    }
+  };
+
+  const handleExerciseAdded = () => {
     setIsAddExerciseDialogOpen(false);
     if (selectedPlan && currentBlockIdForExercise && blocks.length > 0) {
       performFetchExercisesForPlan(selectedPlan.id, blocks);
     }
     setCurrentBlockIdForExercise(null); 
   };
+  
+  const handleExerciseUpdated = () => {
+    setIsEditExerciseDialogOpen(false);
+    setEditingExercise(null);
+    if (selectedPlan && blocks.length > 0) {
+      // Re-fetch exercises for all blocks in the current plan to ensure UI consistency
+      performFetchExercisesForPlan(selectedPlan.id, blocks);
+    }
+  };
+
 
   const openAddExerciseDialog = (blockId: string) => {
     setCurrentBlockIdForExercise(blockId);
     setIsAddExerciseDialogOpen(true);
   };
+
+  const openEditBlockDialog = (block: TrainingBlock) => {
+    setEditingBlock(block);
+    setIsEditBlockDialogOpen(true);
+  };
+
+  const openEditExerciseDialog = (exercise: Exercise) => {
+    setEditingExercise(exercise);
+    setIsEditExerciseDialogOpen(true);
+  };
+
 
   const handleSessionExerciseInputChange = (
     exerciseId: string,
@@ -379,12 +415,14 @@ const handleSaveSessionAndNavigate = async () => {
             const commentValue = resultData?.comment ?? "";
             
             const observationsToSave: ExerciseResultObservations = {};
-            if (resultData?.observations) {
-                for (const zone of OBSERVATION_ZONES) {
-                    observationsToSave[zone.id] = resultData.observations[zone.id] || null;
-                }
-                observationsToSave.overallBehavior = resultData.observations.overallBehavior || null;
-                observationsToSave.additionalNotes = resultData.observations.additionalNotes || null;
+             if (resultData?.observations) {
+                (Object.keys(resultData.observations) as Array<keyof ExerciseResultObservations>).forEach(key => {
+                    if (resultData.observations![key] !== undefined && resultData.observations![key] !== '') {
+                        observationsToSave[key] = resultData.observations![key];
+                    } else {
+                        observationsToSave[key] = null;
+                    }
+                });
             }
 
 
@@ -394,7 +432,7 @@ const handleSaveSessionAndNavigate = async () => {
                 doneReps: Number(doneRepsValue),       
                 rating: Number(ratingValue), 
                 comment: String(commentValue),
-                observations: Object.values(observationsToSave).some(v => v !== null && v !== undefined && v !== '') ? observationsToSave : undefined,
+                observations: Object.values(observationsToSave).some(v => v !== null && v !== undefined && String(v).trim() !== '') ? observationsToSave : null,
             });
         });
 
@@ -479,9 +517,10 @@ const handleSaveSessionAndNavigate = async () => {
               </CardHeader>
               <CardContent>
                  <Tabs defaultValue="plan" className="w-full">
-                   <TabsList className="grid w-full grid-cols-3"> 
+                   <TabsList className="grid w-full grid-cols-2"> 
                     <TabsTrigger value="plan">Plan</TabsTrigger>
                     <TabsTrigger value="sesiones">Sesiones</TabsTrigger>
+                    {/* <TabsTrigger value="observaciones">Observaciones</TabsTrigger> Removed */}
                     <TabsTrigger value="historial">Historial</TabsTrigger> 
                   </TabsList>
 
@@ -533,10 +572,18 @@ const handleSaveSessionAndNavigate = async () => {
                                 {blocks.map((block) => ( 
                                   <AccordionItem value={block.id} key={block.id}>
                                     <AccordionTrigger>
-                                      {block.title}
-                                      {block.notes && <span className="text-sm text-muted-foreground ml-2">- {block.notes}</span>}
-                                      {block.duration && <span className="text-sm text-muted-foreground ml-2">- Duración: {block.duration}</span>}
-                                      {block.goal && <span className="text-sm text-muted-foreground ml-2">- Meta: {block.goal}</span>}
+                                      <div className="flex items-center justify-between w-full">
+                                        <span>
+                                          {block.title}
+                                          {block.notes && <span className="text-sm text-muted-foreground ml-2">- {block.notes}</span>}
+                                          {block.duration && <span className="text-sm text-muted-foreground ml-2">- Duración: {block.duration}</span>}
+                                          {block.goal && <span className="text-sm text-muted-foreground ml-2">- Meta: {block.goal}</span>}
+                                        </span>
+                                        <Button variant="ghost" size="icon" className="ml-2 h-7 w-7" onClick={(e) => { e.stopPropagation(); openEditBlockDialog(block); }}>
+                                          <Icons.edit className="h-4 w-4" />
+                                          <span className="sr-only">Editar Etapa</span>
+                                        </Button>
+                                      </div>
                                     </AccordionTrigger>
                                     <AccordionContent>
                                       {block.goal && (
@@ -547,16 +594,22 @@ const handleSaveSessionAndNavigate = async () => {
                                      {isLoadingExercises ? (
                                         <p>Cargando ejercicios...</p>
                                       ) : exercises.filter(ex => ex.blockId === block.id && selectedPlan && ex.planId === selectedPlan.id).length > 0 ? (
-                                        <ul className="list-disc pl-5 space-y-1 text-sm">
+                                        <ul className="list-none pl-0 space-y-2 text-sm">
                                           {exercises
                                             .filter(ex => ex.blockId === block.id && selectedPlan && ex.planId === selectedPlan.id)
                                             .map(exercise => (
-                                              <li key={exercise.id}>
-                                                <span className="font-medium">{exercise.title}</span>
-                                                {exercise.suggestedReps && ` (Reps: ${exercise.suggestedReps})`}
-                                                {exercise.description && <p className="text-xs text-muted-foreground pl-2">- Desc: {exercise.description}</p>}
-                                                {exercise.objective && <p className="text-xs text-muted-foreground pl-2">- Obj: {exercise.objective}</p>}
-                                                </li>
+                                              <li key={exercise.id} className="flex items-center justify-between group p-2 rounded-md hover:bg-accent/50">
+                                                <div>
+                                                  <span className="font-medium">{exercise.title}</span>
+                                                  {exercise.suggestedReps && ` (Reps: ${exercise.suggestedReps})`}
+                                                  {exercise.description && <p className="text-xs text-muted-foreground pl-2">- Desc: {exercise.description}</p>}
+                                                  {exercise.objective && <p className="text-xs text-muted-foreground pl-2">- Obj: {exercise.objective}</p>}
+                                                </div>
+                                                <Button variant="ghost" size="icon" className="ml-2 h-7 w-7 opacity-0 group-hover:opacity-100" onClick={() => openEditExerciseDialog(exercise)}>
+                                                  <Icons.edit className="h-4 w-4" />
+                                                  <span className="sr-only">Editar Ejercicio</span>
+                                                </Button>
+                                              </li>
                                           ))}
                                         </ul>
                                       ) : (
@@ -579,8 +632,8 @@ const handleSaveSessionAndNavigate = async () => {
                                 <Button onClick={() => setIsAddBlockDialogOpen(true)} disabled={!selectedPlan || isLoadingBlocks}>
                                     <Icons.plus className="mr-2 h-4 w-4" /> Añadir Etapa
                                 </Button>
-                                <Button variant="outline" disabled={!selectedPlan}>Editar Plan</Button>
-                                <Button variant="outline" disabled={!selectedPlan}>Clonar Plan</Button>
+                                {/* <Button variant="outline" disabled={!selectedPlan}>Editar Plan</Button> */}
+                                {/* <Button variant="outline" disabled={!selectedPlan}>Clonar Plan</Button> */}
                             </div>
                            </>
                         ) : (
@@ -849,6 +902,23 @@ const handleSaveSessionAndNavigate = async () => {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={isEditBlockDialogOpen} onOpenChange={setIsEditBlockDialogOpen}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle>Editar Etapa</DialogTitle>
+            <DialogDescription>Modifica los detalles de la etapa "{editingBlock?.title}".</DialogDescription>
+          </DialogHeader>
+          {selectedPlan && editingBlock && (
+            <EditBlockForm
+              planId={selectedPlan.id}
+              block={editingBlock}
+              onSuccess={handleBlockUpdated}
+              onCancel={() => setIsEditBlockDialogOpen(false)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={isAddExerciseDialogOpen} onOpenChange={setIsAddExerciseDialogOpen}>
         <DialogContent className="sm:max-w-[480px]">
           <DialogHeader>
@@ -866,6 +936,24 @@ const handleSaveSessionAndNavigate = async () => {
                 setIsAddExerciseDialogOpen(false);
                 setCurrentBlockIdForExercise(null);
               }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isEditExerciseDialogOpen} onOpenChange={setIsEditExerciseDialogOpen}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle>Editar Ejercicio</DialogTitle>
+            <DialogDescription>Modifica los detalles del ejercicio "{editingExercise?.title}".</DialogDescription>
+          </DialogHeader>
+          {selectedPlan && editingExercise?.blockId && editingExercise && (
+            <EditExerciseForm
+              planId={selectedPlan.id}
+              blockId={editingExercise.blockId}
+              exercise={editingExercise}
+              onSuccess={handleExerciseUpdated}
+              onCancel={() => setIsEditExerciseDialogOpen(false)}
             />
           )}
         </DialogContent>
