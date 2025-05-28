@@ -21,7 +21,7 @@ import { createSession, addExerciseResult, getSession, getExerciseResults } from
 import { getHorses as fetchHorsesService, getHorseById } from "@/services/horse";
 import { getTrainingPlans, getTrainingBlocks, getExercises, getExercise, debugGetBlocksForPlan, getBlockById } from "@/services/firestore";
 import type { Horse, TrainingPlan, TrainingBlock, Exercise, ExerciseResult, SessionDataInput, ExerciseResultInput, SessionData, ExerciseResultObservations } from "@/types/firestore";
-import HorseHistory from "@/components/HorseHistory"; 
+import HorseHistory from "./HorseHistory"; 
 
  import {
   Accordion,
@@ -173,18 +173,20 @@ const Dashboard = () => {
     if (!planId) {
       setBlocks([]);
       setSelectedBlock(null);
+      setExercises([]); // Clear exercises if no plan is selected
+      console.log("[Dashboard] performFetchBlocks: No planId provided. Cleared blocks and exercises.");
       return;
     }
     setIsLoadingBlocks(true);
     setExercises([]); 
     try {
-      console.log(`[Firestore Service] Attempting to fetch trainingBlocks with planId: "${planId}" (ordering by 'order' asc)`);
+      console.log(`[Dashboard] performFetchBlocks: Attempting to fetch trainingBlocks with planId: "${planId}"`);
       const fetchedBlocks = await getTrainingBlocks(planId);
-      console.log(`[Dashboard] Blocks fetched by getTrainingBlocks for planId ${planId}:`, JSON.parse(JSON.stringify(fetchedBlocks)));
+      console.log(`[Dashboard] Blocks fetched by getTrainingBlocks for planId ${planId}:`, JSON.parse(JSON.stringify(fetchedBlocks.map(b => ({id: b.id, title: b.title, planId: b.planId, order: b.order})))));
       setBlocks(fetchedBlocks);
       if (fetchedBlocks.length === 0) {
-        setSelectedBlock(null);
-        console.log(`[Dashboard] No blocks were found for planId ${planId} by getTrainingBlocks. Setting selectedBlock to null.`);
+        setSelectedBlock(null); // Clear selected block if no blocks are found for the current plan
+        console.log(`[Dashboard] No blocks were found for planId ${planId}. Setting selectedBlock to null.`);
       } else {
         console.log(`[Dashboard] ${fetchedBlocks.length} blocks found for planId ${planId}.`);
       }
@@ -192,19 +194,20 @@ const Dashboard = () => {
       console.error(`[Dashboard] Error fetching blocks for plan ${planId}:`, error);
       toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar las etapas para este plan." });
       setBlocks([]);
+      setSelectedBlock(null); // Clear selected block on error
     } finally {
       setIsLoadingBlocks(false);
     }
   }, [toast]);
 
+
   const performFetchExercisesForPlan = useCallback(async (planId: string, currentPlanBlocks: TrainingBlock[]) => {
     console.log(`[Dashboard] performFetchExercisesForPlan called for planId: ${planId} with ${currentPlanBlocks.length} blocks.`);
     if (!planId || currentPlanBlocks.length === 0) {
         setExercises([]);
-        console.log(`[Dashboard] No planId or no blocks provided for exercise fetch. Clearing exercises.`);
+        console.log(`[Dashboard] No planId or no blocks provided for exercise fetch. Clearing exercises for plan ${planId}.`);
         return;
     }
-
     setIsLoadingExercises(true);
     try {
       let allExercisesForPlan: Exercise[] = [];
@@ -230,24 +233,32 @@ const Dashboard = () => {
 
 
   useEffect(() => {
-    if (selectedPlan) {
+    if (selectedPlan?.id) {
+      console.log(`[Dashboard] useEffect[selectedPlan]: Plan selected, ID: ${selectedPlan.id}. Fetching blocks.`);
       performFetchBlocks(selectedPlan.id);
     } else {
+      console.log("[Dashboard] useEffect[selectedPlan]: No plan selected. Clearing blocks, selectedBlock, and exercises.");
       setBlocks([]);
       setSelectedBlock(null);
       setExercises([]);
     }
   }, [selectedPlan, performFetchBlocks]);
 
+
   useEffect(() => {
-    if (selectedPlan && !isLoadingBlocks && blocks.length > 0) {
-        console.log(`[Dashboard] useEffect[selectedPlan, blocks, isLoadingBlocks] - Fetching exercises for plan ${selectedPlan.id} as blocks are loaded.`);
-        performFetchExercisesForPlan(selectedPlan.id, blocks);
-    } else if (selectedPlan && !isLoadingBlocks && blocks.length === 0) {
-        console.log(`[Dashboard] useEffect[selectedPlan, blocks, isLoadingBlocks] - Plan ${selectedPlan.id} selected, blocks loaded, but no blocks found. Clearing exercises.`);
-        setExercises([]);
+    if (selectedPlan?.id && blocks.length > 0 && !isLoadingBlocks) {
+      console.log(`[Dashboard] useEffect[selectedPlan, blocks, isLoadingBlocks] - Plan ${selectedPlan.id} selected, ${blocks.length} blocks loaded. Fetching exercises.`);
+      performFetchExercisesForPlan(selectedPlan.id, blocks);
+    } else if (selectedPlan?.id && blocks.length === 0 && !isLoadingBlocks) {
+      console.log(`[Dashboard] useEffect[selectedPlan, blocks, isLoadingBlocks] - Plan ${selectedPlan.id} selected, blocks loaded, but no blocks found. Clearing exercises.`);
+      setExercises([]);
+    } else if (!selectedPlan?.id) {
+      // This case is handled by the useEffect above, but good to be explicit if needed.
+      // console.log("[Dashboard] useEffect[selectedPlan, blocks, isLoadingBlocks]: No plan selected, ensuring exercises are clear.");
+      // setExercises([]);
     }
   }, [selectedPlan, blocks, isLoadingBlocks, performFetchExercisesForPlan]);
+
 
 
   const handleHorseAdded = () => {
@@ -297,7 +308,6 @@ const Dashboard = () => {
     setIsEditExerciseDialogOpen(false);
     setEditingExercise(null);
     if (selectedPlan && blocks.length > 0) {
-      // Re-fetch exercises for all blocks in the current plan to ensure UI consistency
       performFetchExercisesForPlan(selectedPlan.id, blocks);
     }
   };
@@ -322,7 +332,7 @@ const Dashboard = () => {
   const handleSessionExerciseInputChange = (
     exerciseId: string,
     field: keyof Omit<SessionExerciseResultState, 'observations'> | `observations.${keyof ExerciseResultObservations}`,
-    value: string | number
+    value: string | number | null // Allow null for select when unsetting
   ) => {
     setSessionExerciseResults(prev => {
         const newMap = new Map(prev);
@@ -332,21 +342,29 @@ const Dashboard = () => {
             doneReps: 0,
             rating: 3,
             comment: "",
-            observations: {} 
+            observations: { // Ensure observations is initialized as an object
+              ears: null, eyes: null, neck: null, withers: null,
+              back: null, loins: null, croup: null, legs: null, hooves: null,
+              overallBehavior: "", additionalNotes: ""
+            } 
         };
 
         if (field.startsWith('observations.')) {
             const obsField = field.split('.')[1] as keyof ExerciseResultObservations;
+             // Initialize observations if it's null/undefined
+            if (!currentExerciseData.observations) {
+                currentExerciseData.observations = {};
+            }
             currentExerciseData = {
                 ...currentExerciseData,
                 observations: {
-                    ...(currentExerciseData.observations || {}), 
-                    [obsField]: value === '' ? null : String(value) 
+                    ...currentExerciseData.observations,
+                    [obsField]: value === '' ? null : String(value) // Store empty string as null for selects if desired, or handle it
                 }
             };
         } else if (field === 'doneReps' || field === 'rating') {
             (currentExerciseData as any)[field] = Number(value);
-        } else {
+        } else { // plannedReps, comment
             (currentExerciseData as any)[field] = String(value);
         }
         newMap.set(exerciseId, currentExerciseData);
@@ -414,15 +432,22 @@ const handleSaveSessionAndNavigate = async () => {
             const ratingValue = resultData?.rating ?? 3;
             const commentValue = resultData?.comment ?? "";
             
-            const observationsToSave: ExerciseResultObservations = {};
+            let observationsToSave: ExerciseResultObservations | null = null;
              if (resultData?.observations) {
+                const tempObs: ExerciseResultObservations = {};
+                let hasValidObservation = false;
                 (Object.keys(resultData.observations) as Array<keyof ExerciseResultObservations>).forEach(key => {
-                    if (resultData.observations![key] !== undefined && resultData.observations![key] !== '') {
-                        observationsToSave[key] = resultData.observations![key];
+                    const obsVal = resultData.observations![key];
+                    if (obsVal !== undefined && obsVal !== null && String(obsVal).trim() !== '') {
+                        tempObs[key] = obsVal;
+                        hasValidObservation = true;
                     } else {
-                        observationsToSave[key] = null;
+                         tempObs[key] = null; // Ensure all keys are present, but set to null if empty/invalid
                     }
                 });
+                if (hasValidObservation) {
+                    observationsToSave = tempObs;
+                }
             }
 
 
@@ -432,7 +457,7 @@ const handleSaveSessionAndNavigate = async () => {
                 doneReps: Number(doneRepsValue),       
                 rating: Number(ratingValue), 
                 comment: String(commentValue),
-                observations: Object.values(observationsToSave).some(v => v !== null && v !== undefined && String(v).trim() !== '') ? observationsToSave : null,
+                observations: observationsToSave, // This will be null if no valid observations
             });
         });
 
@@ -517,10 +542,9 @@ const handleSaveSessionAndNavigate = async () => {
               </CardHeader>
               <CardContent>
                  <Tabs defaultValue="plan" className="w-full">
-                   <TabsList className="grid w-full grid-cols-2"> 
+                   <TabsList className="grid w-full grid-cols-3"> 
                     <TabsTrigger value="plan">Plan</TabsTrigger>
                     <TabsTrigger value="sesiones">Sesiones</TabsTrigger>
-                    {/* <TabsTrigger value="observaciones">Observaciones</TabsTrigger> Removed */}
                     <TabsTrigger value="historial">Historial</TabsTrigger> 
                   </TabsList>
 
@@ -548,6 +572,7 @@ const handleSaveSessionAndNavigate = async () => {
                                         onSelect={() => {
                                             console.log('[Dashboard] Plan selected in UI:', JSON.parse(JSON.stringify(plan)));
                                             setSelectedPlan(plan);
+                                            setSelectedBlock(null); // Reset selected block when plan changes
                                         }}
                                     >
                                         {plan.title} {plan.template && "(Plantilla)"}
@@ -568,20 +593,31 @@ const handleSaveSessionAndNavigate = async () => {
                         {selectedPlan ? (
                            <>
                             {isLoadingBlocks ? <p>Cargando etapas...</p> : blocks.length > 0 ? (
-                               <Accordion type="multiple" className="w-full">
+                               <Accordion type="single" collapsible className="w-full">
                                 {blocks.map((block) => ( 
                                   <AccordionItem value={block.id} key={block.id}>
                                     <AccordionTrigger>
                                       <div className="flex items-center justify-between w-full">
-                                        <span>
+                                        <span className="text-left"> {/* Ensure text can wrap and align left */}
                                           {block.title}
-                                          {block.notes && <span className="text-sm text-muted-foreground ml-2">- {block.notes}</span>}
-                                          {block.duration && <span className="text-sm text-muted-foreground ml-2">- Duración: {block.duration}</span>}
-                                          {block.goal && <span className="text-sm text-muted-foreground ml-2">- Meta: {block.goal}</span>}
+                                          {block.notes && <span className="block sm:inline text-xs text-muted-foreground ml-0 sm:ml-2">- {block.notes}</span>}
+                                          {block.duration && <span className="block sm:inline text-xs text-muted-foreground ml-0 sm:ml-2">- Duración: {block.duration}</span>}
+                                          {block.goal && <span className="block sm:inline text-xs text-muted-foreground ml-0 sm:ml-2">- Meta: {block.goal}</span>}
                                         </span>
-                                        <Button variant="ghost" size="icon" className="ml-2 h-7 w-7" onClick={(e) => { e.stopPropagation(); openEditBlockDialog(block); }}>
-                                          <Icons.edit className="h-4 w-4" />
-                                          <span className="sr-only">Editar Etapa</span>
+                                        <Button
+                                          asChild // Render as child to avoid nested buttons
+                                          variant="ghost"
+                                          size="icon"
+                                          className="ml-2 h-7 w-7 flex-shrink-0" // Prevent button from causing overflow
+                                          onClick={(e) => {
+                                            e.stopPropagation(); // Important: Prevent accordion from toggling
+                                            openEditBlockDialog(block);
+                                          }}
+                                        >
+                                          <span> {/* The actual element will be this span */}
+                                            <Icons.edit className="h-4 w-4" />
+                                            <span className="sr-only">Editar Etapa</span>
+                                          </span>
                                         </Button>
                                       </div>
                                     </AccordionTrigger>
@@ -632,8 +668,6 @@ const handleSaveSessionAndNavigate = async () => {
                                 <Button onClick={() => setIsAddBlockDialogOpen(true)} disabled={!selectedPlan || isLoadingBlocks}>
                                     <Icons.plus className="mr-2 h-4 w-4" /> Añadir Etapa
                                 </Button>
-                                {/* <Button variant="outline" disabled={!selectedPlan}>Editar Plan</Button> */}
-                                {/* <Button variant="outline" disabled={!selectedPlan}>Clonar Plan</Button> */}
                             </div>
                            </>
                         ) : (
@@ -697,7 +731,11 @@ const handleSaveSessionAndNavigate = async () => {
                                         rating: 3, 
                                         comment: "", 
                                         plannedReps: exercise.suggestedReps ?? "",
-                                        observations: {} 
+                                        observations: {
+                                          ears: null, eyes: null, neck: null, withers: null,
+                                          back: null, loins: null, croup: null, legs: null, hooves: null,
+                                          overallBehavior: "", additionalNotes: ""
+                                        } 
                                     };
                                     return (
                                         <Card key={exercise.id} className="p-4 space-y-3">
@@ -757,7 +795,7 @@ const handleSaveSessionAndNavigate = async () => {
                                                         <Label htmlFor={`obs-${exercise.id}-${zone.id}`}>{zone.label}</Label>
                                                         <Select
                                                           value={currentResult.observations?.[zone.id] || ''}
-                                                          onValueChange={(value) => handleSessionExerciseInputChange(exercise.id, `observations.${zone.id}`, value)}
+                                                          onValueChange={(value) => handleSessionExerciseInputChange(exercise.id, `observations.${zone.id}`, value === 'N/A' ? 'N/A' : (value || null))}
                                                         >
                                                           <SelectTrigger id={`obs-${exercise.id}-${zone.id}`}>
                                                             <SelectValue placeholder={`Estado de ${zone.label.toLowerCase()}`} />
@@ -969,3 +1007,4 @@ export default Dashboard;
     
 
     
+
