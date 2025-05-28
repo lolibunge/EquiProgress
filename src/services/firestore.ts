@@ -1,5 +1,5 @@
 
-import { collection, getDocs, query, where, addDoc, serverTimestamp, Timestamp, doc, getDoc, orderBy, limit, writeBatch, updateDoc } from "firebase/firestore";
+import { collection, getDocs, query, where, addDoc, serverTimestamp, Timestamp, doc, getDoc, orderBy, limit, writeBatch, updateDoc, deleteDoc, runTransaction } from "firebase/firestore";
 import { db } from "@/firebase";
 import type { TrainingPlan, TrainingBlock, Exercise, TrainingPlanInput, TrainingBlockInput, ExerciseInput } from "@/types/firestore";
 
@@ -38,6 +38,54 @@ export async function addTrainingPlan(planData: TrainingPlanInput): Promise<stri
     throw error;
   }
 }
+
+export async function deleteTrainingPlan(planId: string): Promise<void> {
+  console.log(`[Firestore Service] Attempting to delete plan ${planId} and its sub-collections.`);
+  const batch = writeBatch(db);
+
+  // 1. Get all blocks for the plan
+  const blocksRef = collection(db, "trainingBlocks");
+  const blocksQuery = query(blocksRef, where("planId", "==", planId));
+  const blocksSnapshot = await getDocs(blocksQuery);
+
+  const blockIds: string[] = [];
+  blocksSnapshot.forEach((blockDoc) => {
+    blockIds.push(blockDoc.id);
+    // Add block deletion to batch
+    batch.delete(doc(db, "trainingBlocks", blockDoc.id));
+  });
+  console.log(`[Firestore Service] Found ${blockIds.length} blocks for plan ${planId} to delete.`);
+
+  // 2. For each block, get and delete its exercises
+  if (blockIds.length > 0) {
+    const exercisesRef = collection(db, "exercises");
+    // Firestore batch limitations might require multiple queries if blockIds is very large
+    // For simplicity, assuming blockIds isn't excessively large here.
+    // A more robust solution for many blocks might involve multiple batches or a Cloud Function.
+    for (const blockId of blockIds) {
+        const exercisesQuery = query(exercisesRef, where("planId", "==", planId), where("blockId", "==", blockId));
+        const exercisesSnapshot = await getDocs(exercisesQuery);
+        exercisesSnapshot.forEach((exerciseDoc) => {
+            // Add exercise deletion to batch
+            batch.delete(doc(db, "exercises", exerciseDoc.id));
+        });
+        console.log(`[Firestore Service] Found ${exercisesSnapshot.size} exercises for block ${blockId} (plan ${planId}) to delete.`);
+    }
+  }
+
+  // 3. Delete the plan document itself
+  const planDocRef = doc(db, "trainingPlans", planId);
+  batch.delete(planDocRef);
+
+  try {
+    await batch.commit();
+    console.log(`[Firestore Service] Successfully deleted plan ${planId} and its associated blocks and exercises.`);
+  } catch (error) {
+    console.error(`[Firestore Service] Error deleting plan ${planId}:`, error);
+    throw error;
+  }
+}
+
 
 export async function getTrainingBlocks(planId: string): Promise<TrainingBlock[]> {
   const trimmedPlanId = planId.trim();
@@ -168,6 +216,35 @@ export async function updateTrainingBlock(planId: string, blockId: string, block
     throw error;
   }
 }
+
+export async function deleteTrainingBlock(planId: string, blockId: string): Promise<void> {
+  console.log(`[Firestore Service] Attempting to delete block ${blockId} from plan ${planId} and its exercises.`);
+  const batch = writeBatch(db);
+
+  // 1. Get all exercises for the block
+  const exercisesRef = collection(db, "exercises");
+  const exercisesQuery = query(exercisesRef, where("planId", "==", planId), where("blockId", "==", blockId));
+  const exercisesSnapshot = await getDocs(exercisesQuery);
+
+  exercisesSnapshot.forEach((exerciseDoc) => {
+    // Add exercise deletion to batch
+    batch.delete(doc(db, "exercises", exerciseDoc.id));
+  });
+  console.log(`[Firestore Service] Found ${exercisesSnapshot.size} exercises for block ${blockId} (plan ${planId}) to delete.`);
+
+  // 2. Delete the block document itself
+  const blockDocRef = doc(db, "trainingBlocks", blockId);
+  batch.delete(blockDocRef);
+
+  try {
+    await batch.commit();
+    console.log(`[Firestore Service] Successfully deleted block ${blockId} and its exercises.`);
+  } catch (error) {
+    console.error(`[Firestore Service] Error deleting block ${blockId}:`, error);
+    throw error;
+  }
+}
+
 
 export async function getExercises(planId: string, blockId: string): Promise<Exercise[]> {
   const trimmedPlanId = planId.trim();
@@ -302,6 +379,19 @@ export async function updateExercise(planId: string, blockId: string, exerciseId
     throw error;
   }
 }
+
+export async function deleteExercise(exerciseId: string): Promise<void> {
+  console.log(`[Firestore Service] Attempting to delete exercise ${exerciseId}.`);
+  const exerciseDocRef = doc(db, "exercises", exerciseId);
+  try {
+    await deleteDoc(exerciseDocRef);
+    console.log(`[Firestore Service] Successfully deleted exercise ${exerciseId}.`);
+  } catch (error) {
+    console.error(`[Firestore Service] Error deleting exercise ${exerciseId}:`, error);
+    throw error;
+  }
+}
+
 
 export async function updateExercisesOrder(
   planId: string,

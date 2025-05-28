@@ -89,7 +89,7 @@ const Icons = {
   share: Share2,
   shield: Shield,
   spinner: Loader2,
-  trash: Trash,
+  trash: Trash, // Added Trash icon
   user: User,
   panelLeft: PanelLeft,
   logo: LogoIcon,
@@ -97,4 +97,3 @@ const Icons = {
 };
 
 export {Icons};
-

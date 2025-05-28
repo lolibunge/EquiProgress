@@ -19,7 +19,7 @@ import { useRouter } from 'next/navigation';
 
 import { createSession, addExerciseResult, getSession, getExerciseResults } from "@/services/session";
 import { getHorses as fetchHorsesService, getHorseById } from "@/services/horse";
-import { getTrainingPlans, getTrainingBlocks, getExercises, getExercise, debugGetBlocksForPlan, getBlockById } from "@/services/firestore";
+import { getTrainingPlans, getTrainingBlocks, getExercises, getExercise, debugGetBlocksForPlan, getBlockById, deleteTrainingPlan } from "@/services/firestore";
 import type { Horse, TrainingPlan, TrainingBlock, Exercise, ExerciseResult, SessionDataInput, ExerciseResultInput, SessionData, ExerciseResultObservations } from "@/types/firestore";
 import HorseHistory from "./HorseHistory";
 
@@ -49,6 +49,17 @@ import HorseHistory from "./HorseHistory";
   DialogHeader,
   DialogTitle
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import AddHorseForm from "./AddHorseForm";
 import AddPlanForm from "./AddPlanForm";
 import AddBlockForm from "./AddBlockForm";
@@ -118,6 +129,8 @@ const Dashboard = () => {
   const [editingBlock, setEditingBlock] = useState<TrainingBlock | null>(null);
   const [isEditExerciseDialogOpen, setIsEditExerciseDialogOpen] = useState(false);
   const [editingExercise, setEditingExercise] = useState<Exercise | null>(null);
+  const [isDeletePlanDialogOpen, setIsDeletePlanDialogOpen] = useState(false);
+  const [isDeletingPlan, setIsDeletingPlan] = useState(false);
 
 
   const performFetchHorses = useCallback(async (uid: string) => {
@@ -276,6 +289,38 @@ const Dashboard = () => {
       });
     });
   };
+
+  const handlePlanDeleted = () => {
+    setIsDeletePlanDialogOpen(false);
+    setSelectedPlan(null); // Deselect the deleted plan
+    setBlocks([]); // Clear blocks as the plan is gone
+    setExercises([]); // Clear exercises
+    performFetchPlans(); // Refresh the list of plans
+  };
+
+  const handleDeleteSelectedPlan = async () => {
+    if (!selectedPlan) return;
+    setIsDeletingPlan(true);
+    try {
+      await deleteTrainingPlan(selectedPlan.id);
+      toast({
+        title: "Plan Eliminado",
+        description: `El plan "${selectedPlan.title}" y todo su contenido han sido eliminados.`,
+      });
+      handlePlanDeleted();
+    } catch (error) {
+      console.error("Error deleting plan:", error);
+      toast({
+        variant: "destructive",
+        title: "Error al Eliminar Plan",
+        description: "Ocurrió un error al eliminar el plan.",
+      });
+    } finally {
+      setIsDeletingPlan(false);
+      setIsDeletePlanDialogOpen(false);
+    }
+  };
+
 
   const handleBlockAdded = () => {
     setIsAddBlockDialogOpen(false);
@@ -551,40 +596,74 @@ const handleSaveSessionAndNavigate = async () => {
                     <Card className="my-4">
                       <CardHeader>
                         <CardTitle>Plan de Entrenamiento para {selectedHorse.name}</CardTitle>
-                         <div className="flex flex-col sm:flex-row sm:items-center gap-2 mt-2">
-                            <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                <Button variant="outline" className="w-full sm:w-auto justify-between">
-                                    {selectedPlan ? selectedPlan.title : "Seleccionar Plan"}
-                                    <Icons.chevronDown className="ml-2 h-4 w-4" />
+                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mt-2">
+                           <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                    <Button variant="outline" className="w-full sm:w-auto justify-between">
+                                        {selectedPlan ? selectedPlan.title : "Seleccionar Plan"}
+                                        <Icons.chevronDown className="ml-2 h-4 w-4" />
+                                    </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent className="w-[var(--radix-dropdown-menu-trigger-width)]">
+                                    <DropdownMenuLabel>Planes Disponibles</DropdownMenuLabel>
+                                    <DropdownMenuSeparator />
+                                    {isLoadingPlans ? (
+                                        <DropdownMenuItem disabled>Cargando planes...</DropdownMenuItem>
+                                    ) : trainingPlans.length > 0 ? (
+                                        trainingPlans.map((plan) => (
+                                        <DropdownMenuItem
+                                            key={plan.id}
+                                            onSelect={() => {
+                                                console.log('[Dashboard] Plan selected in UI:', JSON.parse(JSON.stringify(plan)));
+                                                setSelectedPlan(plan);
+                                                setSelectedBlock(null); // Reset selected block when plan changes
+                                            }}
+                                        >
+                                            {plan.title} {plan.template && "(Plantilla)"}
+                                        </DropdownMenuItem>
+                                        ))
+                                    ) : (
+                                        <DropdownMenuItem disabled>No hay planes disponibles</DropdownMenuItem>
+                                    )}
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                                <Button onClick={() => setIsCreatePlanDialogOpen(true)} className="w-full sm:w-auto">
+                                    <Icons.plus className="mr-2 h-4 w-4" /> Crear Plan Nuevo
                                 </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent className="w-[var(--radix-dropdown-menu-trigger-width)]">
-                                <DropdownMenuLabel>Planes Disponibles</DropdownMenuLabel>
-                                <DropdownMenuSeparator />
-                                {isLoadingPlans ? (
-                                    <DropdownMenuItem disabled>Cargando planes...</DropdownMenuItem>
-                                ) : trainingPlans.length > 0 ? (
-                                    trainingPlans.map((plan) => (
-                                    <DropdownMenuItem
-                                        key={plan.id}
-                                        onSelect={() => {
-                                            console.log('[Dashboard] Plan selected in UI:', JSON.parse(JSON.stringify(plan)));
-                                            setSelectedPlan(plan);
-                                            setSelectedBlock(null); // Reset selected block when plan changes
-                                        }}
+                            </div>
+                            {selectedPlan && (
+                                <AlertDialog open={isDeletePlanDialogOpen} onOpenChange={setIsDeletePlanDialogOpen}>
+                                <AlertDialogTrigger asChild>
+                                    <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    onClick={() => setIsDeletePlanDialogOpen(true)}
+                                    className="w-full sm:w-auto"
+                                    disabled={!selectedPlan || isDeletingPlan}
                                     >
-                                        {plan.title} {plan.template && "(Plantilla)"}
-                                    </DropdownMenuItem>
-                                    ))
-                                ) : (
-                                    <DropdownMenuItem disabled>No hay planes disponibles</DropdownMenuItem>
-                                )}
-                                </DropdownMenuContent>
-                            </DropdownMenu>
-                            <Button onClick={() => setIsCreatePlanDialogOpen(true)} className="w-full sm:w-auto">
-                                <Icons.plus className="mr-2 h-4 w-4" /> Crear Plan Nuevo
-                            </Button>
+                                    <Icons.trash className="mr-2 h-4 w-4" />
+                                    Eliminar Plan Seleccionado
+                                    </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                    <AlertDialogTitle>¿Estás realmente seguro?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        Esta acción no se puede deshacer. Esto eliminará permanentemente el plan &quot;{selectedPlan?.title}&quot;
+                                        y todas sus etapas y ejercicios asociados.
+                                    </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                    <AlertDialogCancel disabled={isDeletingPlan}>Cancelar</AlertDialogCancel>
+                                    <AlertDialogAction onClick={handleDeleteSelectedPlan} disabled={isDeletingPlan}>
+                                        {isDeletingPlan && <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />}
+                                        Sí, eliminar plan
+                                    </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                                </AlertDialog>
+                            )}
                         </div>
                         {selectedPlan && <CardDescription className="mt-2">Plan activo: {selectedPlan.title}</CardDescription>}
                       </CardHeader>

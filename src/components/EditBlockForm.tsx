@@ -11,8 +11,19 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
-import { updateTrainingBlock, type TrainingBlockInput, type TrainingBlock } from '@/services/firestore';
+import { updateTrainingBlock, deleteTrainingBlock, type TrainingBlockInput, type TrainingBlock } from '@/services/firestore';
 import { Icons } from '@/components/icons';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 const editBlockSchema = z.object({
   title: z.string().min(3, { message: "El título debe tener al menos 3 caracteres." }).max(100, { message: "El título no puede exceder los 100 caracteres." }),
@@ -33,6 +44,7 @@ interface EditBlockFormProps {
 export default function EditBlockForm({ block, planId, onSuccess, onCancel }: EditBlockFormProps) {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const form = useForm<EditBlockFormValues>({
     resolver: zodResolver(editBlockSchema),
@@ -83,6 +95,32 @@ export default function EditBlockForm({ block, planId, onSuccess, onCancel }: Ed
       });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleDeleteBlock = async () => {
+    setIsDeleting(true);
+    if (!planId || !block.id) {
+      toast({ variant: "destructive", title: "Error", description: "ID del plan o de la etapa no encontrado." });
+      setIsDeleting(false);
+      return;
+    }
+    try {
+      await deleteTrainingBlock(planId, block.id);
+      toast({
+        title: "Etapa Eliminada",
+        description: `La etapa "${block.title}" y todos sus ejercicios han sido eliminados.`,
+      });
+      onSuccess(); // Call onSuccess to close dialog and refresh list
+    } catch (error: any) {
+      console.error("Error deleting training block:", error);
+      toast({
+        variant: "destructive",
+        title: "Error al Eliminar Etapa",
+        description: error.message || "Ocurrió un error inesperado al eliminar la etapa.",
+      });
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -141,14 +179,40 @@ export default function EditBlockForm({ block, planId, onSuccess, onCancel }: Ed
             </FormItem>
           )}
         />
-        <div className="flex justify-end space-x-2 pt-4">
-          <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading}>
-            Cancelar
-          </Button>
-          <Button type="submit" disabled={isLoading}>
-            {isLoading && <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />}
-            Guardar Cambios
-          </Button>
+        <div className="flex justify-between items-center pt-4">
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button type="button" variant="destructive" disabled={isLoading || isDeleting}>
+                {isDeleting ? <Icons.spinner className="mr-2 h-4 w-4 animate-spin" /> : <Icons.trash className="mr-2 h-4 w-4" />}
+                Eliminar Etapa
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Esta acción no se puede deshacer. Esto eliminará permanentemente la etapa
+                  &quot;{block.title}&quot; y todos los ejercicios que contiene.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+                <AlertDialogAction onClick={handleDeleteBlock} disabled={isDeleting}>
+                  {isDeleting && <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />}
+                  Continuar
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+          <div className="flex space-x-2">
+            <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading || isDeleting}>
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={isLoading || isDeleting}>
+              {isLoading && <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />}
+              Guardar Cambios
+            </Button>
+          </div>
         </div>
       </form>
     </Form>
