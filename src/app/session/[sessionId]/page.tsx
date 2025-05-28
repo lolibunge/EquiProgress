@@ -15,7 +15,7 @@ import { Icons } from '@/components/icons';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast'; // Corrected import path
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
@@ -23,8 +23,8 @@ import { Slider } from '@/components/ui/slider';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { Timestamp, writeBatch } from 'firebase/firestore'; // Added writeBatch here
-import { db } from '@/firebase'; // Assuming db is exported from firebase config
+import { Timestamp, writeBatch } from 'firebase/firestore';
+import { db } from '@/firebase';
 
 import {
   AlertDialog,
@@ -173,7 +173,11 @@ function SessionDetailContent() {
                 if (String(field).startsWith('observations.')) {
                     const obsField = String(field).split('.')[1] as keyof ExerciseResultObservations;
                     updatedEr.observations = {
-                        ...(updatedEr.observations || { overallBehavior: "", additionalNotes: "" }), // ensure observations obj exists
+                        ...(updatedEr.observations || { 
+                            nostrils: null, lips: null, ears: null, eyes: null, neck: null,
+                            back: null, croup: null, limbs: null, tail: null,
+                            overallBehavior: "", additionalNotes: "" 
+                        }),
                         [obsField]: value === '' || value === 'N/A' ? null : String(value)
                     };
                 } else if (field === 'doneReps' || field === 'rating') {
