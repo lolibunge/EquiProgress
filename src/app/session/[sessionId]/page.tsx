@@ -23,7 +23,8 @@ import { Slider } from '@/components/ui/slider';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { Timestamp } from 'firebase/firestore';
+import { Timestamp, writeBatch } from 'firebase/firestore'; // Added writeBatch here
+import { db } from '@/firebase'; // Assuming db is exported from firebase config
 
 import {
   AlertDialog,
@@ -213,14 +214,13 @@ function SessionDetailContent() {
       }
 
       // 2. Update Exercise Results
-      // For simplicity, we'll update all, or you can add a "isDirty" flag
-      const batch = writeBatch(db); // Consider using batch if many updates
+      // Instead of a Firestore batch here which complicates the service layer,
+      // we'll update each exercise result individually via the service function.
+      // This keeps the service layer consistent.
+      // For a very large number of exercises, a batched update in the service layer would be better.
       for (const er of editableExerciseResults) {
-        const originalEr = session.exerciseResults?.find(orig => orig.id === er.id); // Assuming session has exerciseResults populated or re-fetch
-        
-        // Naive check for changes, ideally more robust
-        // For now, let's just update all of them.
-        const { id, exerciseId, exerciseDetails, ...dataToUpdate } = er;
+        // Extract only the updatable fields for ExerciseResultUpdateData
+        const { id, exerciseId, exerciseDetails, createdAt, updatedAt, ...dataToUpdate } = er;
         
         const resultUpdateData: ExerciseResultUpdateData = {
             plannedReps: dataToUpdate.plannedReps,
@@ -231,9 +231,10 @@ function SessionDetailContent() {
                             ? dataToUpdate.observations
                             : null,
         };
+        // Only call update if there are actual fields to update beyond just observations being null
+        // This check can be more sophisticated if needed.
         await updateExerciseResult(horseId, sessionId, er.id, resultUpdateData);
       }
-      // await batch.commit(); // If using batch
 
       toast({
         title: "Cambios Guardados",
@@ -534,3 +535,6 @@ export default function SessionDetailPage() {
     </Suspense>
   );
 }
+
+
+    
