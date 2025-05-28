@@ -17,9 +17,9 @@ import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from 'next/navigation';
 
-import { createSession, addExerciseResult, getSession, getExerciseResults } from "@/services/session";
+import { createSession, addExerciseResult, getSession, getExerciseResults, updateExerciseResultObservations } from "@/services/session";
 import { getHorses as fetchHorsesService, getHorseById } from "@/services/horse";
-import { getTrainingPlans, getTrainingBlocks, getExercises, getExercise, debugGetBlocksForPlan, getBlockById, deleteTrainingPlan } from "@/services/firestore";
+import { getTrainingPlans, getTrainingBlocks, getExercises, getExercise, debugGetBlocksForPlan, getBlockById, deleteTrainingPlan, updateExercisesOrder } from "@/services/firestore";
 import type { Horse, TrainingPlan, TrainingBlock, Exercise, ExerciseResult, SessionDataInput, ExerciseResultInput, SessionData, ExerciseResultObservations } from "@/types/firestore";
 import HorseHistory from "./HorseHistory";
 
@@ -224,6 +224,7 @@ const Dashboard = () => {
     setIsLoadingExercises(true);
     try {
       let allExercisesForPlan: Exercise[] = [];
+      console.log(`[Dashboard] Plan blocks for exercise fetch (planId ${planId}):`, JSON.parse(JSON.stringify(currentPlanBlocks.map(b => ({id: b.id, title: b.title, order: b.order})))));
       for (const block of currentPlanBlocks) {
         console.log(`[Dashboard] Processing block for exercises: planId "${planId}", blockId: "${block.id}" (Etapa: "${block.title}")`);
         const blockExercises = await getExercises(planId, block.id);
@@ -670,6 +671,8 @@ const handleSaveSessionAndNavigate = async () => {
                       <CardContent>
                         {selectedPlan ? (
                            <>
+                            {/* Placeholder for Drag and Drop Context if implementing exercise reordering */}
+                            {/* <DndContext onDragEnd={handleDragEndExercises}> */}
                             {isLoadingBlocks ? <p>Cargando etapas...</p> : blocks.length > 0 ? (
                                <Accordion type="single" collapsible className="w-full">
                                 {blocks.map((block) => (
@@ -705,15 +708,30 @@ const handleSaveSessionAndNavigate = async () => {
                                           Meta de la Etapa: <span className="font-normal text-muted-foreground">{block.goal}</span>
                                         </p>
                                       )}
+                                      {/* Placeholder for Droppable area for exercises within this block */}
+                                      {/* <Droppable droppableId={`exercises-${block.id}`}> */}
+                                      {/*  {(provided) => ( */}
+                                      {/*    <ul ref={provided.innerRef} {...provided.droppableProps} className="list-none pl-0 space-y-2 text-sm"> */}
                                      {isLoadingExercises ? (
                                         <p>Cargando ejercicios...</p>
                                       ) : exercises.filter(ex => ex.blockId === block.id && selectedPlan && ex.planId === selectedPlan.id).length > 0 ? (
                                         <ul className="list-none pl-0 space-y-2 text-sm">
                                           {exercises
                                             .filter(ex => ex.blockId === block.id && selectedPlan && ex.planId === selectedPlan.id)
-                                            .map(exercise => (
+                                            // .sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity)) // Ensure client-side sort if needed
+                                            .map((exercise, index) => (
+                                              // Placeholder for Draggable item for each exercise
+                                              // <Draggable key={exercise.id} draggableId={exercise.id} index={index}>
+                                              //  {(providedDraggable) => (
+                                              //    <li
+                                              //      ref={providedDraggable.innerRef}
+                                              //      {...providedDraggable.draggableProps}
+                                              //      {...providedDraggable.dragHandleProps}
+                                              //      className="flex items-center justify-between group p-2 rounded-md hover:bg-accent/50"
+                                              //    >
                                               <li key={exercise.id} className="flex items-center justify-between group p-2 rounded-md hover:bg-accent/50">
                                                 <div>
+                                                  {/* Drag handle could be an icon here if not the whole item */}
                                                   <span className="font-medium">{exercise.title}</span>
                                                   {exercise.suggestedReps && ` (Reps: ${exercise.suggestedReps})`}
                                                   {exercise.description && <p className="text-xs text-muted-foreground pl-2">- Desc: {exercise.description}</p>}
@@ -724,14 +742,21 @@ const handleSaveSessionAndNavigate = async () => {
                                                   <span className="sr-only">Editar Ejercicio</span>
                                                 </Button>
                                               </li>
+                                              //    </li>
+                                              //  )}
+                                              // </Draggable>
                                           ))}
+                                          {/* {provided.placeholder} */}
                                         </ul>
                                       ) : (
                                         <p className="text-sm text-muted-foreground">
                                             No se encontraron ejercicios para la etapa "{block.title}" (ID: {block.id}) en el plan "{selectedPlan?.title}" (ID: {selectedPlan?.id}).
-                                            Verifica que los ejercicios en Firestore tengan el `planId` y `blockId` correctos.
+                                            Verifica que los ejercicios en Firestore tengan el `planId` y `blockId` correctos y el campo `order`.
                                         </p>
                                       )}
+                                      {/*    </ul> */}
+                                      {/*  )} */}
+                                      {/* </Droppable> */}
                                       <Button size="sm" variant="outline" className="mt-2" onClick={() => openAddExerciseDialog(block.id)}>
                                         <Icons.plus className="mr-2 h-4 w-4" /> Añadir Ejercicio a esta Etapa
                                       </Button>
@@ -742,6 +767,7 @@ const handleSaveSessionAndNavigate = async () => {
                             ) : (
                               <p className="text-sm text-muted-foreground">Este plan no tiene etapas definidas. (Plan ID: {selectedPlan.id})</p>
                             )}
+                            {/* </DndContext> */}
                             <div className="flex flex-wrap justify-end mt-4 gap-2">
                                 <Button onClick={() => setIsAddBlockDialogOpen(true)} disabled={!selectedPlan || isLoadingBlocks}>
                                     <Icons.plus className="mr-2 h-4 w-4" /> Añadir Etapa
@@ -872,8 +898,8 @@ const handleSaveSessionAndNavigate = async () => {
                                                       <div key={zone.id} className="space-y-1">
                                                         <Label htmlFor={`obs-${exercise.id}-${zone.id}`}>{zone.label}</Label>
                                                         <Select
-                                                          value={currentResult.observations?.[zone.id] || ''}
-                                                          onValueChange={(value) => handleSessionExerciseInputChange(exercise.id, `observations.${zone.id}`, value === 'N/A' ? 'N/A' : (value || null))}
+                                                          value={currentResult.observations?.[zone.id as keyof ExerciseResultObservations] || ''}
+                                                          onValueChange={(value) => handleSessionExerciseInputChange(exercise.id, `observations.${zone.id as keyof ExerciseResultObservations}`, value === 'N/A' ? 'N/A' : (value || null))}
                                                         >
                                                           <SelectTrigger id={`obs-${exercise.id}-${zone.id}`}>
                                                             <SelectValue placeholder={`Estado de ${zone.label.toLowerCase()}`} />
@@ -1080,3 +1106,4 @@ const handleSaveSessionAndNavigate = async () => {
 };
 
 export default Dashboard;
+

@@ -106,7 +106,8 @@ export async function getTrainingBlocks(planId: string): Promise<TrainingBlock[]
     querySnapshot.forEach((docSnap) => {
       const blockData = docSnap.data();
       const orderValue = blockData.order !== undefined ? blockData.order : 'N/A (field missing)';
-      console.log(`[Firestore Service] Raw block data being processed: ID=${docSnap.id}, Title="${blockData.title}", planId="${blockData.planId}", order=${orderValue}, createdAt exists: ${!!blockData.createdAt}`);
+      const createdAtValue = blockData.createdAt ? 'Present' : 'N/A (field missing)';
+      console.log(`[Firestore Service] Raw block data being processed: ID=${docSnap.id}, Title="${blockData.title}", planId="${blockData.planId}", order=${orderValue}, createdAt: ${createdAtValue}`);
       if (blockData.order === undefined) {
         console.warn(`[Firestore Service] Block ID=${docSnap.id}, Title="${blockData.title}" is MISSING the 'order' field and might not appear as expected or at all when ordering by 'order'.`);
       }
@@ -198,7 +199,7 @@ export async function addTrainingBlock(planId: string, blockData: TrainingBlockI
   }
 }
 
-export async function updateTrainingBlock(planId: string, blockId: string, blockData: TrainingBlockInput): Promise<void> {
+export async function updateTrainingBlock(planId: string, blockId: string, blockData: Partial<TrainingBlockInput>): Promise<void> {
   const blockDocRef = doc(db, "trainingBlocks", blockId);
   const dataToUpdate: Partial<TrainingBlockInput & { updatedAt: Timestamp }> = {
     ...blockData,
@@ -360,7 +361,7 @@ export async function addExerciseToBlock(planId: string, blockId: string, exerci
   }
 }
 
-export async function updateExercise(planId: string, blockId: string, exerciseId: string, exerciseData: ExerciseInput): Promise<void> {
+export async function updateExercise(planId: string, blockId: string, exerciseId: string, exerciseData: Partial<ExerciseInput>): Promise<void> {
   const exerciseDocRef = doc(db, "exercises", exerciseId);
   const dataToUpdate: Partial<ExerciseInput & { updatedAt: Timestamp }> = {
     ...exerciseData,
@@ -382,6 +383,12 @@ export async function updateExercise(planId: string, blockId: string, exerciseId
 
 export async function deleteExercise(exerciseId: string): Promise<void> {
   console.log(`[Firestore Service] Attempting to delete exercise ${exerciseId}.`);
+  // Note: Firestore does not directly support deleting a document just by ID if you don't know its path.
+  // This function assumes exerciseId is the ID of a document in the top-level "exercises" collection.
+  // If exercises are in a subcollection, you'd need planId and blockId to construct the path.
+  // Based on current usage (e.g., in EditExerciseForm), we only have exercise.id.
+  // We need to ensure this ID is globally unique or adjust how deleteExercise is called / implemented.
+  // For now, assuming 'exercises' is a top-level collection.
   const exerciseDocRef = doc(db, "exercises", exerciseId);
   try {
     await deleteDoc(exerciseDocRef);
@@ -392,7 +399,12 @@ export async function deleteExercise(exerciseId: string): Promise<void> {
   }
 }
 
-
+/**
+ * Updates the order of multiple exercises within a specific block and plan.
+ * @param planId The ID of the plan.
+ * @param blockId The ID of the block.
+ * @param orderedExercises An array of objects, each containing an 'id' (exercise ID) and its new 'order'.
+ */
 export async function updateExercisesOrder(
   planId: string,
   blockId: string,
@@ -402,6 +414,10 @@ export async function updateExercisesOrder(
   const batch = writeBatch(db);
 
   for (const exercise of orderedExercises) {
+    // Construct the correct path to the exercise document
+    // Assuming exercises are in a top-level 'exercises' collection
+    // If they were subcollections: doc(db, "trainingPlans", planId, "trainingBlocks", blockId, "exercises", exercise.id);
+    // Based on current structure, exercises are in a top-level "exercises" collection.
     const exerciseRef = doc(db, "exercises", exercise.id);
     batch.update(exerciseRef, { order: exercise.order, updatedAt: serverTimestamp() });
   }
@@ -414,6 +430,7 @@ export async function updateExercisesOrder(
     throw error;
   }
 }
+
 
 // Function for debugging block fetching without order clause
 export async function debugGetBlocksForPlan(planId: string): Promise<void> {
