@@ -147,9 +147,20 @@ function SortableExerciseItem({ exercise, onEdit }: SortableExerciseItemProps) {
         {exercise.description && <p className="text-xs text-muted-foreground pl-2">- Desc: {exercise.description}</p>}
         {exercise.objective && <p className="text-xs text-muted-foreground pl-2">- Obj: {exercise.objective}</p>}
       </div>
-      <Button variant="ghost" size="icon" className="ml-2 h-7 w-7 opacity-0 group-hover:opacity-100 flex-shrink-0" onClick={() => onEdit(exercise)}>
-        <Icons.edit className="h-4 w-4" />
-        <span className="sr-only">Editar Ejercicio</span>
+      <Button 
+        asChild 
+        variant="ghost" 
+        size="icon" 
+        className="ml-2 h-7 w-7 opacity-0 group-hover:opacity-100 flex-shrink-0" 
+        onClick={(e) => { 
+            e.stopPropagation(); // Prevent accordion toggle if button is inside trigger
+            onEdit(exercise);
+        }}
+       >
+        <span>
+            <Icons.edit className="h-4 w-4" />
+            <span className="sr-only">Editar Ejercicio</span>
+        </span>
       </Button>
     </li>
   );
@@ -182,11 +193,11 @@ function SortableBlockAccordionItem({ block, children, onEditBlock }: SortableBl
       value={block.id} 
       ref={setNodeRef} 
       style={style}
-      className="bg-card border mb-1 rounded-md shadow-sm" // Added some styling for visual feedback
+      className="bg-card border mb-1 rounded-md shadow-sm" 
     >
-      <div className="flex items-center" {...attributes} {...listeners} > {/* Make the drag handle encompass the trigger area */}
-        <AccordionTrigger className="flex-grow">
-            <span className="flex-grow text-left">
+      <div className="flex items-center" {...attributes} {...listeners} > 
+        <AccordionTrigger className="flex-grow text-left">
+            <span className="flex-grow">
               {block.title}
               {block.notes && <span className="block sm:inline text-xs text-muted-foreground ml-0 sm:ml-2">- {block.notes}</span>}
               {block.duration && <span className="block sm:inline text-xs text-muted-foreground ml-0 sm:ml-2">- Duración: {block.duration}</span>}
@@ -197,13 +208,13 @@ function SortableBlockAccordionItem({ block, children, onEditBlock }: SortableBl
             asChild
             variant="ghost"
             size="icon"
-            className="ml-2 mr-2 h-7 w-7 flex-shrink-0" // Added mr-2 for spacing
+            className="ml-2 mr-2 h-7 w-7 flex-shrink-0" 
             onClick={(e) => {
                 e.stopPropagation(); 
                 onEditBlock(block);
             }}
         >
-            <span> {/* This span will receive button styles due to asChild */}
+            <span> 
             <Icons.edit className="h-4 w-4" />
             <span className="sr-only">Editar Etapa</span>
             </span>
@@ -255,7 +266,11 @@ const Dashboard = () => {
   const [isDeletingPlan, setIsDeletingPlan] = useState(false);
 
   const sensors = useSensors(
-    useSensor(PointerSensor),
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8, // User must drag at least 8px to start a drag
+      },
+    }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })
@@ -324,13 +339,18 @@ const Dashboard = () => {
       console.log(`[Dashboard] performFetchBlocks: Attempting to fetch trainingBlocks with planId: "${planId}"`);
       const fetchedBlocks = await getTrainingBlocks(planId);
       console.log(`[Dashboard] Blocks fetched by getTrainingBlocks for planId ${planId}:`, JSON.parse(JSON.stringify(fetchedBlocks.map(b => ({id: b.id, title: b.title, planId: b.planId, order: b.order})))));
-      setBlocks(fetchedBlocks);
-      if (fetchedBlocks.length === 0) {
+      
+      // Ensure blocks are sorted by order for the state
+      const sortedBlocks = fetchedBlocks.sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity));
+      setBlocks(sortedBlocks);
+
+      if (sortedBlocks.length === 0) {
         setSelectedBlock(null);
         console.log(`[Dashboard] No blocks were found for planId ${planId}. Setting selectedBlock to null.`);
       } else {
-        console.log(`[Dashboard] ${fetchedBlocks.length} blocks found for planId ${planId}.`);
-        performFetchExercisesForPlan(planId, fetchedBlocks);
+        console.log(`[Dashboard] ${sortedBlocks.length} blocks found for planId ${planId}.`);
+        // Pass sortedBlocks to performFetchExercisesForPlan
+        performFetchExercisesForPlan(planId, sortedBlocks); 
       }
     } catch (error) {
       console.error(`[Dashboard] Error fetching blocks for plan ${planId}:`, error);
@@ -340,7 +360,7 @@ const Dashboard = () => {
     } finally {
       setIsLoadingBlocks(false);
     }
-  }, [toast]); 
+  }, [toast]); // Removed performFetchExercisesForPlan from dependencies to avoid potential loops, pass blocks directly
 
 
   const performFetchExercisesForPlan = useCallback(async (planId: string, currentPlanBlocks: TrainingBlock[]) => {
@@ -363,8 +383,17 @@ const Dashboard = () => {
         }
         allExercisesForPlan = [...allExercisesForPlan, ...blockExercises];
       }
-      setExercises(allExercisesForPlan);
-      console.log(`[Dashboard] Total exercises set for plan ${planId}: ${allExercisesForPlan.length}.`);
+      // Ensure exercises are sorted by their block's order first, then by their own order
+      const sortedAllExercises = allExercisesForPlan.sort((a, b) => {
+        const blockAOrder = currentPlanBlocks.find(bl => bl.id === a.blockId)?.order ?? Infinity;
+        const blockBOrder = currentPlanBlocks.find(bl => bl.id === b.blockId)?.order ?? Infinity;
+        if (blockAOrder !== blockBOrder) {
+          return blockAOrder - blockBOrder;
+        }
+        return (a.order ?? Infinity) - (b.order ?? Infinity);
+      });
+      setExercises(sortedAllExercises);
+      console.log(`[Dashboard] Total exercises set for plan ${planId}: ${sortedAllExercises.length}.`);
     } catch (error) {
       console.error(`[Dashboard] Error fetching all exercises for plan ${planId}:`, error);
       toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar todos los ejercicios del plan." });
@@ -458,7 +487,7 @@ const Dashboard = () => {
   const handleExerciseAdded = () => {
     setIsAddExerciseDialogOpen(false);
     if (selectedPlan && currentBlockIdForExercise && blocks.length > 0) {
-       performFetchExercisesForPlan(selectedPlan.id, blocks); // Refetch for all blocks in plan to ensure consistency
+       performFetchExercisesForPlan(selectedPlan.id, blocks); 
     }
     setCurrentBlockIdForExercise(null);
   };
@@ -687,7 +716,7 @@ const handleSaveSessionAndNavigate = async () => {
             .catch(err => {
                 console.error("Error updating exercises order in DB:", err);
                 toast({ variant: "destructive", title: "Error", description: "No se pudo guardar el nuevo orden." });
-                if (selectedPlan?.id && blocks.length > 0) performFetchExercisesForPlan(selectedPlan.id, blocks); // Refetch on error
+                if (selectedPlan?.id && blocks.length > 0) performFetchExercisesForPlan(selectedPlan.id, blocks); 
             });
         }
         
@@ -731,7 +760,7 @@ const handleSaveSessionAndNavigate = async () => {
           .catch(err => {
             console.error("Error updating blocks order in DB:", err);
             toast({ variant: "destructive", title: "Error", description: "No se pudo guardar el nuevo orden de etapas." });
-            if (selectedPlan?.id) performFetchBlocks(selectedPlan.id); // Refetch on error
+            if (selectedPlan?.id) performFetchBlocks(selectedPlan.id); 
           });
         
         return updatedBlocksForDb;
@@ -796,7 +825,6 @@ const handleSaveSessionAndNavigate = async () => {
                    <TabsList className="grid w-full grid-cols-2">
                     <TabsTrigger value="plan">Plan</TabsTrigger>
                     <TabsTrigger value="sesiones">Sesiones</TabsTrigger>
-                    {/* Tab "Historial" movido al Navbar o página dedicada */}
                   </TabsList>
 
                   <TabsContent value="plan">
@@ -893,7 +921,7 @@ const handleSaveSessionAndNavigate = async () => {
                                             Meta de la Etapa: <span className="font-normal text-muted-foreground">{block.goal}</span>
                                             </p>
                                         )}
-                                        {isLoadingExercises && exercisesForBlock.length === 0 ? (
+                                        {isLoadingExercises && exercisesForBlock.length === 0 && !selectedPlan && !block ? (
                                             <p>Cargando ejercicios...</p>
                                         ) : exercisesForBlock.length > 0 ? (
                                         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndExercises}>
@@ -907,7 +935,7 @@ const handleSaveSessionAndNavigate = async () => {
                                         </DndContext>
                                         ) : (
                                         <p className="text-sm text-muted-foreground">
-                                            No se encontraron ejercicios para la etapa "{block.title}" (ID: {block.id}) en el plan "{selectedPlan?.title}" (ID: {selectedPlan?.id}). Verifica que los ejercicios en Firestore tengan el `planId` y `blockId` correctos y el campo `order`.
+                                            No se encontraron ejercicios para la etapa "{block.title}" (ID: {block.id}) en el plan "{selectedPlan?.title}" (ID: {selectedPlan?.id}). Verifica que los ejercicios en Firestore tengan el `planId` y `blockId` correctos.
                                         </p>
                                         )}
                                         <Button size="sm" variant="outline" className="mt-2" onClick={() => openAddExerciseDialog(block.id)}>
@@ -1261,3 +1289,5 @@ const handleSaveSessionAndNavigate = async () => {
 
 export default Dashboard;
 
+
+    
