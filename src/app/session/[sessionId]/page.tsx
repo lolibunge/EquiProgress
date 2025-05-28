@@ -29,15 +29,15 @@ const TENSION_STATUS_OPTIONS = [
 ];
 
 const OBSERVATION_ZONES = [
+  { id: 'nostrils', label: 'Ollares' },
+  { id: 'lips', label: 'Labios' },
   { id: 'ears', label: 'Orejas' },
   { id: 'eyes', label: 'Ojos' },
   { id: 'neck', label: 'Cuello' },
-  { id: 'withers', label: 'Cruz' },
   { id: 'back', label: 'Dorso' },
-  { id: 'loins', label: 'Riñones' },
   { id: 'croup', label: 'Grupa' },
-  { id: 'legs', label: 'Patas/Manos' },
-  { id: 'hooves', label: 'Cascos' },
+  { id: 'limbs', label: 'Miembros' },
+  { id: 'tail', label: 'Cola' },
 ] as const;
 
 
@@ -124,9 +124,9 @@ function SessionDetailContent() {
           return {
             ...result,
             observations: {
-              ...(result.observations || {}),
+              ...(result.observations || {}), // Ensure observations is initialized
               [field]: value,
-            },
+            } as ExerciseResultObservations, // Cast to ensure type safety
           };
         }
         return result;
@@ -148,7 +148,7 @@ function SessionDetailContent() {
     setIsSaving(true);
     try {
       for (const result of exerciseResults) {
-        if (result.observations && Object.keys(result.observations).length > 0) { // Check if observations exist and are not empty
+        if (result.observations && Object.keys(result.observations).length > 0) {
             await updateExerciseResultObservations(horseId, sessionId, result.id, result.observations);
         }
       }
@@ -239,13 +239,12 @@ function SessionDetailContent() {
                       </div>
                     )}
 
-                    {/* Display exercise-specific observations (not editable here, but can be made editable) */}
                     {result.observations && (
                        <div className="mt-4 pt-4 border-t">
                         <h5 className="font-semibold text-md mb-2">Observaciones del Ejercicio:</h5>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
                           {OBSERVATION_ZONES.map(zone => {
-                            const obsValue = result.observations?.[zone.id];
+                            const obsValue = result.observations?.[zone.id as keyof ExerciseResultObservations];
                             return obsValue ? (
                               <div key={zone.id}>
                                 <Label htmlFor={`display-obs-${result.id}-${zone.id}`}>{zone.label}:</Label>
@@ -305,5 +304,3 @@ export default function SessionDetailPage() {
     </Suspense>
   );
 }
-
-    

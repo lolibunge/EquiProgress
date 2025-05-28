@@ -68,15 +68,15 @@ export interface SessionData {
 }
 
 export interface ExerciseResultObservations {
+    nostrils?: string | null; // Ollares
+    lips?: string | null;    // Labios
     ears?: string | null;
     eyes?: string | null;
     neck?: string | null;
-    withers?: string | null; // Cruz
-    back?: string | null;
-    loins?: string | null; // Riñones
-    croup?: string | null; // Grupa
-    legs?: string | null; // Patas/Manos
-    hooves?: string | null; // Cascos
+    back?: string | null;    // Dorso
+    croup?: string | null;   // Grupa
+    limbs?: string | null;   // Miembros
+    tail?: string | null;    // Cola
     overallBehavior?: string | null; // General behavior notes for this exercise
     additionalNotes?: string | null; // Any other notes for this exercise
 }

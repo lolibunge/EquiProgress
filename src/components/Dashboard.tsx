@@ -21,7 +21,7 @@ import { createSession, addExerciseResult, getSession, getExerciseResults } from
 import { getHorses as fetchHorsesService, getHorseById } from "@/services/horse";
 import { getTrainingPlans, getTrainingBlocks, getExercises, getExercise, debugGetBlocksForPlan, getBlockById } from "@/services/firestore";
 import type { Horse, TrainingPlan, TrainingBlock, Exercise, ExerciseResult, SessionDataInput, ExerciseResultInput, SessionData, ExerciseResultObservations } from "@/types/firestore";
-import HorseHistory from "./HorseHistory"; 
+import HorseHistory from "./HorseHistory";
 
  import {
   Accordion,
@@ -67,15 +67,15 @@ const TENSION_STATUS_OPTIONS = [
 ];
 
 const OBSERVATION_ZONES = [
+  { id: 'nostrils', label: 'Ollares' },
+  { id: 'lips', label: 'Labios' },
   { id: 'ears', label: 'Orejas' },
   { id: 'eyes', label: 'Ojos' },
   { id: 'neck', label: 'Cuello' },
-  { id: 'withers', label: 'Cruz' },
   { id: 'back', label: 'Dorso' },
-  { id: 'loins', label: 'Riñones' },
   { id: 'croup', label: 'Grupa' },
-  { id: 'legs', label: 'Patas/Manos' },
-  { id: 'hooves', label: 'Cascos' },
+  { id: 'limbs', label: 'Miembros' },
+  { id: 'tail', label: 'Cola' },
 ] as const;
 
 
@@ -178,7 +178,7 @@ const Dashboard = () => {
       return;
     }
     setIsLoadingBlocks(true);
-    setExercises([]); 
+    setExercises([]);
     try {
       console.log(`[Dashboard] performFetchBlocks: Attempting to fetch trainingBlocks with planId: "${planId}"`);
       const fetchedBlocks = await getTrainingBlocks(planId);
@@ -252,10 +252,6 @@ const Dashboard = () => {
     } else if (selectedPlan?.id && blocks.length === 0 && !isLoadingBlocks) {
       console.log(`[Dashboard] useEffect[selectedPlan, blocks, isLoadingBlocks] - Plan ${selectedPlan.id} selected, blocks loaded, but no blocks found. Clearing exercises.`);
       setExercises([]);
-    } else if (!selectedPlan?.id) {
-      // This case is handled by the useEffect above, but good to be explicit if needed.
-      // console.log("[Dashboard] useEffect[selectedPlan, blocks, isLoadingBlocks]: No plan selected, ensuring exercises are clear.");
-      // setExercises([]);
     }
   }, [selectedPlan, blocks, isLoadingBlocks, performFetchExercisesForPlan]);
 
@@ -269,12 +265,12 @@ const Dashboard = () => {
 
   const handlePlanAdded = (newPlanId: string) => {
     setIsCreatePlanDialogOpen(false);
-    performFetchPlans().then(() => { 
-      getTrainingPlans().then(refreshedPlans => { 
+    performFetchPlans().then(() => {
+      getTrainingPlans().then(refreshedPlans => {
         setTrainingPlans(refreshedPlans);
         const newPlan = refreshedPlans.find(p => p.id === newPlanId);
         if (newPlan) {
-          setSelectedPlan(newPlan); 
+          setSelectedPlan(newPlan);
           console.log('[Dashboard] New plan added and selected:', JSON.parse(JSON.stringify(newPlan)));
         }
       });
@@ -284,7 +280,7 @@ const Dashboard = () => {
   const handleBlockAdded = () => {
     setIsAddBlockDialogOpen(false);
     if (selectedPlan) {
-      performFetchBlocks(selectedPlan.id); 
+      performFetchBlocks(selectedPlan.id);
     }
   };
 
@@ -301,9 +297,9 @@ const Dashboard = () => {
     if (selectedPlan && currentBlockIdForExercise && blocks.length > 0) {
       performFetchExercisesForPlan(selectedPlan.id, blocks);
     }
-    setCurrentBlockIdForExercise(null); 
+    setCurrentBlockIdForExercise(null);
   };
-  
+
   const handleExerciseUpdated = () => {
     setIsEditExerciseDialogOpen(false);
     setEditingExercise(null);
@@ -342,24 +338,27 @@ const Dashboard = () => {
             doneReps: 0,
             rating: 3,
             comment: "",
-            observations: { // Ensure observations is initialized as an object
-              ears: null, eyes: null, neck: null, withers: null,
-              back: null, loins: null, croup: null, legs: null, hooves: null,
+            observations: {
+              nostrils: null, lips: null, ears: null, eyes: null, neck: null,
+              back: null, croup: null, limbs: null, tail: null,
               overallBehavior: "", additionalNotes: ""
-            } 
+            }
         };
 
         if (field.startsWith('observations.')) {
             const obsField = field.split('.')[1] as keyof ExerciseResultObservations;
-             // Initialize observations if it's null/undefined
             if (!currentExerciseData.observations) {
-                currentExerciseData.observations = {};
+                currentExerciseData.observations = { // Initialize with all new fields if somehow null
+                    nostrils: null, lips: null, ears: null, eyes: null, neck: null,
+                    back: null, croup: null, limbs: null, tail: null,
+                    overallBehavior: "", additionalNotes: ""
+                };
             }
             currentExerciseData = {
                 ...currentExerciseData,
                 observations: {
                     ...currentExerciseData.observations,
-                    [obsField]: value === '' ? null : String(value) // Store empty string as null for selects if desired, or handle it
+                    [obsField]: value === '' ? null : String(value)
                 }
             };
         } else if (field === 'doneReps' || field === 'rating') {
@@ -416,7 +415,7 @@ const handleSaveSessionAndNavigate = async () => {
       const sessionInput: SessionDataInput = {
         horseId: selectedHorse.id,
         date: Timestamp.fromDate(date),
-        blockId: selectedBlock.id, 
+        blockId: selectedBlock.id,
         overallNote: sessionOverallNote,
       };
 
@@ -431,33 +430,33 @@ const handleSaveSessionAndNavigate = async () => {
             const doneRepsValue = resultData?.doneReps ?? 0;
             const ratingValue = resultData?.rating ?? 3;
             const commentValue = resultData?.comment ?? "";
-            
+
             let observationsToSave: ExerciseResultObservations | null = null;
              if (resultData?.observations) {
-                const tempObs: ExerciseResultObservations = {};
+                const tempObs: Partial<ExerciseResultObservations> = {}; // Use Partial for temp building
                 let hasValidObservation = false;
                 (Object.keys(resultData.observations) as Array<keyof ExerciseResultObservations>).forEach(key => {
                     const obsVal = resultData.observations![key];
                     if (obsVal !== undefined && obsVal !== null && String(obsVal).trim() !== '') {
-                        tempObs[key] = obsVal;
+                        (tempObs as any)[key] = obsVal;
                         hasValidObservation = true;
                     } else {
-                         tempObs[key] = null; // Ensure all keys are present, but set to null if empty/invalid
+                        (tempObs as any)[key] = null;
                     }
                 });
                 if (hasValidObservation) {
-                    observationsToSave = tempObs;
+                    observationsToSave = tempObs as ExerciseResultObservations;
                 }
             }
 
 
             exerciseResultsToSave.push({
                 exerciseId: exercise.id,
-                plannedReps: String(plannedRepsValue), 
-                doneReps: Number(doneRepsValue),       
-                rating: Number(ratingValue), 
+                plannedReps: String(plannedRepsValue),
+                doneReps: Number(doneRepsValue),
+                rating: Number(ratingValue),
                 comment: String(commentValue),
-                observations: observationsToSave, // This will be null if no valid observations
+                observations: observationsToSave,
             });
         });
 
@@ -542,10 +541,10 @@ const handleSaveSessionAndNavigate = async () => {
               </CardHeader>
               <CardContent>
                  <Tabs defaultValue="plan" className="w-full">
-                   <TabsList className="grid w-full grid-cols-3"> 
+                   <TabsList className="grid w-full grid-cols-2">
                     <TabsTrigger value="plan">Plan</TabsTrigger>
                     <TabsTrigger value="sesiones">Sesiones</TabsTrigger>
-                    <TabsTrigger value="historial">Historial</TabsTrigger> 
+                    {/* <TabsTrigger value="historial">Historial</TabsTrigger>  // Temporarily removed for focus */}
                   </TabsList>
 
                   <TabsContent value="plan">
@@ -594,27 +593,27 @@ const handleSaveSessionAndNavigate = async () => {
                            <>
                             {isLoadingBlocks ? <p>Cargando etapas...</p> : blocks.length > 0 ? (
                                <Accordion type="single" collapsible className="w-full">
-                                {blocks.map((block) => ( 
+                                {blocks.map((block) => (
                                   <AccordionItem value={block.id} key={block.id}>
                                     <AccordionTrigger>
-                                      <div className="flex items-center justify-between w-full">
-                                        <span className="text-left"> {/* Ensure text can wrap and align left */}
+                                      <div className="flex items-center justify-between w-full flex-grow">
+                                        <span className="text-left flex-grow">
                                           {block.title}
                                           {block.notes && <span className="block sm:inline text-xs text-muted-foreground ml-0 sm:ml-2">- {block.notes}</span>}
                                           {block.duration && <span className="block sm:inline text-xs text-muted-foreground ml-0 sm:ml-2">- Duración: {block.duration}</span>}
                                           {block.goal && <span className="block sm:inline text-xs text-muted-foreground ml-0 sm:ml-2">- Meta: {block.goal}</span>}
                                         </span>
                                         <Button
-                                          asChild // Render as child to avoid nested buttons
+                                          asChild
                                           variant="ghost"
                                           size="icon"
-                                          className="ml-2 h-7 w-7 flex-shrink-0" // Prevent button from causing overflow
+                                          className="ml-2 h-7 w-7 flex-shrink-0"
                                           onClick={(e) => {
-                                            e.stopPropagation(); // Important: Prevent accordion from toggling
+                                            e.stopPropagation();
                                             openEditBlockDialog(block);
                                           }}
                                         >
-                                          <span> {/* The actual element will be this span */}
+                                          <span>
                                             <Icons.edit className="h-4 w-4" />
                                             <span className="sr-only">Editar Etapa</span>
                                           </span>
@@ -641,7 +640,7 @@ const handleSaveSessionAndNavigate = async () => {
                                                   {exercise.description && <p className="text-xs text-muted-foreground pl-2">- Desc: {exercise.description}</p>}
                                                   {exercise.objective && <p className="text-xs text-muted-foreground pl-2">- Obj: {exercise.objective}</p>}
                                                 </div>
-                                                <Button variant="ghost" size="icon" className="ml-2 h-7 w-7 opacity-0 group-hover:opacity-100" onClick={() => openEditExerciseDialog(exercise)}>
+                                                <Button variant="ghost" size="icon" className="ml-2 h-7 w-7 opacity-0 group-hover:opacity-100 flex-shrink-0" onClick={() => openEditExerciseDialog(exercise)}>
                                                   <Icons.edit className="h-4 w-4" />
                                                   <span className="sr-only">Editar Ejercicio</span>
                                                 </Button>
@@ -697,9 +696,9 @@ const handleSaveSessionAndNavigate = async () => {
                             {isLoadingBlocks ? (
                                 <DropdownMenuItem disabled>Cargando etapas...</DropdownMenuItem>
                             ) : blocks.length > 0 ? (
-                              blocks.map((block) => ( 
+                              blocks.map((block) => (
                                   <DropdownMenuItem key={block.id} onSelect={() => {
-                                    setSelectedBlock(block); 
+                                    setSelectedBlock(block);
                                     setSessionExerciseResults(new Map());
                                   }}>
                                       {block.title}
@@ -712,7 +711,7 @@ const handleSaveSessionAndNavigate = async () => {
                           </DropdownMenuContent>
                         </DropdownMenu>
 
-                        {selectedBlock && ( 
+                        {selectedBlock && (
                             <>
                             <Label htmlFor="session-overall-note">Notas Generales de la Sesión</Label>
                             <Textarea
@@ -726,16 +725,16 @@ const handleSaveSessionAndNavigate = async () => {
                                 <p>Cargando ejercicios...</p>
                             ) : exercises.filter(ex => ex.blockId === selectedBlock.id && selectedPlan && ex.planId === selectedPlan.id).length > 0 ? (
                                 exercises.filter(ex => ex.blockId === selectedBlock.id && selectedPlan && ex.planId === selectedPlan.id).map(exercise => {
-                                    const currentResult = sessionExerciseResults.get(exercise.id) || { 
-                                        doneReps: 0, 
-                                        rating: 3, 
-                                        comment: "", 
+                                    const currentResult = sessionExerciseResults.get(exercise.id) || {
+                                        doneReps: 0,
+                                        rating: 3,
+                                        comment: "",
                                         plannedReps: exercise.suggestedReps ?? "",
                                         observations: {
-                                          ears: null, eyes: null, neck: null, withers: null,
-                                          back: null, loins: null, croup: null, legs: null, hooves: null,
+                                          nostrils: null, lips: null, ears: null, eyes: null, neck: null,
+                                          back: null, croup: null, limbs: null, tail: null,
                                           overallBehavior: "", additionalNotes: ""
-                                        } 
+                                        }
                                     };
                                     return (
                                         <Card key={exercise.id} className="p-4 space-y-3">
@@ -851,7 +850,7 @@ const handleSaveSessionAndNavigate = async () => {
                       </CardContent>
                     </Card>
                   </TabsContent>
-                  
+
                    <TabsContent value="historial">
                      <HorseHistory preselectedHorse={selectedHorse} />
                    </TabsContent>
@@ -1002,9 +1001,3 @@ const handleSaveSessionAndNavigate = async () => {
 };
 
 export default Dashboard;
-    
-
-    
-
-    
-
