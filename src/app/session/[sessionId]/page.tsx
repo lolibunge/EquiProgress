@@ -5,7 +5,7 @@ import { useEffect, useState, Suspense } from 'react';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
-import { getSession, getExerciseResults, updateExerciseResultObservations } from '@/services/session'; // Added update function
+import { getSession, getExerciseResults, updateSessionOverallNote, deleteSession } from '@/services/session';
 import { getHorseById } from '@/services/horse';
 import { getBlockById, getExercise } from '@/services/firestore';
 import type { SessionData, ExerciseResult, Horse, TrainingBlock, Exercise, ExerciseResultObservations } from '@/types/firestore';
@@ -17,8 +17,19 @@ import { es } from 'date-fns/locale';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from '@/components/ui/use-toast';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea'; // For editable notes
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'; // For selects
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 
 const TENSION_STATUS_OPTIONS = [
@@ -55,14 +66,18 @@ function SessionDetailContent() {
   const sessionId = params.sessionId as string;
   const horseId = searchParams.get('horseId');
 
-
   const [session, setSession] = useState<SessionData | null>(null);
   const [exerciseResults, setExerciseResults] = useState<ExerciseResultWithDetails[]>([]);
   const [horse, setHorse] = useState<Horse | null>(null);
   const [block, setBlock] = useState<TrainingBlock | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  const [editableOverallNote, setEditableOverallNote] = useState<string>("");
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+
 
   useEffect(() => {
     if (!sessionId || !horseId || !currentUser) {
@@ -84,6 +99,7 @@ function SessionDetailContent() {
           return;
         }
         setSession(sessionData);
+        setEditableOverallNote(sessionData.overallNote || "");
 
         const horseData = await getHorseById(sessionData.horseId);
         setHorse(horseData);
@@ -113,33 +129,11 @@ function SessionDetailContent() {
     fetchData();
   }, [sessionId, currentUser, horseId]);
 
-  const handleObservationChange = (
-    resultId: string,
-    field: keyof ExerciseResultObservations,
-    value: string | null
-  ) => {
-    setExerciseResults(prevResults =>
-      prevResults.map(result => {
-        if (result.id === resultId) {
-          return {
-            ...result,
-            observations: {
-              ...(result.observations || {}), // Ensure observations is initialized
-              [field]: value,
-            } as ExerciseResultObservations, // Cast to ensure type safety
-          };
-        }
-        return result;
-      })
-    );
-  };
-
-
-  const handleSaveSession = async () => {
-    if (!currentUser || !horseId || !sessionId || exerciseResults.length === 0) {
+  const handleSaveChanges = async () => {
+    if (!currentUser || !horseId || !sessionId || !session) {
       toast({
         title: "Error al guardar",
-        description: "Falta información de usuario, sesión o resultados de ejercicios.",
+        description: "Falta información de usuario o sesión.",
         variant: "destructive",
       });
       return;
@@ -147,22 +141,48 @@ function SessionDetailContent() {
 
     setIsSaving(true);
     try {
-      for (const result of exerciseResults) {
-        if (result.observations && Object.keys(result.observations).length > 0) {
-            await updateExerciseResultObservations(horseId, sessionId, result.id, result.observations);
-        }
+      if (editableOverallNote !== (session.overallNote || "")) {
+        await updateSessionOverallNote(horseId, sessionId, editableOverallNote);
       }
+      // In the future, if exercise results become editable on this page, save them here.
+      // For now, this button primarily saves the overallNote.
       toast({
         title: "Cambios guardados",
-        description: "Las observaciones de la sesión han sido actualizadas con éxito.",
+        description: "La nota general de la sesión ha sido actualizada.",
       });
+      // Optionally re-fetch session to update UI if other fields were changed elsewhere
+      const updatedSessionData = await getSession(horseId, sessionId);
+      if (updatedSessionData) {
+        setSession(updatedSessionData);
+        setEditableOverallNote(updatedSessionData.overallNote || "");
+      }
+
     } catch (err) {
-      console.error("Error saving session observations:", err);
-      toast({ title: "Error al guardar", description: "Ocurrió un error al guardar las observaciones de la sesión.", variant: "destructive" });
+      console.error("Error saving session changes:", err);
+      toast({ title: "Error al guardar", description: "Ocurrió un error al guardar los cambios de la sesión.", variant: "destructive" });
     } finally {
       setIsSaving(false);
     }
   };
+
+  const handleDeleteSessionConfirmed = async () => {
+    if (!currentUser || !horseId || !sessionId) {
+      toast({ title: "Error", description: "Falta información para eliminar la sesión.", variant: "destructive" });
+      return;
+    }
+    setIsDeleting(true);
+    try {
+      await deleteSession(horseId, sessionId);
+      toast({ title: "Sesión Eliminada", description: "La sesión ha sido eliminada con éxito." });
+      router.push(`/horse-history?horseId=${horseId}`); // Or router.back() or to a specific horse page
+    } catch (err) {
+      console.error("Error deleting session:", err);
+      toast({ title: "Error al Eliminar", description: "Ocurrió un error al eliminar la sesión.", variant: "destructive" });
+      setIsDeleting(false);
+      setIsDeleteDialogOpen(false);
+    }
+  };
+
 
   if (loading) {
     return (
@@ -210,12 +230,16 @@ function SessionDetailContent() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          {session.overallNote && (
-            <div>
-              <h3 className="text-lg font-semibold mb-1">Nota General de la Sesión:</h3>
-              <p className="text-muted-foreground whitespace-pre-wrap">{session.overallNote}</p>
-            </div>
-          )}
+          <div>
+            <Label htmlFor="overallNote" className="text-lg font-semibold mb-1 block">Nota General de la Sesión:</Label>
+            <Textarea
+              id="overallNote"
+              value={editableOverallNote}
+              onChange={(e) => setEditableOverallNote(e.target.value)}
+              placeholder="Escribe tus notas generales aquí..."
+              className="min-h-[100px] whitespace-pre-wrap"
+            />
+          </div>
 
           {exerciseResults.length > 0 ? (
             <div>
@@ -281,12 +305,36 @@ function SessionDetailContent() {
             <p className="text-muted-foreground">No se registraron ejercicios para esta sesión.</p>
           )}
 
-          <div className="mt-8 flex justify-center">
-             <Button onClick={handleSaveSession} disabled={isSaving} className="mr-4">
-              {isSaving ? <Icons.spinner className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Guardar Cambios en Observaciones (si aplica)
+          <div className="mt-8 flex flex-col sm:flex-row justify-center items-center gap-4">
+             <Button onClick={handleSaveChanges} disabled={isSaving || isDeleting}>
+              {isSaving ? <Icons.spinner className="mr-2 h-4 w-4 animate-spin" /> : <Icons.save className="mr-2 h-4 w-4" />}
+              Guardar Cambios
             </Button>
-            <Button onClick={() => router.back()} variant="outline">
+            
+            <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" disabled={isSaving || isDeleting}>
+                  <Icons.trash className="mr-2 h-4 w-4" /> Eliminar Sesión
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>¿Estás realmente seguro?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Esta acción no se puede deshacer. Esto eliminará permanentemente esta sesión y todos los resultados de ejercicios asociados.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleDeleteSessionConfirmed} disabled={isDeleting} className="bg-destructive hover:bg-destructive/90">
+                    {isDeleting ? <Icons.spinner className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    Sí, eliminar sesión
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+
+            <Button onClick={() => router.back()} variant="outline" disabled={isSaving || isDeleting}>
               <Icons.arrowRight className="mr-2 h-4 w-4 rotate-180" /> Volver
             </Button>
           </div>

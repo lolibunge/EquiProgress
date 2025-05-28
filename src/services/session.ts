@@ -1,7 +1,7 @@
 
 import { auth, db } from '@/firebase';
 import type { SessionData, SessionDataInput, ExerciseResult, ExerciseResultInput, ExerciseResultObservations } from '@/types/firestore';
-import { collection, addDoc, getDoc, getDocs, doc, serverTimestamp, Timestamp, query, where, orderBy, updateDoc } from 'firebase/firestore';
+import { collection, addDoc, getDoc, getDocs, doc, serverTimestamp, Timestamp, query, where, orderBy, updateDoc, writeBatch, deleteDoc } from 'firebase/firestore';
 import type { User } from 'firebase/auth';
 
 /**
@@ -50,14 +50,13 @@ export async function addExerciseResult(horseId: string, sessionId: string, exer
   }
   const exerciseResultsCollectionRef = collection(db, 'horses', horseId, 'sessions', sessionId, 'exerciseResults');
   
-  // Ensure observations is either a valid object or null, not an empty object if it has no meaningful data.
   const observationsToSave = exerciseResultData.observations && Object.values(exerciseResultData.observations).some(v => v !== null && v !== undefined && String(v).trim() !== '')
     ? exerciseResultData.observations
     : null;
 
   const newExerciseResultDoc: Omit<ExerciseResult, 'id' | 'createdAt' | 'updatedAt'> & { createdAt: Timestamp, updatedAt: Timestamp } = {
     ...exerciseResultData,
-    observations: observationsToSave, // Changed from observationsToSave || undefined
+    observations: observationsToSave,
     createdAt: serverTimestamp() as Timestamp,
     updatedAt: serverTimestamp() as Timestamp,
   };
@@ -92,7 +91,7 @@ export async function updateExerciseResultObservations(
   const exerciseResultDocRef = doc(db, 'horses', horseId, 'sessions', sessionId, 'exerciseResults', exerciseResultId);
   try {
     await updateDoc(exerciseResultDocRef, {
-      observations: observations, // This will overwrite the existing observations object
+      observations: observations,
       updatedAt: serverTimestamp() as Timestamp,
     });
     console.log(`Observations for exercise result ${exerciseResultId} updated successfully.`);
@@ -142,7 +141,6 @@ export async function getExerciseResults(horseId: string, sessionId: string): Pr
   }
   try {
     const exerciseResultsRef = collection(db, 'horses', horseId, 'sessions', sessionId, 'exerciseResults');
-    // Ordering by 'createdAt' or 'order' if you add an order to exercise results within a session
     const q = query(exerciseResultsRef, orderBy("createdAt", "asc")); 
     const querySnapshot = await getDocs(q);
     const results: ExerciseResult[] = [];
@@ -178,5 +176,63 @@ export async function getSessionsByHorseId(horseId: string): Promise<SessionData
   } catch (e) {
     console.error('Error fetching sessions for horse: ', e);
     throw e;
+  }
+}
+
+/**
+ * Updates the overallNote for a specific session.
+ * @param horseId The ID of the horse.
+ * @param sessionId The ID of the session.
+ * @param overallNote The new overall note.
+ */
+export async function updateSessionOverallNote(horseId: string, sessionId: string, overallNote: string): Promise<void> {
+  if (!horseId || !sessionId) {
+    throw new Error("Horse ID and Session ID are required.");
+  }
+  const sessionDocRef = doc(db, 'horses', horseId, 'sessions', sessionId);
+  try {
+    await updateDoc(sessionDocRef, {
+      overallNote: overallNote,
+      updatedAt: serverTimestamp() as Timestamp,
+    });
+    console.log(`Overall note for session ${sessionId} updated successfully.`);
+  } catch (e) {
+    console.error(`Error updating overall note for session ${sessionId}:`, e);
+    throw e;
+  }
+}
+
+/**
+ * Deletes a specific training session and all its exercise results.
+ * @param horseId The ID of the horse.
+ * @param sessionId The ID of the session to delete.
+ */
+export async function deleteSession(horseId: string, sessionId: string): Promise<void> {
+  if (!horseId || !sessionId) {
+    throw new Error("Horse ID and Session ID are required to delete a session.");
+  }
+  console.log(`[Firestore Service] Attempting to delete session ${sessionId} for horse ${horseId}`);
+
+  const sessionDocRef = doc(db, 'horses', horseId, 'sessions', sessionId);
+  const exerciseResultsRef = collection(db, 'horses', horseId, 'sessions', sessionId, 'exerciseResults');
+
+  try {
+    const batch = writeBatch(db);
+
+    // Delete all exercise results in the subcollection
+    const exerciseResultsSnapshot = await getDocs(exerciseResultsRef);
+    exerciseResultsSnapshot.forEach((resultDoc) => {
+      batch.delete(resultDoc.ref);
+    });
+    console.log(`[Firestore Service] Found ${exerciseResultsSnapshot.size} exercise results to delete for session ${sessionId}.`);
+
+    // Delete the session document itself
+    batch.delete(sessionDocRef);
+
+    await batch.commit();
+    console.log(`[Firestore Service] Successfully deleted session ${sessionId} and its exercise results.`);
+  } catch (error) {
+    console.error(`[Firestore Service] Error deleting session ${sessionId}:`, error);
+    throw error;
   }
 }
