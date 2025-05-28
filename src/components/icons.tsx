@@ -29,7 +29,8 @@ import {
   X,
   Workflow,
   PanelLeft,
-  BookMarked
+  BookMarked,
+  CalendarDays, // Added CalendarDays
 } from 'lucide-react';
 
 const LogoIcon = (props: SVGProps<SVGSVGElement>) => (
@@ -89,11 +90,12 @@ const Icons = {
   share: Share2,
   shield: Shield,
   spinner: Loader2,
-  trash: Trash, // Added Trash icon
+  trash: Trash, 
   user: User,
   panelLeft: PanelLeft,
   logo: LogoIcon,
   bookMarked: BookMarked,
+  calendar: CalendarDays, // Changed to CalendarDays
 };
 
 export {Icons};

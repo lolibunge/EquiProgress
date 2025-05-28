@@ -1,6 +1,6 @@
 
 import { auth, db } from '@/firebase';
-import type { SessionData, SessionDataInput, ExerciseResult, ExerciseResultInput, ExerciseResultObservations } from '@/types/firestore';
+import type { SessionData, SessionDataInput, ExerciseResult, ExerciseResultInput, ExerciseResultObservations, SessionUpdateData, ExerciseResultUpdateData } from '@/types/firestore';
 import { collection, addDoc, getDoc, getDocs, doc, serverTimestamp, Timestamp, query, where, orderBy, updateDoc, writeBatch, deleteDoc } from 'firebase/firestore';
 import type { User } from 'firebase/auth';
 
@@ -73,17 +73,17 @@ export async function addExerciseResult(horseId: string, sessionId: string, exer
 
 
 /**
- * Updates the observations for a specific exercise result within a session.
+ * Updates fields for a specific exercise result within a session.
  * @param horseId The ID of the horse.
  * @param sessionId The ID of the session.
  * @param exerciseResultId The ID of the exercise result to update.
- * @param observations The new or updated observation data.
+ * @param data The data to update.
  */
-export async function updateExerciseResultObservations(
+export async function updateExerciseResult(
   horseId: string,
   sessionId: string,
   exerciseResultId: string,
-  observations: ExerciseResultObservations
+  data: ExerciseResultUpdateData
 ): Promise<void> {
   if (!horseId || !sessionId || !exerciseResultId) {
     throw new Error("Horse ID, Session ID, and Exercise Result ID are required.");
@@ -91,12 +91,12 @@ export async function updateExerciseResultObservations(
   const exerciseResultDocRef = doc(db, 'horses', horseId, 'sessions', sessionId, 'exerciseResults', exerciseResultId);
   try {
     await updateDoc(exerciseResultDocRef, {
-      observations: observations,
+      ...data,
       updatedAt: serverTimestamp() as Timestamp,
     });
-    console.log(`Observations for exercise result ${exerciseResultId} updated successfully.`);
+    console.log(`Exercise result ${exerciseResultId} updated successfully.`);
   } catch (e) {
-    console.error(`Error updating observations for exercise result ${exerciseResultId}:`, e);
+    console.error(`Error updating exercise result ${exerciseResultId}:`, e);
     throw e;
   }
 }
@@ -180,24 +180,24 @@ export async function getSessionsByHorseId(horseId: string): Promise<SessionData
 }
 
 /**
- * Updates the overallNote for a specific session.
+ * Updates specific fields of a session document.
  * @param horseId The ID of the horse.
  * @param sessionId The ID of the session.
- * @param overallNote The new overall note.
+ * @param data The data to update (e.g., { overallNote: 'new note', date: new Timestamp(...) }).
  */
-export async function updateSessionOverallNote(horseId: string, sessionId: string, overallNote: string): Promise<void> {
+export async function updateSession(horseId: string, sessionId: string, data: SessionUpdateData): Promise<void> {
   if (!horseId || !sessionId) {
     throw new Error("Horse ID and Session ID are required.");
   }
   const sessionDocRef = doc(db, 'horses', horseId, 'sessions', sessionId);
   try {
     await updateDoc(sessionDocRef, {
-      overallNote: overallNote,
+      ...data,
       updatedAt: serverTimestamp() as Timestamp,
     });
-    console.log(`Overall note for session ${sessionId} updated successfully.`);
+    console.log(`Session ${sessionId} updated successfully.`);
   } catch (e) {
-    console.error(`Error updating overall note for session ${sessionId}:`, e);
+    console.error(`Error updating session ${sessionId}:`, e);
     throw e;
   }
 }

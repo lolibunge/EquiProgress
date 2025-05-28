@@ -146,6 +146,10 @@ export interface SessionDataInput {
     overallNote?: string;
 }
 
+// Input type for updating existing SessionData
+export type SessionUpdateData = Partial<Pick<SessionData, 'date' | 'overallNote'>>;
+
+
 // Input type for creating new ExerciseResult
 export interface ExerciseResultInput {
     exerciseId: string;
@@ -155,6 +159,10 @@ export interface ExerciseResultInput {
     comment: string;
     observations?: ExerciseResultObservations | null;
 }
+
+// Input type for updating existing ExerciseResult
+export type ExerciseResultUpdateData = Partial<Omit<ExerciseResult, 'id' | 'createdAt' | 'updatedAt' | 'exerciseId'>>;
+
 
 // Input type for creating new Observation
 export interface ObservationInput {

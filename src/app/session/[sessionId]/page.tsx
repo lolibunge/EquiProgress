@@ -1,24 +1,30 @@
 
 "use client";
 
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useState, Suspense, ChangeEvent } from 'react';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
-import { getSession, getExerciseResults, updateSessionOverallNote, deleteSession } from '@/services/session';
+import { getSession, getExerciseResults, updateSession, updateExerciseResult, deleteSession } from '@/services/session';
 import { getHorseById } from '@/services/horse';
 import { getBlockById, getExercise } from '@/services/firestore';
-import type { SessionData, ExerciseResult, Horse, TrainingBlock, Exercise, ExerciseResultObservations } from '@/types/firestore';
+import type { SessionData, ExerciseResult, Horse, TrainingBlock, Exercise, ExerciseResultObservations, SessionUpdateData, ExerciseResultUpdateData } from '@/types/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Icons } from '@/components/icons';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from '@/components/ui/use-toast';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
+import { Slider } from '@/components/ui/slider';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { Timestamp } from 'firebase/firestore';
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -56,6 +62,13 @@ interface ExerciseResultWithDetails extends ExerciseResult {
   exerciseDetails?: Exercise | null;
 }
 
+// Helper type for editable exercise results
+type EditableExerciseResult = Omit<ExerciseResultWithDetails, 'createdAt' | 'updatedAt' | 'id' | 'exerciseId'> & {
+  id: string; // Keep original ID for updates
+  exerciseId: string;
+};
+
+
 function SessionDetailContent() {
   const params = useParams();
   const searchParams = useSearchParams();
@@ -67,13 +80,16 @@ function SessionDetailContent() {
   const horseId = searchParams.get('horseId');
 
   const [session, setSession] = useState<SessionData | null>(null);
-  const [exerciseResults, setExerciseResults] = useState<ExerciseResultWithDetails[]>([]);
+  const [editableOverallNote, setEditableOverallNote] = useState<string>("");
+  const [editableDate, setEditableDate] = useState<Date | undefined>(undefined);
+  
+  const [editableExerciseResults, setEditableExerciseResults] = useState<EditableExerciseResult[]>([]);
+  
   const [horse, setHorse] = useState<Horse | null>(null);
   const [block, setBlock] = useState<TrainingBlock | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
-  const [editableOverallNote, setEditableOverallNote] = useState<string>("");
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -100,6 +116,7 @@ function SessionDetailContent() {
         }
         setSession(sessionData);
         setEditableOverallNote(sessionData.overallNote || "");
+        setEditableDate(sessionData.date.toDate());
 
         const horseData = await getHorseById(sessionData.horseId);
         setHorse(horseData);
@@ -116,7 +133,21 @@ function SessionDetailContent() {
             return { ...result, exerciseDetails };
           })
         );
-        setExerciseResults(resultsWithDetails);
+        
+        setEditableExerciseResults(resultsWithDetails.map(r => ({
+            id: r.id,
+            exerciseId: r.exerciseId,
+            exerciseDetails: r.exerciseDetails,
+            plannedReps: r.plannedReps || r.exerciseDetails?.suggestedReps || "",
+            doneReps: r.doneReps,
+            rating: r.rating,
+            comment: r.comment || "",
+            observations: r.observations || {
+                nostrils: null, lips: null, ears: null, eyes: null, neck: null,
+                back: null, croup: null, limbs: null, tail: null,
+                overallBehavior: "", additionalNotes: ""
+            }
+        })));
 
       } catch (err) {
         console.error("Error fetching session details:", err);
@@ -129,37 +160,118 @@ function SessionDetailContent() {
     fetchData();
   }, [sessionId, currentUser, horseId]);
 
+  const handleExerciseResultChange = (
+    exerciseResultId: string,
+    field: keyof Omit<EditableExerciseResult, 'id' | 'exerciseId' | 'exerciseDetails' | 'observations'> | `observations.${keyof ExerciseResultObservations}`,
+    value: string | number | null
+  ) => {
+    setEditableExerciseResults(prev => 
+        prev.map(er => {
+            if (er.id === exerciseResultId) {
+                const updatedEr = { ...er };
+                if (String(field).startsWith('observations.')) {
+                    const obsField = String(field).split('.')[1] as keyof ExerciseResultObservations;
+                    updatedEr.observations = {
+                        ...(updatedEr.observations || { overallBehavior: "", additionalNotes: "" }), // ensure observations obj exists
+                        [obsField]: value === '' || value === 'N/A' ? null : String(value)
+                    };
+                } else if (field === 'doneReps' || field === 'rating') {
+                    (updatedEr as any)[field] = Number(value);
+                } else if (field === 'plannedReps' || field === 'comment') {
+                     (updatedEr as any)[field] = String(value);
+                }
+                return updatedEr;
+            }
+            return er;
+        })
+    );
+  };
+
+
   const handleSaveChanges = async () => {
     if (!currentUser || !horseId || !sessionId || !session) {
-      toast({
-        title: "Error al guardar",
-        description: "Falta información de usuario o sesión.",
-        variant: "destructive",
-      });
+      toast({ title: "Error al guardar", description: "Falta información.", variant: "destructive" });
       return;
     }
 
     setIsSaving(true);
     try {
-      if (editableOverallNote !== (session.overallNote || "")) {
-        await updateSessionOverallNote(horseId, sessionId, editableOverallNote);
+      // 1. Update Session Data (date, overallNote)
+      const sessionUpdates: SessionUpdateData = {};
+      let sessionChanged = false;
+      if (editableDate && editableDate.getTime() !== session.date.toDate().getTime()) {
+        sessionUpdates.date = Timestamp.fromDate(editableDate);
+        sessionChanged = true;
       }
-      // In the future, if exercise results become editable on this page, save them here.
-      // For now, this button primarily saves the overallNote.
+      if (editableOverallNote !== (session.overallNote || "")) {
+        sessionUpdates.overallNote = editableOverallNote;
+        sessionChanged = true;
+      }
+
+      if (sessionChanged) {
+        await updateSession(horseId, sessionId, sessionUpdates);
+      }
+
+      // 2. Update Exercise Results
+      // For simplicity, we'll update all, or you can add a "isDirty" flag
+      const batch = writeBatch(db); // Consider using batch if many updates
+      for (const er of editableExerciseResults) {
+        const originalEr = session.exerciseResults?.find(orig => orig.id === er.id); // Assuming session has exerciseResults populated or re-fetch
+        
+        // Naive check for changes, ideally more robust
+        // For now, let's just update all of them.
+        const { id, exerciseId, exerciseDetails, ...dataToUpdate } = er;
+        
+        const resultUpdateData: ExerciseResultUpdateData = {
+            plannedReps: dataToUpdate.plannedReps,
+            doneReps: dataToUpdate.doneReps,
+            rating: dataToUpdate.rating,
+            comment: dataToUpdate.comment,
+            observations: dataToUpdate.observations && Object.values(dataToUpdate.observations).some(v => v !== null && v !== undefined && String(v).trim() !== '')
+                            ? dataToUpdate.observations
+                            : null,
+        };
+        await updateExerciseResult(horseId, sessionId, er.id, resultUpdateData);
+      }
+      // await batch.commit(); // If using batch
+
       toast({
-        title: "Cambios guardados",
-        description: "La nota general de la sesión ha sido actualizada.",
+        title: "Cambios Guardados",
+        description: "La sesión y los resultados de los ejercicios han sido actualizados.",
       });
-      // Optionally re-fetch session to update UI if other fields were changed elsewhere
+      
+      // Re-fetch data to reflect changes immediately and correctly
       const updatedSessionData = await getSession(horseId, sessionId);
       if (updatedSessionData) {
         setSession(updatedSessionData);
         setEditableOverallNote(updatedSessionData.overallNote || "");
+        setEditableDate(updatedSessionData.date.toDate());
+        const resultsData = await getExerciseResults(horseId, sessionId);
+        const resultsWithDetails: ExerciseResultWithDetails[] = await Promise.all(
+          resultsData.map(async (result) => {
+            const exerciseDetails = await getExercise(result.exerciseId);
+            return { ...result, exerciseDetails };
+          })
+        );
+        setEditableExerciseResults(resultsWithDetails.map(r => ({
+            id: r.id,
+            exerciseId: r.exerciseId,
+            exerciseDetails: r.exerciseDetails,
+            plannedReps: r.plannedReps || r.exerciseDetails?.suggestedReps || "",
+            doneReps: r.doneReps,
+            rating: r.rating,
+            comment: r.comment || "",
+            observations: r.observations || {
+                nostrils: null, lips: null, ears: null, eyes: null, neck: null,
+                back: null, croup: null, limbs: null, tail: null,
+                overallBehavior: "", additionalNotes: ""
+            }
+        })));
       }
 
     } catch (err) {
       console.error("Error saving session changes:", err);
-      toast({ title: "Error al guardar", description: "Ocurrió un error al guardar los cambios de la sesión.", variant: "destructive" });
+      toast({ title: "Error al Guardar", description: "Ocurrió un error al guardar los cambios.", variant: "destructive" });
     } finally {
       setIsSaving(false);
     }
@@ -174,7 +286,7 @@ function SessionDetailContent() {
     try {
       await deleteSession(horseId, sessionId);
       toast({ title: "Sesión Eliminada", description: "La sesión ha sido eliminada con éxito." });
-      router.push(`/horse-history?horseId=${horseId}`); // Or router.back() or to a specific horse page
+      router.push(`/horse-history?horseId=${horseId}`);
     } catch (err) {
       console.error("Error deleting session:", err);
       toast({ title: "Error al Eliminar", description: "Ocurrió un error al eliminar la sesión.", variant: "destructive" });
@@ -223,13 +335,39 @@ function SessionDetailContent() {
       <Card className="w-full max-w-3xl mx-auto">
         <CardHeader>
           <CardTitle className="text-2xl md:text-3xl">
-            Detalle de la Sesión del {format(session.date.toDate(), "PPP", { locale: es })}
+            Detalle de la Sesión
           </CardTitle>
-          <CardDescription>
+          <div className="text-sm text-muted-foreground">
             Caballo: {horse?.name || 'Desconocido'} | Etapa: {block?.title || 'Desconocida'}
-          </CardDescription>
+          </div>
         </CardHeader>
         <CardContent className="space-y-6">
+            <div>
+                <Label htmlFor="sessionDate" className="text-lg font-semibold mb-1 block">Fecha de la Sesión:</Label>
+                 <Popover>
+                    <PopoverTrigger asChild>
+                        <Button
+                        variant={"outline"}
+                        className={`w-full justify-start text-left font-normal ${
+                            !editableDate && "text-muted-foreground"
+                        }`}
+                        >
+                        <Icons.calendar className="mr-2 h-4 w-4" />
+                        {editableDate ? format(editableDate, "PPP", { locale: es }) : <span>Elige una fecha</span>}
+                        </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                        <Calendar
+                        mode="single"
+                        selected={editableDate}
+                        onSelect={setEditableDate}
+                        initialFocus
+                        locale={es}
+                        />
+                    </PopoverContent>
+                </Popover>
+            </div>
+
           <div>
             <Label htmlFor="overallNote" className="text-lg font-semibold mb-1 block">Nota General de la Sesión:</Label>
             <Textarea
@@ -241,62 +379,107 @@ function SessionDetailContent() {
             />
           </div>
 
-          {exerciseResults.length > 0 ? (
+          {editableExerciseResults.length > 0 ? (
             <div>
-              <h3 className="text-lg font-semibold mb-2">Ejercicios Realizados:</h3>
-              <div className="space-y-4">
-                {exerciseResults.map((result) => (
-                  <Card key={result.id} className="p-4">
-                    <h4 className="font-semibold text-md mb-1">
+              <h3 className="text-xl font-semibold mb-3">Ejercicios Realizados:</h3>
+              <div className="space-y-6">
+                {editableExerciseResults.map((result, index) => (
+                  <Card key={result.id} className="p-4 shadow-md">
+                    <h4 className="font-semibold text-lg mb-2">
                       {result.exerciseDetails?.title || 'Ejercicio Desconocido'}
                     </h4>
-                    {result.exerciseDetails?.description && <p className="text-sm text-muted-foreground mb-2">{result.exerciseDetails.description}</p>}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                      <p><strong>Planificado:</strong> {result.plannedReps || result.exerciseDetails?.suggestedReps || 'N/A'}</p>
-                      <p><strong>Realizado:</strong> {result.doneReps} reps</p>
-                      <p><strong>Calificación:</strong> {result.rating} / 5</p>
+                    {result.exerciseDetails?.description && <p className="text-sm text-muted-foreground mb-3">{result.exerciseDetails.description}</p>}
+                    
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-3">
+                      <div>
+                        <Label htmlFor={`plannedReps-${result.id}`}>Planificado</Label>
+                        <Input
+                          id={`plannedReps-${result.id}`}
+                          value={result.plannedReps || ""}
+                          onChange={(e) => handleExerciseResultChange(result.id, 'plannedReps', e.target.value)}
+                          placeholder="Ej: 10"
+                        />
+                      </div>
+                       <div>
+                        <Label htmlFor={`doneReps-${result.id}`}>Realizado (reps)</Label>
+                        <Input
+                          id={`doneReps-${result.id}`}
+                          type="number"
+                          value={result.doneReps}
+                          onChange={(e) => handleExerciseResultChange(result.id, 'doneReps', parseInt(e.target.value, 10) || 0)}
+                        />
+                      </div>
                     </div>
-                    {result.comment && (
-                      <div className="mt-2">
-                        <p className="text-sm"><strong>Comentario:</strong></p>
-                        <p className="text-sm text-muted-foreground whitespace-pre-wrap">{result.comment}</p>
-                      </div>
-                    )}
 
-                    {result.observations && (
-                       <div className="mt-4 pt-4 border-t">
-                        <h5 className="font-semibold text-md mb-2">Observaciones del Ejercicio:</h5>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
-                          {OBSERVATION_ZONES.map(zone => {
-                            const obsValue = result.observations?.[zone.id as keyof ExerciseResultObservations];
-                            return obsValue ? (
-                              <div key={zone.id}>
-                                <Label htmlFor={`display-obs-${result.id}-${zone.id}`}>{zone.label}:</Label>
-                                <p id={`display-obs-${result.id}-${zone.id}`} className="text-muted-foreground">
-                                  {TENSION_STATUS_OPTIONS.find(opt => opt.value === obsValue)?.label || obsValue}
-                                </p>
-                              </div>
-                            ) : null;
-                          })}
+                    <div className="mb-3">
+                      <Label htmlFor={`rating-${result.id}`}>Calificación: {result.rating} / 5</Label>
+                      <Slider
+                        id={`rating-${result.id}`}
+                        value={[result.rating]}
+                        min={1}
+                        max={5}
+                        step={1}
+                        onValueChange={(value) => handleExerciseResultChange(result.id, 'rating', value[0])}
+                        className="mt-1"
+                      />
+                    </div>
+                    
+                    <div className="mb-4">
+                      <Label htmlFor={`comment-${result.id}`}>Comentario del Ejercicio</Label>
+                      <Textarea
+                        id={`comment-${result.id}`}
+                        value={result.comment}
+                        onChange={(e) => handleExerciseResultChange(result.id, 'comment', e.target.value)}
+                        placeholder="Notas específicas sobre este ejercicio..."
+                        className="min-h-[80px] whitespace-pre-wrap"
+                      />
+                    </div>
+
+                    <div className="pt-4 border-t">
+                        <h5 className="font-semibold text-md mb-3">Observaciones del Ejercicio:</h5>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-3 text-sm">
+                          {OBSERVATION_ZONES.map(zone => (
+                            <div key={zone.id}>
+                              <Label htmlFor={`obs-${result.id}-${zone.id}`}>{zone.label}</Label>
+                              <Select
+                                value={result.observations?.[zone.id as keyof ExerciseResultObservations] || ''}
+                                onValueChange={(value) => handleExerciseResultChange(result.id, `observations.${zone.id as keyof ExerciseResultObservations}`, value === 'N/A' ? 'N/A' : (value || null))}
+                              >
+                                <SelectTrigger id={`obs-${result.id}-${zone.id}`}>
+                                  <SelectValue placeholder="Estado..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {TENSION_STATUS_OPTIONS.map(option => (
+                                    <SelectItem key={option.value} value={option.value}>
+                                      {option.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          ))}
                         </div>
-                         {result.observations.overallBehavior && (
-                            <div className="mt-3">
-                                <Label htmlFor={`display-obs-behavior-${result.id}`}>Comportamiento General:</Label>
-                                <p id={`display-obs-behavior-${result.id}`} className="text-sm text-muted-foreground whitespace-pre-wrap">
-                                {result.observations.overallBehavior}
-                                </p>
-                            </div>
-                         )}
-                         {result.observations.additionalNotes && (
-                            <div className="mt-3">
-                                <Label htmlFor={`display-obs-notes-${result.id}`}>Notas Adicionales:</Label>
-                                <p id={`display-obs-notes-${result.id}`} className="text-sm text-muted-foreground whitespace-pre-wrap">
-                                {result.observations.additionalNotes}
-                                </p>
-                            </div>
-                         )}
+                         <div className="mb-3">
+                            <Label htmlFor={`obs-behavior-${result.id}`}>Comportamiento General (del ejercicio)</Label>
+                            <Textarea
+                                id={`obs-behavior-${result.id}`}
+                                value={result.observations?.overallBehavior || ''}
+                                onChange={(e) => handleExerciseResultChange(result.id, `observations.overallBehavior`, e.target.value)}
+                                placeholder="Describe el comportamiento general durante este ejercicio..."
+                                className="min-h-[80px] whitespace-pre-wrap"
+                            />
+                         </div>
+                         <div>
+                            <Label htmlFor={`obs-notes-${result.id}`}>Notas Adicionales (del ejercicio)</Label>
+                             <Textarea
+                                id={`obs-notes-${result.id}`}
+                                value={result.observations?.additionalNotes || ''}
+                                onChange={(e) => handleExerciseResultChange(result.id, `observations.additionalNotes`, e.target.value)}
+                                placeholder="Otras notas relevantes sobre este ejercicio..."
+                                className="min-h-[80px] whitespace-pre-wrap"
+                            />
+                         </div>
                       </div>
-                    )}
                   </Card>
                 ))}
               </div>
@@ -308,7 +491,7 @@ function SessionDetailContent() {
           <div className="mt-8 flex flex-col sm:flex-row justify-center items-center gap-4">
              <Button onClick={handleSaveChanges} disabled={isSaving || isDeleting}>
               {isSaving ? <Icons.spinner className="mr-2 h-4 w-4 animate-spin" /> : <Icons.save className="mr-2 h-4 w-4" />}
-              Guardar Cambios
+              Guardar Todos los Cambios
             </Button>
             
             <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
@@ -343,7 +526,6 @@ function SessionDetailContent() {
     </div>
   );
 }
-
 
 export default function SessionDetailPage() {
   return (
