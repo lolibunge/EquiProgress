@@ -43,7 +43,6 @@ export async function deleteTrainingPlan(planId: string): Promise<void> {
   console.log(`[Firestore Service] Attempting to delete plan ${planId} and its sub-collections.`);
   const batch = writeBatch(db);
 
-  // 1. Get all blocks for the plan
   const blocksRef = collection(db, "trainingBlocks");
   const blocksQuery = query(blocksRef, where("planId", "==", planId));
   const blocksSnapshot = await getDocs(blocksQuery);
@@ -51,29 +50,22 @@ export async function deleteTrainingPlan(planId: string): Promise<void> {
   const blockIds: string[] = [];
   blocksSnapshot.forEach((blockDoc) => {
     blockIds.push(blockDoc.id);
-    // Add block deletion to batch
     batch.delete(doc(db, "trainingBlocks", blockDoc.id));
   });
   console.log(`[Firestore Service] Found ${blockIds.length} blocks for plan ${planId} to delete.`);
 
-  // 2. For each block, get and delete its exercises
   if (blockIds.length > 0) {
     const exercisesRef = collection(db, "exercises");
-    // Firestore batch limitations might require multiple queries if blockIds is very large
-    // For simplicity, assuming blockIds isn't excessively large here.
-    // A more robust solution for many blocks might involve multiple batches or a Cloud Function.
     for (const blockId of blockIds) {
         const exercisesQuery = query(exercisesRef, where("planId", "==", planId), where("blockId", "==", blockId));
         const exercisesSnapshot = await getDocs(exercisesQuery);
         exercisesSnapshot.forEach((exerciseDoc) => {
-            // Add exercise deletion to batch
             batch.delete(doc(db, "exercises", exerciseDoc.id));
         });
         console.log(`[Firestore Service] Found ${exercisesSnapshot.size} exercises for block ${blockId} (plan ${planId}) to delete.`);
     }
   }
 
-  // 3. Delete the plan document itself
   const planDocRef = doc(db, "trainingPlans", planId);
   batch.delete(planDocRef);
 
@@ -205,9 +197,8 @@ export async function updateTrainingBlock(planId: string, blockId: string, block
     ...blockData,
     updatedAt: serverTimestamp() as Timestamp,
   };
-  // Ensure planId is not accidentally changed if it's part of blockData for some reason
   delete (dataToUpdate as any).planId; 
-  delete (dataToUpdate as any).order; // Order should be handled by a separate reordering function
+  delete (dataToUpdate as any).order; 
 
   try {
     await updateDoc(blockDocRef, dataToUpdate);
@@ -222,18 +213,15 @@ export async function deleteTrainingBlock(planId: string, blockId: string): Prom
   console.log(`[Firestore Service] Attempting to delete block ${blockId} from plan ${planId} and its exercises.`);
   const batch = writeBatch(db);
 
-  // 1. Get all exercises for the block
   const exercisesRef = collection(db, "exercises");
   const exercisesQuery = query(exercisesRef, where("planId", "==", planId), where("blockId", "==", blockId));
   const exercisesSnapshot = await getDocs(exercisesQuery);
 
   exercisesSnapshot.forEach((exerciseDoc) => {
-    // Add exercise deletion to batch
     batch.delete(doc(db, "exercises", exerciseDoc.id));
   });
   console.log(`[Firestore Service] Found ${exercisesSnapshot.size} exercises for block ${blockId} (plan ${planId}) to delete.`);
 
-  // 2. Delete the block document itself
   const blockDocRef = doc(db, "trainingBlocks", blockId);
   batch.delete(blockDocRef);
 
@@ -367,10 +355,9 @@ export async function updateExercise(planId: string, blockId: string, exerciseId
     ...exerciseData,
     updatedAt: serverTimestamp() as Timestamp,
   };
-  // Ensure planId, blockId and order are not accidentally changed
   delete (dataToUpdate as any).planId;
   delete (dataToUpdate as any).blockId;
-  delete (dataToUpdate as any).order; // Order should be handled by a separate reordering function
+  delete (dataToUpdate as any).order; 
 
   try {
     await updateDoc(exerciseDocRef, dataToUpdate);
@@ -383,12 +370,6 @@ export async function updateExercise(planId: string, blockId: string, exerciseId
 
 export async function deleteExercise(exerciseId: string): Promise<void> {
   console.log(`[Firestore Service] Attempting to delete exercise ${exerciseId}.`);
-  // Note: Firestore does not directly support deleting a document just by ID if you don't know its path.
-  // This function assumes exerciseId is the ID of a document in the top-level "exercises" collection.
-  // If exercises are in a subcollection, you'd need planId and blockId to construct the path.
-  // Based on current usage (e.g., in EditExerciseForm), we only have exercise.id.
-  // We need to ensure this ID is globally unique or adjust how deleteExercise is called / implemented.
-  // For now, assuming 'exercises' is a top-level collection.
   const exerciseDocRef = doc(db, "exercises", exerciseId);
   try {
     await deleteDoc(exerciseDocRef);
@@ -399,12 +380,7 @@ export async function deleteExercise(exerciseId: string): Promise<void> {
   }
 }
 
-/**
- * Updates the order of multiple exercises within a specific block and plan.
- * @param planId The ID of the plan.
- * @param blockId The ID of the block.
- * @param orderedExercises An array of objects, each containing an 'id' (exercise ID) and its new 'order'.
- */
+
 export async function updateExercisesOrder(
   planId: string,
   blockId: string,
@@ -414,10 +390,6 @@ export async function updateExercisesOrder(
   const batch = writeBatch(db);
 
   for (const exercise of orderedExercises) {
-    // Construct the correct path to the exercise document
-    // Assuming exercises are in a top-level 'exercises' collection
-    // If they were subcollections: doc(db, "trainingPlans", planId, "trainingBlocks", blockId, "exercises", exercise.id);
-    // Based on current structure, exercises are in a top-level "exercises" collection.
     const exerciseRef = doc(db, "exercises", exercise.id);
     batch.update(exerciseRef, { order: exercise.order, updatedAt: serverTimestamp() });
   }
@@ -431,27 +403,50 @@ export async function updateExercisesOrder(
   }
 }
 
+export async function updateBlocksOrder(
+  planId: string,
+  orderedBlocks: Array<{ id: string; order: number }>
+): Promise<void> {
+  console.log("[Firestore Service] Updating blocks order for plan:", planId, JSON.parse(JSON.stringify(orderedBlocks)));
+  const batch = writeBatch(db);
 
-// Function for debugging block fetching without order clause
+  for (const block of orderedBlocks) {
+    const blockRef = doc(db, "trainingBlocks", block.id);
+    batch.update(blockRef, { order: block.order, updatedAt: serverTimestamp() });
+  }
+
+  try {
+    await batch.commit();
+    console.log("[Firestore Service] Blocks order updated successfully for plan:", planId);
+  } catch (error) {
+    console.error("[Firestore Service] Error updating blocks order for plan:", planId, error);
+    throw error;
+  }
+}
+
+
 export async function debugGetBlocksForPlan(planId: string): Promise<void> {
   console.log(`[DEBUG Firestore Service] debugGetBlocksForPlan called for plan: ${planId}`);
   try {
     const trainingBlocksRef = collection(db, "trainingBlocks");
-    const q = query(trainingBlocksRef, where("planId", "==", planId.trim())); // Removed orderBy for debug
+    // const q = query(trainingBlocksRef, where("planId", "==", planId.trim())); // Removed orderBy for debug
+    const q = query(trainingBlocksRef, where("planId", "==", planId.trim()), orderBy("order", "asc"));
     const querySnapshot = await getDocs(q);
     const blocks: { id: string; title: string, planId?: string; order?: number, createdAt?: any }[] = [];
     
-    console.log(`[DEBUG Firestore Service] Query snapshot for planId "${planId.trim()}" (NO ordering - debug) has ${querySnapshot.size} documents.`);
+    console.log(`[DEBUG Firestore Service] Query snapshot for planId "${planId.trim()}" (orderBy 'order') has ${querySnapshot.size} documents.`);
     querySnapshot.forEach((docSnap) => {
       const blockData = docSnap.data();
       console.log(`[DEBUG Firestore Service] Raw block data (debug): ID=${docSnap.id}, Title=${blockData.title}, planId=${blockData.planId}, order=${blockData.order}, createdAt exists: ${!!blockData.createdAt}`);
       blocks.push({ id: docSnap.id, title: blockData.title, planId: blockData.planId, order: blockData.order, createdAt: blockData.createdAt });
     });
-    console.log(`[DEBUG Firestore Service] Found ${blocks.length} blocks for plan ${planId.trim()} (NO ordering - debug):`, JSON.parse(JSON.stringify(blocks)));
+    console.log(`[DEBUG Firestore Service] Found ${blocks.length} blocks for plan ${planId.trim()} (orderBy 'order'):`, JSON.parse(JSON.stringify(blocks)));
 
   } catch (error: any) {
     console.error(`[DEBUG Firestore Service] Error in debugGetBlocksForPlan for plan ${planId}:`, error);
-    // No specific index error to report here since orderBy was removed for this debug function
+    if (error.code === 'failed-precondition') {
+        console.error(`[DEBUG Firestore Service] INDEX REQUIRED for debugGetBlocksForPlan (planId: ${planId}, orderBy: order). Please create an index on 'planId' (asc) and 'order' (asc) in the 'trainingBlocks' collection.`);
+    }
   }
 }
     

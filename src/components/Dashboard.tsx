@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, ReactNode } from "react";
 import type { User } from 'firebase/auth';
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -19,7 +19,7 @@ import { useRouter } from 'next/navigation';
 
 import { createSession, addExerciseResult, getSession, getExerciseResults, updateExerciseResultObservations } from "@/services/session";
 import { getHorses as fetchHorsesService, getHorseById } from "@/services/horse";
-import { getTrainingPlans, getTrainingBlocks, getExercises, getExercise, debugGetBlocksForPlan, getBlockById, deleteTrainingPlan, updateExercisesOrder, deleteTrainingBlock, updateTrainingBlock, deleteExercise, updateExercise } from "@/services/firestore";
+import { getTrainingPlans, getTrainingBlocks, getExercises, getExercise, debugGetBlocksForPlan, getBlockById, deleteTrainingPlan, updateExercisesOrder, deleteTrainingBlock, updateTrainingBlock, deleteExercise, updateExercise, updateBlocksOrder } from "@/services/firestore";
 import type { Horse, TrainingPlan, TrainingBlock, Exercise, ExerciseResult, SessionDataInput, ExerciseResultInput, SessionData, ExerciseResultObservations } from "@/types/firestore";
 import HorseHistory from "./HorseHistory";
 
@@ -77,6 +77,7 @@ import {
   useSensor,
   useSensors,
   type DragEndEvent,
+  UniqueIdentifier,
 } from '@dnd-kit/core';
 import {
   arrayMove,
@@ -151,6 +152,65 @@ function SortableExerciseItem({ exercise, onEdit }: SortableExerciseItemProps) {
         <span className="sr-only">Editar Ejercicio</span>
       </Button>
     </li>
+  );
+}
+
+interface SortableBlockAccordionItemProps {
+  block: TrainingBlock;
+  children: ReactNode; // For AccordionContent
+  onEditBlock: (block: TrainingBlock) => void;
+}
+
+function SortableBlockAccordionItem({ block, children, onEditBlock }: SortableBlockAccordionItemProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: block.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <AccordionItem 
+      value={block.id} 
+      ref={setNodeRef} 
+      style={style}
+      className="bg-card border mb-1 rounded-md shadow-sm" // Added some styling for visual feedback
+    >
+      <div className="flex items-center" {...attributes} {...listeners} > {/* Make the drag handle encompass the trigger area */}
+        <AccordionTrigger className="flex-grow">
+            <span className="flex-grow text-left">
+              {block.title}
+              {block.notes && <span className="block sm:inline text-xs text-muted-foreground ml-0 sm:ml-2">- {block.notes}</span>}
+              {block.duration && <span className="block sm:inline text-xs text-muted-foreground ml-0 sm:ml-2">- Duración: {block.duration}</span>}
+              {block.goal && <span className="block sm:inline text-xs text-muted-foreground ml-0 sm:ml-2">- Meta: {block.goal}</span>}
+            </span>
+        </AccordionTrigger>
+        <Button
+            asChild
+            variant="ghost"
+            size="icon"
+            className="ml-2 mr-2 h-7 w-7 flex-shrink-0" // Added mr-2 for spacing
+            onClick={(e) => {
+                e.stopPropagation(); 
+                onEditBlock(block);
+            }}
+        >
+            <span> {/* This span will receive button styles due to asChild */}
+            <Icons.edit className="h-4 w-4" />
+            <span className="sr-only">Editar Etapa</span>
+            </span>
+        </Button>
+      </div>
+      {children}
+    </AccordionItem>
   );
 }
 
@@ -259,7 +319,7 @@ const Dashboard = () => {
       return;
     }
     setIsLoadingBlocks(true);
-    setExercises([]); // Clear exercises when blocks are re-fetched for a plan
+    setExercises([]); 
     try {
       console.log(`[Dashboard] performFetchBlocks: Attempting to fetch trainingBlocks with planId: "${planId}"`);
       const fetchedBlocks = await getTrainingBlocks(planId);
@@ -270,7 +330,6 @@ const Dashboard = () => {
         console.log(`[Dashboard] No blocks were found for planId ${planId}. Setting selectedBlock to null.`);
       } else {
         console.log(`[Dashboard] ${fetchedBlocks.length} blocks found for planId ${planId}.`);
-        // Fetch exercises for these newly fetched blocks
         performFetchExercisesForPlan(planId, fetchedBlocks);
       }
     } catch (error) {
@@ -281,7 +340,7 @@ const Dashboard = () => {
     } finally {
       setIsLoadingBlocks(false);
     }
-  }, [toast]); // Removed performFetchExercisesForPlan from deps to avoid loop, it's called conditionally
+  }, [toast]); 
 
 
   const performFetchExercisesForPlan = useCallback(async (planId: string, currentPlanBlocks: TrainingBlock[]) => {
@@ -297,7 +356,7 @@ const Dashboard = () => {
       console.log(`[Dashboard] Plan blocks for exercise fetch (planId ${planId}):`, JSON.parse(JSON.stringify(currentPlanBlocks.map(b => ({id: b.id, title: b.title, order: b.order})))));
       for (const block of currentPlanBlocks) {
         console.log(`[Dashboard] Processing block for exercises: planId "${planId}", blockId: "${block.id}" (Etapa: "${block.title}")`);
-        const blockExercises = await getExercises(planId, block.id); // Assuming getExercises now sorts by 'order'
+        const blockExercises = await getExercises(planId, block.id); 
         console.log(`[Dashboard] ---> Found ${blockExercises.length} exercises for blockId: "${block.id}" (Etapa: "${block.title}")`);
         if (blockExercises.length > 0) {
           console.log(`[Dashboard]      Exercises found:`, JSON.parse(JSON.stringify(blockExercises.map(e => ({ title: e.title, id: e.id, planId: e.planId, blockId: e.blockId, order: e.order })))));
@@ -327,19 +386,6 @@ const Dashboard = () => {
       setExercises([]);
     }
   }, [selectedPlan, performFetchBlocks]);
-
-
-  // This useEffect is removed as performFetchExercisesForPlan is now called from performFetchBlocks
-  // useEffect(() => {
-  //   if (selectedPlan?.id && blocks.length > 0 && !isLoadingBlocks) {
-  //     console.log(`[Dashboard] useEffect[selectedPlan, blocks, isLoadingBlocks] - Plan ${selectedPlan.id} selected, ${blocks.length} blocks loaded. Fetching exercises.`);
-  //     performFetchExercisesForPlan(selectedPlan.id, blocks);
-  //   } else if (selectedPlan?.id && blocks.length === 0 && !isLoadingBlocks) {
-  //     console.log(`[Dashboard] useEffect[selectedPlan, blocks, isLoadingBlocks] - Plan ${selectedPlan.id} selected, blocks loaded, but no blocks found. Clearing exercises.`);
-  //     setExercises([]);
-  //   }
-  // }, [selectedPlan, blocks, isLoadingBlocks, performFetchExercisesForPlan]);
-
 
 
   const handleHorseAdded = () => {
@@ -412,7 +458,7 @@ const Dashboard = () => {
   const handleExerciseAdded = () => {
     setIsAddExerciseDialogOpen(false);
     if (selectedPlan && currentBlockIdForExercise && blocks.length > 0) {
-       performFetchExercisesForPlan(selectedPlan.id, blocks.filter(b => b.id === currentBlockIdForExercise));
+       performFetchExercisesForPlan(selectedPlan.id, blocks); // Refetch for all blocks in plan to ensure consistency
     }
     setCurrentBlockIdForExercise(null);
   };
@@ -612,46 +658,83 @@ const handleSaveSessionAndNavigate = async () => {
       if (!activeExercise || !selectedPlan) return;
 
       const blockIdOfDraggedItem = activeExercise.blockId;
+      if (!blockIdOfDraggedItem) {
+        console.error("Dragged exercise does not have a blockId. Cannot reorder.");
+        toast({variant: "destructive", title: "Error", description: "No se pudo determinar la etapa del ejercicio."});
+        return;
+      }
 
       setExercises((prevExercises) => {
         const exercisesInBlock = prevExercises.filter(ex => ex.blockId === blockIdOfDraggedItem);
         const oldIndex = exercisesInBlock.findIndex((ex) => ex.id === active.id);
         const newIndex = exercisesInBlock.findIndex((ex) => ex.id === over.id);
 
-        if (oldIndex === -1 || newIndex === -1) return prevExercises; // Should not happen
+        if (oldIndex === -1 || newIndex === -1) return prevExercises; 
 
         const reorderedExercisesInBlock = arrayMove(exercisesInBlock, oldIndex, newIndex);
         
-        // Update order property for persistence
         const updatedExercisesForDb = reorderedExercisesInBlock.map((ex, index) => ({
           ...ex,
-          order: index, // Update order based on new position
+          order: index, 
         }));
 
-        // Persist the new order to Firestore
         const dbPayload = updatedExercisesForDb.map(ex => ({ id: ex.id, order: ex.order as number }));
-        updateExercisesOrder(selectedPlan.id, blockIdOfDraggedItem, dbPayload)
-          .then(() => {
-            toast({ title: "Orden de ejercicios actualizado", description: "El nuevo orden ha sido guardado." });
-          })
-          .catch(err => {
-            console.error("Error updating exercises order in DB:", err);
-            toast({ variant: "destructive", title: "Error", description: "No se pudo guardar el nuevo orden." });
-            // Potentially revert local state or refetch if DB update fails
-            performFetchExercisesForPlan(selectedPlan.id, blocks.filter(b => b.id === blockIdOfDraggedItem));
-          });
+        if (selectedPlan?.id && blockIdOfDraggedItem) {
+            updateExercisesOrder(selectedPlan.id, blockIdOfDraggedItem, dbPayload)
+            .then(() => {
+                toast({ title: "Orden de ejercicios actualizado", description: "El nuevo orden ha sido guardado." });
+            })
+            .catch(err => {
+                console.error("Error updating exercises order in DB:", err);
+                toast({ variant: "destructive", title: "Error", description: "No se pudo guardar el nuevo orden." });
+                if (selectedPlan?.id && blocks.length > 0) performFetchExercisesForPlan(selectedPlan.id, blocks); // Refetch on error
+            });
+        }
         
-        // Reconstruct the full exercises array
         const otherBlocksExercises = prevExercises.filter(ex => ex.blockId !== blockIdOfDraggedItem);
-        return [...otherBlocksExercises, ...updatedExercisesForDb].sort((a, b) => {
-          if (a.blockId === b.blockId) {
-            return (a.order ?? Infinity) - (b.order ?? Infinity);
-          }
-          // Keep original block order for now, or sort blocks by their order if available
+        const newFullExerciseList = [...otherBlocksExercises, ...updatedExercisesForDb].sort((a, b) => {
           const blockAOrder = blocks.find(bl => bl.id === a.blockId)?.order ?? Infinity;
           const blockBOrder = blocks.find(bl => bl.id === b.blockId)?.order ?? Infinity;
-          return blockAOrder - blockBOrder;
+          if (blockAOrder !== blockBOrder) {
+            return blockAOrder - blockBOrder;
+          }
+          return (a.order ?? Infinity) - (b.order ?? Infinity);
         });
+        return newFullExerciseList;
+      });
+    }
+  };
+
+  const handleDragEndBlocks = async (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (active && over && active.id !== over.id && selectedPlan) {
+      setBlocks((prevBlocks) => {
+        const oldIndex = prevBlocks.findIndex(b => b.id === active.id);
+        const newIndex = prevBlocks.findIndex(b => b.id === over.id);
+
+        if (oldIndex === -1 || newIndex === -1) return prevBlocks;
+
+        const reorderedBlocks = arrayMove(prevBlocks, oldIndex, newIndex);
+        
+        const updatedBlocksForDb = reorderedBlocks.map((block, index) => ({
+          ...block,
+          order: index,
+        }));
+
+        const dbPayload = updatedBlocksForDb.map(b => ({ id: b.id, order: b.order as number }));
+        
+        updateBlocksOrder(selectedPlan.id, dbPayload)
+          .then(() => {
+            toast({ title: "Orden de etapas actualizado", description: "El nuevo orden de etapas ha sido guardado." });
+          })
+          .catch(err => {
+            console.error("Error updating blocks order in DB:", err);
+            toast({ variant: "destructive", title: "Error", description: "No se pudo guardar el nuevo orden de etapas." });
+            if (selectedPlan?.id) performFetchBlocks(selectedPlan.id); // Refetch on error
+          });
+        
+        return updatedBlocksForDb;
       });
     }
   };
@@ -713,6 +796,7 @@ const handleSaveSessionAndNavigate = async () => {
                    <TabsList className="grid w-full grid-cols-2">
                     <TabsTrigger value="plan">Plan</TabsTrigger>
                     <TabsTrigger value="sesiones">Sesiones</TabsTrigger>
+                    {/* Tab "Historial" movido al Navbar o página dedicada */}
                   </TabsList>
 
                   <TabsContent value="plan">
@@ -792,67 +876,50 @@ const handleSaveSessionAndNavigate = async () => {
                       </CardHeader>
                       <CardContent>
                       {selectedPlan ? (
-                        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndExercises}>
-                          {isLoadingBlocks ? <p>Cargando etapas...</p> : blocks.length > 0 ? (
-                             <Accordion type="single" collapsible className="w-full">
-                              {blocks.sort((a,b) => (a.order ?? Infinity) - (b.order ?? Infinity)).map((block) => {
-                                const exercisesForBlock = exercises.filter(ex => ex.blockId === block.id && selectedPlan && ex.planId === selectedPlan.id).sort((a,b) => (a.order ?? Infinity) - (b.order ?? Infinity));
-                                return (
-                                <AccordionItem value={block.id} key={block.id}>
-                                  <AccordionTrigger>
-                                    <div className="flex items-center justify-between w-full flex-grow text-left">
-                                      <span className="flex-grow">
-                                        {block.title}
-                                        {block.notes && <span className="block sm:inline text-xs text-muted-foreground ml-0 sm:ml-2">- {block.notes}</span>}
-                                        {block.duration && <span className="block sm:inline text-xs text-muted-foreground ml-0 sm:ml-2">- Duración: {block.duration}</span>}
-                                        {block.goal && <span className="block sm:inline text-xs text-muted-foreground ml-0 sm:ml-2">- Meta: {block.goal}</span>}
-                                      </span>
-                                      <Button
-                                        asChild
-                                        variant="ghost"
-                                        size="icon"
-                                        className="ml-2 h-7 w-7 flex-shrink-0"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          openEditBlockDialog(block);
-                                        }}
-                                      >
-                                        <span>
-                                          <Icons.edit className="h-4 w-4" />
-                                          <span className="sr-only">Editar Etapa</span>
-                                        </span>
-                                      </Button>
-                                    </div>
-                                  </AccordionTrigger>
-                                  <AccordionContent>
-                                    {block.goal && (
-                                      <p className="text-sm text-primary font-semibold mb-2">
-                                        Meta de la Etapa: <span className="font-normal text-muted-foreground">{block.goal}</span>
-                                      </p>
-                                    )}
-                                   {isLoadingExercises && exercisesForBlock.length === 0 ? (
-                                      <p>Cargando ejercicios...</p>
-                                    ) : exercisesForBlock.length > 0 ? (
-                                      <SortableContext items={exercisesForBlock.map(e => e.id)} strategy={verticalListSortingStrategy}>
-                                        <ul className="list-none pl-0 space-y-1 text-sm">
-                                          {exercisesForBlock.map((exercise) => (
-                                            <SortableExerciseItem key={exercise.id} exercise={exercise} onEdit={openEditExerciseDialog} />
-                                          ))}
-                                        </ul>
-                                      </SortableContext>
-                                    ) : (
-                                      <p className="text-sm text-muted-foreground">
-                                          No se encontraron ejercicios para la etapa "{block.title}" (ID: {block.id}) en el plan "{selectedPlan?.title}" (ID: {selectedPlan?.id}). Verifica que los ejercicios en Firestore tengan el `planId` y `blockId` correctos y el campo `order`.
-                                      </p>
-                                    )}
-                                    <Button size="sm" variant="outline" className="mt-2" onClick={() => openAddExerciseDialog(block.id)}>
-                                      <Icons.plus className="mr-2 h-4 w-4" /> Añadir Ejercicio a esta Etapa
-                                    </Button>
-                                  </AccordionContent>
-                                </AccordionItem>
-                              )})}
-                            </Accordion>
-                          ) : (
+                        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndBlocks}>
+                            <SortableContext items={blocks.map(b => b.id)} strategy={verticalListSortingStrategy}>
+                                <Accordion type="single" collapsible className="w-full space-y-2">
+                                {blocks.map((block) => {
+                                    const exercisesForBlock = exercises.filter(ex => ex.blockId === block.id && selectedPlan && ex.planId === selectedPlan.id).sort((a,b) => (a.order ?? Infinity) - (b.order ?? Infinity));
+                                    return (
+                                    <SortableBlockAccordionItem 
+                                        key={block.id} 
+                                        block={block} 
+                                        onEditBlock={openEditBlockDialog}
+                                    >
+                                        <AccordionContent>
+                                        {block.goal && (
+                                            <p className="text-sm text-primary font-semibold mb-2">
+                                            Meta de la Etapa: <span className="font-normal text-muted-foreground">{block.goal}</span>
+                                            </p>
+                                        )}
+                                        {isLoadingExercises && exercisesForBlock.length === 0 ? (
+                                            <p>Cargando ejercicios...</p>
+                                        ) : exercisesForBlock.length > 0 ? (
+                                        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndExercises}>
+                                            <SortableContext items={exercisesForBlock.map(e => e.id)} strategy={verticalListSortingStrategy}>
+                                                <ul className="list-none pl-0 space-y-1 text-sm">
+                                                {exercisesForBlock.map((exercise) => (
+                                                    <SortableExerciseItem key={exercise.id} exercise={exercise} onEdit={openEditExerciseDialog} />
+                                                ))}
+                                                </ul>
+                                            </SortableContext>
+                                        </DndContext>
+                                        ) : (
+                                        <p className="text-sm text-muted-foreground">
+                                            No se encontraron ejercicios para la etapa "{block.title}" (ID: {block.id}) en el plan "{selectedPlan?.title}" (ID: {selectedPlan?.id}). Verifica que los ejercicios en Firestore tengan el `planId` y `blockId` correctos y el campo `order`.
+                                        </p>
+                                        )}
+                                        <Button size="sm" variant="outline" className="mt-2" onClick={() => openAddExerciseDialog(block.id)}>
+                                        <Icons.plus className="mr-2 h-4 w-4" /> Añadir Ejercicio a esta Etapa
+                                        </Button>
+                                    </AccordionContent>
+                                    </SortableBlockAccordionItem>
+                                )})}
+                                </Accordion>
+                            </SortableContext>
+                          {isLoadingBlocks && blocks.length === 0 && <p>Cargando etapas...</p>}
+                          {!isLoadingBlocks && blocks.length === 0 && selectedPlan && (
                             <p className="text-sm text-muted-foreground">Este plan no tiene etapas definidas. (Plan ID: {selectedPlan.id})</p>
                           )}
                           <div className="flex flex-wrap justify-end mt-4 gap-2">
@@ -888,7 +955,7 @@ const handleSaveSessionAndNavigate = async () => {
                             {isLoadingBlocks ? (
                                 <DropdownMenuItem disabled>Cargando etapas...</DropdownMenuItem>
                             ) : blocks.length > 0 ? (
-                              blocks.map((block) => (
+                              blocks.sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity)).map((block) => (
                                   <DropdownMenuItem key={block.id} onSelect={() => {
                                     setSelectedBlock(block);
                                     setSessionExerciseResults(new Map());
@@ -1193,3 +1260,4 @@ const handleSaveSessionAndNavigate = async () => {
 };
 
 export default Dashboard;
+
