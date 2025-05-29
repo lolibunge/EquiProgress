@@ -17,7 +17,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from 'next/navigation';
 
-import { createSession, addExerciseResult, getSession, getExerciseResults, updateExerciseResult } from "@/services/session";
+import { createSession, addExerciseResult, getSession, getExerciseResults, updateExerciseResult, updateSession, deleteSession } from "@/services/session";
 import { getHorses as fetchHorsesService, getHorseById } from "@/services/horse";
 import { getTrainingPlans, getTrainingBlocks, getExercises, getExercise, debugGetBlocksForPlan, getBlockById, deleteTrainingPlan, updateExercisesOrder, deleteTrainingBlock, updateTrainingBlock, deleteExercise, updateExercise, updateBlocksOrder } from "@/services/firestore";
 import type { Horse, TrainingPlan, TrainingBlock, Exercise, ExerciseResult, SessionDataInput, ExerciseResultInput, SessionData, ExerciseResultObservations } from "@/types/firestore";
@@ -97,20 +97,20 @@ const TENSION_STATUS_OPTIONS = [
 ];
 
 const OBSERVATION_ZONES = [
-  { id: 'ollaries', label: 'Ollares' },
-  { id: 'labios', label: 'Labios' },
-  { id: 'orejas', label: 'Orejas' },
-  { id: 'ojos', label: 'Ojos' },
-  { id: 'cuello', label: 'Cuello' },
-  { id: 'dorso', label: 'Dorso' },
-  { id: 'grupa', label: 'Grupa' },
-  { id: 'miembros', label: 'Miembros' },
-  { id: 'cola', label: 'Cola' },
+  { id: 'nostrils', label: 'Ollares' },
+  { id: 'lips', label: 'Labios' },
+  { id: 'ears', label: 'Orejas' },
+  { id: 'eyes', label: 'Ojos' },
+  { id: 'neck', label: 'Cuello' },
+  { id: 'back', label: 'Dorso' },
+  { id: 'croup', label: 'Grupa' },
+  { id: 'limbs', label: 'Miembros' },
+  { id: 'tail', label: 'Cola' },
 ] as const;
 
 
 type SessionExerciseResultState = Omit<ExerciseResultInput, 'exerciseId' | 'observations'> & {
-    observations: Omit<ExerciseResultObservations, 'comment'>;
+    observations: Omit<ExerciseResultObservations, 'additionalNotes'> & { additionalNotes?: string | null };
 };
 
 
@@ -328,46 +328,6 @@ const Dashboard = () => {
     performFetchPlans();
   }, [performFetchPlans]);
 
- const performFetchBlocks = useCallback(async (planId: string) => {
-    if (!planId) {
-      setBlocks([]);
-      setSelectedBlock(null);
-      setExercises([]);
-      console.log("[Dashboard] performFetchBlocks: No planId provided. Cleared blocks and exercises.");
-      return;
-    }
-    setIsLoadingBlocks(true);
-    setExercises([]);
-    try {
-      console.log(`[Dashboard] performFetchBlocks: Attempting to fetch trainingBlocks with planId: "${planId}"`);
-      const fetchedBlocks = await getTrainingBlocks(planId);
-      console.log(`[Dashboard] Blocks fetched by getTrainingBlocks for planId ${planId}:`, JSON.parse(JSON.stringify(fetchedBlocks.map(b => ({id: b.id, title: b.title, planId: b.planId, order: b.order})))));
-
-
-      // const sortedBlocks = fetchedBlocks.sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity)); // Already sorted by service
-      setBlocks(fetchedBlocks); // Assuming getTrainingBlocks returns them sorted
-      console.log('[Dashboard] Blocks received and set in state:', JSON.parse(JSON.stringify(fetchedBlocks.map(b => ({id: b.id, title: b.title, order: b.order})))));
-
-
-      if (fetchedBlocks.length === 0) {
-        setSelectedBlock(null);
-        console.log(`[Dashboard] No blocks were found for planId ${planId}. Setting selectedBlock to null.`);
-      } else {
-        console.log(`[Dashboard] ${fetchedBlocks.length} blocks found for planId ${planId}.`);
-
-        performFetchExercisesForPlan(planId, fetchedBlocks);
-      }
-    } catch (error) {
-      console.error(`[Dashboard] Error fetching blocks for plan ${planId}:`, error);
-      toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar las etapas para este plan." });
-      setBlocks([]);
-      setSelectedBlock(null);
-    } finally {
-      setIsLoadingBlocks(false);
-    }
-  }, [toast, performFetchExercisesForPlan]);
-
-
   const performFetchExercisesForPlan = useCallback(async (planId: string, currentPlanBlocks: TrainingBlock[]) => {
     console.log(`[Dashboard] performFetchExercisesForPlan called for planId: ${planId} with ${currentPlanBlocks.length} blocks.`);
     if (!planId || currentPlanBlocks.length === 0) {
@@ -381,7 +341,8 @@ const Dashboard = () => {
       console.log(`[Dashboard] Plan blocks for exercise fetch (planId ${planId}):`, JSON.parse(JSON.stringify(currentPlanBlocks.map(b => ({id: b.id, title: b.title, order: b.order})))));
       for (const block of currentPlanBlocks) {
         console.log(`[Dashboard] Processing block for exercises: planId "${planId}", blockId: "${block.id}" (Etapa: "${block.title}")`);
-        const blockExercises = await getExercises(planId, block.id); // Already sorted by service
+        // Ensure getExercises is called correctly
+        const blockExercises = await getExercises(planId, block.id); 
         console.log(`[Dashboard] ---> Found ${blockExercises.length} exercises for blockId: "${block.id}" (Etapa: "${block.title}")`);
         if (blockExercises.length > 0) {
           console.log(`[Dashboard]      Exercises found:`, JSON.parse(JSON.stringify(blockExercises.map(e => ({ title: e.title, id: e.id, planId: e.planId, blockId: e.blockId, order: e.order })))));
@@ -389,7 +350,6 @@ const Dashboard = () => {
         allExercisesForPlan = [...allExercisesForPlan, ...blockExercises];
       }
 
-      // Sort all exercises based on block order first, then exercise order within block
       const sortedAllExercises = allExercisesForPlan.sort((a, b) => {
         const blockAOrder = currentPlanBlocks.find(bl => bl.id === a.blockId)?.order ?? Infinity;
         const blockBOrder = currentPlanBlocks.find(bl => bl.id === b.blockId)?.order ?? Infinity;
@@ -408,6 +368,44 @@ const Dashboard = () => {
       setIsLoadingExercises(false);
     }
   }, [toast]);
+
+
+ const performFetchBlocks = useCallback(async (planId: string) => {
+    if (!planId) {
+      setBlocks([]);
+      setSelectedBlock(null);
+      setExercises([]);
+      console.log("[Dashboard] performFetchBlocks: No planId provided. Cleared blocks and exercises.");
+      return;
+    }
+    setIsLoadingBlocks(true);
+    setExercises([]); // Clear exercises when fetching blocks for a new plan
+    try {
+      console.log(`[Dashboard] performFetchBlocks: Attempting to fetch trainingBlocks with planId: "${planId}"`);
+      const fetchedBlocks = await getTrainingBlocks(planId);
+      console.log(`[Dashboard] Blocks fetched by getTrainingBlocks for planId ${planId}:`, JSON.parse(JSON.stringify(fetchedBlocks.map(b => ({id: b.id, title: b.title, planId: b.planId, order: b.order})))));
+      
+      setBlocks(fetchedBlocks);
+      console.log('[Dashboard] Blocks received and set in state:', JSON.parse(JSON.stringify(fetchedBlocks.map(b => ({id: b.id, title: b.title, order: b.order})))));
+
+
+      if (fetchedBlocks.length === 0) {
+        setSelectedBlock(null);
+        console.log(`[Dashboard] No blocks were found for planId ${planId}. Setting selectedBlock to null.`);
+      } else {
+        console.log(`[Dashboard] ${fetchedBlocks.length} blocks found for planId ${planId}.`);
+        // Call performFetchExercisesForPlan here, passing the fetchedBlocks directly
+        performFetchExercisesForPlan(planId, fetchedBlocks);
+      }
+    } catch (error) {
+      console.error(`[Dashboard] Error fetching blocks for plan ${planId}:`, error);
+      toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar las etapas para este plan." });
+      setBlocks([]);
+      setSelectedBlock(null);
+    } finally {
+      setIsLoadingBlocks(false);
+    }
+  }, [toast, performFetchExercisesForPlan]);
 
 
  useEffect(() => {
@@ -525,7 +523,7 @@ const Dashboard = () => {
 
   const handleSessionExerciseInputChange = (
     exerciseId: string,
-    field: keyof Omit<SessionExerciseResultState, 'observations'> | `observations.${keyof Omit<ExerciseResultObservations, 'comment'>}`,
+    field: keyof Omit<SessionExerciseResultState, 'observations'> | `observations.${keyof Omit<ExerciseResultObservations, 'additionalNotes'>}` | 'observations.additionalNotes',
     value: string | number | null
   ) => {
     setSessionExerciseResults(prev => {
@@ -536,18 +534,18 @@ const Dashboard = () => {
             doneReps: 0,
             rating: 3,
             observations: {
-              ollaries: null, labios: null, orejas: null, ojos: null, cuello: null,
-              dorso: null, grupa: null, miembros: null, cola: null,
+              nostrils: null, lips: null, ears: null, eyes: null, neck: null,
+              back: null, croup: null, limbs: null, tail: null,
               additionalNotes: ""
             }
         };
 
         if (String(field).startsWith('observations.')) {
-            const obsField = String(field).split('.')[1] as keyof Omit<ExerciseResultObservations, 'comment'>;
+            const obsField = String(field).split('.')[1] as keyof ExerciseResultObservations;
              if (!currentExerciseData.observations) {
                 currentExerciseData.observations = {
-                    ollaries: null, labios: null, orejas: null, ojos: null, cuello: null,
-                    dorso: null, grupa: null, miembros: null, cola: null,
+                    nostrils: null, lips: null, ears: null, eyes: null, neck: null,
+                    back: null, croup: null, limbs: null, tail: null,
                     additionalNotes: ""
                 };
             }
@@ -627,21 +625,21 @@ const handleSaveSessionAndNavigate = async () => {
             const doneRepsValue = resultData?.doneReps ?? 0;
             const ratingValue = resultData?.rating ?? 3;
 
-            let observationsToSave: Omit<ExerciseResultObservations, 'comment'> | null = null;
+            let observationsToSave: Omit<ExerciseResultObservations, 'additionalNotes'> & { additionalNotes?: string | null} | null = null;
              if (resultData?.observations) {
-                const tempObs: Partial<Omit<ExerciseResultObservations, 'comment'>> = {};
+                const tempObs: Partial<ExerciseResultObservations> = {};
                 let hasValidObservation = false;
-                (Object.keys(resultData.observations) as Array<keyof Omit<ExerciseResultObservations, 'comment'>>).forEach(key => {
+                (Object.keys(resultData.observations) as Array<keyof ExerciseResultObservations>).forEach(key => {
                     const obsVal = resultData.observations![key];
                     if (obsVal !== undefined && obsVal !== null && String(obsVal).trim() !== '') {
                         (tempObs as any)[key] = obsVal;
                         hasValidObservation = true;
                     } else {
-                        (tempObs as any)[key] = null;
+                        (tempObs as any)[key] = null; // Explicitly set to null if empty
                     }
                 });
                 if (hasValidObservation) {
-                    observationsToSave = tempObs as Omit<ExerciseResultObservations, 'comment'>;
+                    observationsToSave = tempObs as Omit<ExerciseResultObservations, 'additionalNotes'> & { additionalNotes?: string | null};
                 }
             }
 
@@ -926,7 +924,7 @@ const handleSaveSessionAndNavigate = async () => {
                                             Meta de la Etapa: <span className="font-normal text-muted-foreground">{block.goal}</span>
                                             </p>
                                         )}
-                                        {isLoadingExercises && exercisesForBlock.length === 0 && !selectedPlan && !block ? (
+                                        {isLoadingExercises && exercisesForBlock.length === 0 ? (
                                             <div className="flex items-center justify-center p-4">
                                                 <Icons.spinner className="h-5 w-5 animate-spin mr-2" /> Cargando ejercicios...
                                             </div>
@@ -942,7 +940,7 @@ const handleSaveSessionAndNavigate = async () => {
                                         </DndContext>
                                         ) : (
                                         <p className="text-sm text-muted-foreground p-2">
-                                            No se encontraron ejercicios para la etapa "{block.title}" (ID: {block.id}) en el plan "{selectedPlan?.title}" (ID: {selectedPlan?.id}). Verifica que los ejercicios en Firestore tengan el `planId` y `blockId` correctos.
+                                           No se encontraron ejercicios para la etapa "{block.title}" (ID: {block.id}) en el plan "{selectedPlan?.title}" (ID: {selectedPlan?.id}). Verifica que los ejercicios en Firestore tengan el `planId` y `blockId` correctos.
                                         </p>
                                         )}
                                         <Button size="sm" variant="outline" className="mt-2" onClick={() => openAddExerciseDialog(block.id)}>
@@ -1030,8 +1028,8 @@ const handleSaveSessionAndNavigate = async () => {
                                         rating: 3,
                                         plannedReps: exercise.suggestedReps ?? "",
                                         observations: {
-                                          ollaries: null, labios: null, orejas: null, ojos: null, cuello: null,
-                                          dorso: null, grupa: null, miembros: null, cola: null,
+                                          nostrils: null, lips: null, ears: null, eyes: null, neck: null,
+                                          back: null, croup: null, limbs: null, tail: null,
                                           additionalNotes: ""
                                         }
                                     };
@@ -1092,8 +1090,8 @@ const handleSaveSessionAndNavigate = async () => {
                                                       <div key={zone.id} className="space-y-1">
                                                         <Label htmlFor={`obs-${exercise.id}-${zone.id}`}>{zone.label}</Label>
                                                         <Select
-                                                          value={currentResult.observations?.[zone.id as keyof Omit<ExerciseResultObservations, 'comment' | 'additionalNotes'>] || ''}
-                                                          onValueChange={(value) => handleSessionExerciseInputChange(exercise.id, `observations.${zone.id as keyof Omit<ExerciseResultObservations, 'comment' | 'additionalNotes'>}`, value === 'N/A' ? 'N/A' : (value || null))}
+                                                          value={currentResult.observations?.[zone.id as keyof Omit<ExerciseResultObservations, 'additionalNotes'>] || ''}
+                                                          onValueChange={(value) => handleSessionExerciseInputChange(exercise.id, `observations.${zone.id as keyof Omit<ExerciseResultObservations, 'additionalNotes'>}`, value === 'N/A' ? 'N/A' : (value || null))}
                                                         >
                                                           <SelectTrigger id={`obs-${exercise.id}-${zone.id}`}>
                                                             <SelectValue placeholder={`Estado de ${zone.label.toLowerCase()}`} />
