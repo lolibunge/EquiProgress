@@ -21,7 +21,7 @@ export default function Home() {
 
   if (!currentUser) {
     return (
-      <div className="container flex flex-col items-center justify-center py-10 text-center">
+      <div className="container mx-auto flex flex-col items-center justify-center py-10 text-center">
         <Card className="w-full max-w-lg">
             <CardHeader>
                 <CardTitle className="text-3xl font-bold">¡Bienvenido/a a EquiProgress!</CardTitle>

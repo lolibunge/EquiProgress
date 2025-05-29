@@ -225,7 +225,7 @@ export default function HorseHistory({ preselectedHorse }: HorseHistoryProps) {
   };
 
   return (
-    <div className="container py-10">
+    <div className="container mx-auto py-10">
       {!preselectedHorse && ( // Only show selector if no horse is preselected
         <Card className="mb-6">
           <CardHeader>

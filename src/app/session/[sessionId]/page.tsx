@@ -64,10 +64,10 @@ interface ExerciseResultWithDetails extends ExerciseResult {
 }
 
 // Helper type for editable exercise results
-type EditableExerciseResult = Omit<ExerciseResultWithDetails, 'createdAt' | 'updatedAt' | 'id' | 'exerciseId' | 'observations' | 'comment'> & {
+type EditableExerciseResult = Omit<ExerciseResultWithDetails, 'createdAt' | 'updatedAt' | 'id' | 'exerciseId' | 'observations'> & {
   id: string; 
   exerciseId: string;
-  observations: Omit<ExerciseResultObservations, 'comment' | 'overallBehavior'>; 
+  observations: Omit<ExerciseResultObservations, 'overallBehavior'>; 
 };
 
 
@@ -176,7 +176,7 @@ function SessionDetailContent() {
 
   const handleExerciseResultChange = (
     exerciseResultId: string,
-    field: keyof Omit<EditableExerciseResult, 'id' | 'exerciseId' | 'exerciseDetails' | 'observations'> | `observations.${keyof Omit<ExerciseResultObservations, 'comment' | 'overallBehavior'>}`,
+    field: keyof Omit<EditableExerciseResult, 'id' | 'exerciseId' | 'exerciseDetails' | 'observations'> | `observations.${keyof Omit<ExerciseResultObservations, 'overallBehavior'>}`,
     value: string | number | null
   ) => {
     setEditableExerciseResults(prev => 
@@ -184,7 +184,7 @@ function SessionDetailContent() {
             if (er.id === exerciseResultId) {
                 const updatedEr = { ...er };
                 if (String(field).startsWith('observations.')) {
-                    const obsField = String(field).split('.')[1] as keyof Omit<ExerciseResultObservations, 'comment' | 'overallBehavior'>;
+                    const obsField = String(field).split('.')[1] as keyof Omit<ExerciseResultObservations, 'overallBehavior'>;
                     updatedEr.observations = {
                         ...(updatedEr.observations || { 
                             nostrils: null, lips: null, ears: null, eyes: null, neck: null,
@@ -328,7 +328,7 @@ function SessionDetailContent() {
 
   if (error) {
     return (
-      <div className="container py-10 text-center">
+      <div className="container mx-auto py-10 text-center">
         <Alert variant="destructive">
           <AlertTitle>Error</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
@@ -342,7 +342,7 @@ function SessionDetailContent() {
 
   if (!session) {
     return (
-      <div className="container py-10 text-center">
+      <div className="container mx-auto py-10 text-center">
         <p>No se encontró la sesión.</p>
         <Button onClick={() => router.back()} className="mt-4">
            <Icons.arrowRight className="mr-2 h-4 w-4 rotate-180" /> Volver
@@ -352,7 +352,7 @@ function SessionDetailContent() {
   }
 
   return (
-    <div className="container py-10">
+    <div className="container mx-auto py-10">
       <Card className="w-full max-w-3xl mx-auto">
         <CardHeader>
           <CardTitle className="text-2xl md:text-3xl">
@@ -462,8 +462,8 @@ function SessionDetailContent() {
                             <div key={zone.id}>
                               <Label htmlFor={`obs-${result.id}-${zone.id}`}>{zone.label}</Label>
                               <Select
-                                value={result.observations?.[zone.id as keyof Omit<ExerciseResultObservations, 'comment' | 'overallBehavior'>] || ''}
-                                onValueChange={(value) => handleExerciseResultChange(result.id, `observations.${zone.id as keyof Omit<ExerciseResultObservations, 'comment' | 'overallBehavior'>}`, value === 'N/A' ? 'N/A' : (value || null))}
+                                value={result.observations?.[zone.id as keyof Omit<ExerciseResultObservations, 'overallBehavior'>] || ''}
+                                onValueChange={(value) => handleExerciseResultChange(result.id, `observations.${zone.id as keyof Omit<ExerciseResultObservations, 'overallBehavior'>}`, value === 'N/A' ? 'N/A' : (value || null))}
                               >
                                 <SelectTrigger id={`obs-${result.id}-${zone.id}`}>
                                   <SelectValue placeholder="Estado..." />

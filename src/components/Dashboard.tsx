@@ -17,7 +17,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from 'next/navigation';
 
-import { createSession, addExerciseResult, getSession, getExerciseResults, updateExerciseResultObservations } from "@/services/session";
+import { createSession, addExerciseResult, getSession, getExerciseResults, updateExerciseResult } from "@/services/session";
 import { getHorses as fetchHorsesService, getHorseById } from "@/services/horse";
 import { getTrainingPlans, getTrainingBlocks, getExercises, getExercise, debugGetBlocksForPlan, getBlockById, deleteTrainingPlan, updateExercisesOrder, deleteTrainingBlock, updateTrainingBlock, deleteExercise, updateExercise, updateBlocksOrder } from "@/services/firestore";
 import type { Horse, TrainingPlan, TrainingBlock, Exercise, ExerciseResult, SessionDataInput, ExerciseResultInput, SessionData, ExerciseResultObservations } from "@/types/firestore";
@@ -110,7 +110,7 @@ const OBSERVATION_ZONES = [
 
 
 type SessionExerciseResultState = Omit<ExerciseResultInput, 'exerciseId' | 'observations'> & {
-    observations: Omit<ExerciseResultObservations, 'comment' | 'overallBehavior'>;
+    observations: Omit<ExerciseResultObservations, 'overallBehavior'>;
 };
 
 
@@ -198,8 +198,8 @@ function SortableBlockAccordionItem({ block, children, onEditBlock }: SortableBl
       style={style}
       className="bg-card border mb-1 rounded-md shadow-sm" 
     >
-      <div className="flex items-center w-full"> 
-        <AccordionTrigger {...attributes} {...listeners} className="flex-grow text-left p-4 hover:no-underline">
+       <div className="flex items-center justify-between w-full group">
+        <AccordionTrigger {...attributes} {...listeners} className="flex-grow p-4 hover:no-underline text-left">
             <span className="flex-grow">
               {block.title}
               {block.notes && <span className="block sm:inline text-xs text-muted-foreground ml-0 sm:ml-2">- {block.notes}</span>}
@@ -211,7 +211,7 @@ function SortableBlockAccordionItem({ block, children, onEditBlock }: SortableBl
             asChild
             variant="ghost"
             size="icon"
-            className="ml-2 mr-2 h-7 w-7 flex-shrink-0" 
+            className="ml-2 mr-2 h-7 w-7 flex-shrink-0 opacity-0 group-hover:opacity-100" 
             onClick={(e) => {
                 e.stopPropagation(); 
                 onEditBlock(block);
@@ -524,7 +524,7 @@ const Dashboard = () => {
 
   const handleSessionExerciseInputChange = (
     exerciseId: string,
-    field: keyof Omit<SessionExerciseResultState, 'observations'> | `observations.${keyof ExerciseResultObservations}`,
+    field: keyof Omit<SessionExerciseResultState, 'observations'> | `observations.${keyof Omit<ExerciseResultObservations, 'overallBehavior'>}`,
     value: string | number | null
   ) => {
     setSessionExerciseResults(prev => {
@@ -542,7 +542,7 @@ const Dashboard = () => {
         };
 
         if (String(field).startsWith('observations.')) {
-            const obsField = String(field).split('.')[1] as keyof ExerciseResultObservations;
+            const obsField = String(field).split('.')[1] as keyof Omit<ExerciseResultObservations, 'overallBehavior'>;
              if (!currentExerciseData.observations) { 
                 currentExerciseData.observations = {
                     nostrils: null, lips: null, ears: null, eyes: null, neck: null,
@@ -626,11 +626,11 @@ const handleSaveSessionAndNavigate = async () => {
             const doneRepsValue = resultData?.doneReps ?? 0;
             const ratingValue = resultData?.rating ?? 3;
 
-            let observationsToSave: Omit<ExerciseResultObservations, 'comment' | 'overallBehavior'> | null = null;
+            let observationsToSave: Omit<ExerciseResultObservations, 'overallBehavior'> | null = null;
              if (resultData?.observations) {
-                const tempObs: Partial<Omit<ExerciseResultObservations, 'comment' | 'overallBehavior'>> = {}; 
+                const tempObs: Partial<Omit<ExerciseResultObservations, 'overallBehavior'>> = {}; 
                 let hasValidObservation = false;
-                (Object.keys(resultData.observations) as Array<keyof Omit<ExerciseResultObservations, 'comment' | 'overallBehavior'>>).forEach(key => {
+                (Object.keys(resultData.observations) as Array<keyof Omit<ExerciseResultObservations, 'overallBehavior'>>).forEach(key => {
                     const obsVal = resultData.observations![key];
                     if (obsVal !== undefined && obsVal !== null && String(obsVal).trim() !== '') {
                         (tempObs as any)[key] = obsVal;
@@ -640,7 +640,7 @@ const handleSaveSessionAndNavigate = async () => {
                     }
                 });
                 if (hasValidObservation) {
-                    observationsToSave = tempObs as Omit<ExerciseResultObservations, 'comment' | 'overallBehavior'>;
+                    observationsToSave = tempObs as Omit<ExerciseResultObservations, 'overallBehavior'>;
                 }
             }
 
@@ -774,7 +774,7 @@ const handleSaveSessionAndNavigate = async () => {
 
 
   return (
-    <div className="container py-10">
+    <div className="container mx-auto py-10">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
 
         <div className="md:col-span-2 space-y-6">
@@ -1077,7 +1077,7 @@ const handleSaveSessionAndNavigate = async () => {
                                             
                                             <div className="pt-3 border-t mt-3">
                                                 <h4 className="text-md font-semibold mb-2">Observaciones del Ejercicio:</h4>
-                                                <div className="mt-3 space-y-1">
+                                                 <div className="mt-3 space-y-1">
                                                     <Label htmlFor={`obs-additionalNotes-${exercise.id}`}>Notas Adicionales (del ejercicio)</Label>
                                                     <Textarea
                                                       id={`obs-additionalNotes-${exercise.id}`}
@@ -1091,8 +1091,8 @@ const handleSaveSessionAndNavigate = async () => {
                                                       <div key={zone.id} className="space-y-1">
                                                         <Label htmlFor={`obs-${exercise.id}-${zone.id}`}>{zone.label}</Label>
                                                         <Select
-                                                          value={currentResult.observations?.[zone.id as keyof Omit<ExerciseResultObservations, 'comment' | 'overallBehavior'>] || ''}
-                                                          onValueChange={(value) => handleSessionExerciseInputChange(exercise.id, `observations.${zone.id as keyof Omit<ExerciseResultObservations, 'comment' | 'overallBehavior'>}`, value === 'N/A' ? 'N/A' : (value || null))}
+                                                          value={currentResult.observations?.[zone.id as keyof Omit<ExerciseResultObservations, 'overallBehavior'>] || ''}
+                                                          onValueChange={(value) => handleSessionExerciseInputChange(exercise.id, `observations.${zone.id as keyof Omit<ExerciseResultObservations, 'overallBehavior'>}`, value === 'N/A' ? 'N/A' : (value || null))}
                                                         >
                                                           <SelectTrigger id={`obs-${exercise.id}-${zone.id}`}>
                                                             <SelectValue placeholder={`Estado de ${zone.label.toLowerCase()}`} />
