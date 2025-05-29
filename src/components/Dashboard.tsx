@@ -110,7 +110,7 @@ const OBSERVATION_ZONES = [
 
 
 type SessionExerciseResultState = Omit<ExerciseResultInput, 'exerciseId' | 'observations'> & {
-    observations: Omit<ExerciseResultObservations, 'overallBehavior'>;
+    observations: Omit<ExerciseResultObservations, 'comment' | 'overallBehavior'>;
 };
 
 
@@ -543,7 +543,7 @@ const Dashboard = () => {
 
         if (String(field).startsWith('observations.')) {
             const obsField = String(field).split('.')[1] as keyof ExerciseResultObservations;
-             if (!currentExerciseData.observations) { // Should not happen with new init
+             if (!currentExerciseData.observations) { 
                 currentExerciseData.observations = {
                     nostrils: null, lips: null, ears: null, eyes: null, neck: null,
                     back: null, croup: null, limbs: null, tail: null,
@@ -626,11 +626,11 @@ const handleSaveSessionAndNavigate = async () => {
             const doneRepsValue = resultData?.doneReps ?? 0;
             const ratingValue = resultData?.rating ?? 3;
 
-            let observationsToSave: ExerciseResultObservations | null = null;
+            let observationsToSave: Omit<ExerciseResultObservations, 'comment' | 'overallBehavior'> | null = null;
              if (resultData?.observations) {
-                const tempObs: Partial<ExerciseResultObservations> = {}; 
+                const tempObs: Partial<Omit<ExerciseResultObservations, 'comment' | 'overallBehavior'>> = {}; 
                 let hasValidObservation = false;
-                (Object.keys(resultData.observations) as Array<keyof ExerciseResultObservations>).forEach(key => {
+                (Object.keys(resultData.observations) as Array<keyof Omit<ExerciseResultObservations, 'comment' | 'overallBehavior'>>).forEach(key => {
                     const obsVal = resultData.observations![key];
                     if (obsVal !== undefined && obsVal !== null && String(obsVal).trim() !== '') {
                         (tempObs as any)[key] = obsVal;
@@ -640,7 +640,7 @@ const handleSaveSessionAndNavigate = async () => {
                     }
                 });
                 if (hasValidObservation) {
-                    observationsToSave = tempObs as ExerciseResultObservations;
+                    observationsToSave = tempObs as Omit<ExerciseResultObservations, 'comment' | 'overallBehavior'>;
                 }
             }
 
@@ -1077,13 +1077,22 @@ const handleSaveSessionAndNavigate = async () => {
                                             
                                             <div className="pt-3 border-t mt-3">
                                                 <h4 className="text-md font-semibold mb-2">Observaciones del Ejercicio:</h4>
-                                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                                                <div className="mt-3 space-y-1">
+                                                    <Label htmlFor={`obs-additionalNotes-${exercise.id}`}>Notas Adicionales (del ejercicio)</Label>
+                                                    <Textarea
+                                                      id={`obs-additionalNotes-${exercise.id}`}
+                                                      placeholder="Otras notas específicas del ejercicio..."
+                                                      value={currentResult.observations?.additionalNotes || ''}
+                                                      onChange={(e) => handleSessionExerciseInputChange(exercise.id, `observations.additionalNotes`, e.target.value)}
+                                                    />
+                                                </div>
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 mt-3">
                                                     {OBSERVATION_ZONES.map(zone => (
                                                       <div key={zone.id} className="space-y-1">
                                                         <Label htmlFor={`obs-${exercise.id}-${zone.id}`}>{zone.label}</Label>
                                                         <Select
-                                                          value={currentResult.observations?.[zone.id as keyof ExerciseResultObservations] || ''}
-                                                          onValueChange={(value) => handleSessionExerciseInputChange(exercise.id, `observations.${zone.id as keyof ExerciseResultObservations}`, value === 'N/A' ? 'N/A' : (value || null))}
+                                                          value={currentResult.observations?.[zone.id as keyof Omit<ExerciseResultObservations, 'comment' | 'overallBehavior'>] || ''}
+                                                          onValueChange={(value) => handleSessionExerciseInputChange(exercise.id, `observations.${zone.id as keyof Omit<ExerciseResultObservations, 'comment' | 'overallBehavior'>}`, value === 'N/A' ? 'N/A' : (value || null))}
                                                         >
                                                           <SelectTrigger id={`obs-${exercise.id}-${zone.id}`}>
                                                             <SelectValue placeholder={`Estado de ${zone.label.toLowerCase()}`} />
@@ -1098,15 +1107,6 @@ const handleSaveSessionAndNavigate = async () => {
                                                         </Select>
                                                       </div>
                                                     ))}
-                                                </div>
-                                                <div className="mt-3 space-y-1">
-                                                    <Label htmlFor={`obs-additionalNotes-${exercise.id}`}>Notas Adicionales (del ejercicio)</Label>
-                                                    <Textarea
-                                                      id={`obs-additionalNotes-${exercise.id}`}
-                                                      placeholder="Otras notas específicas del ejercicio..."
-                                                      value={currentResult.observations?.additionalNotes || ''}
-                                                      onChange={(e) => handleSessionExerciseInputChange(exercise.id, `observations.additionalNotes`, e.target.value)}
-                                                    />
                                                 </div>
                                             </div>
                                         </Card>
@@ -1281,3 +1281,4 @@ const handleSaveSessionAndNavigate = async () => {
 };
 
 export default Dashboard;
+

@@ -23,7 +23,7 @@ import { Slider } from '@/components/ui/slider';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { Timestamp, writeBatch } from 'firebase/firestore';
+import { Timestamp } from 'firebase/firestore';
 import { db } from '@/firebase';
 
 import {
@@ -64,10 +64,10 @@ interface ExerciseResultWithDetails extends ExerciseResult {
 }
 
 // Helper type for editable exercise results
-type EditableExerciseResult = Omit<ExerciseResultWithDetails, 'createdAt' | 'updatedAt' | 'id' | 'exerciseId' | 'observations'> & {
+type EditableExerciseResult = Omit<ExerciseResultWithDetails, 'createdAt' | 'updatedAt' | 'id' | 'exerciseId' | 'observations' | 'comment'> & {
   id: string; 
   exerciseId: string;
-  observations: Omit<ExerciseResultObservations, 'overallBehavior'>; 
+  observations: Omit<ExerciseResultObservations, 'comment' | 'overallBehavior'>; 
 };
 
 
@@ -176,7 +176,7 @@ function SessionDetailContent() {
 
   const handleExerciseResultChange = (
     exerciseResultId: string,
-    field: keyof Omit<EditableExerciseResult, 'id' | 'exerciseId' | 'exerciseDetails' | 'observations'> | `observations.${keyof ExerciseResultObservations}`,
+    field: keyof Omit<EditableExerciseResult, 'id' | 'exerciseId' | 'exerciseDetails' | 'observations'> | `observations.${keyof Omit<ExerciseResultObservations, 'comment' | 'overallBehavior'>}`,
     value: string | number | null
   ) => {
     setEditableExerciseResults(prev => 
@@ -184,7 +184,7 @@ function SessionDetailContent() {
             if (er.id === exerciseResultId) {
                 const updatedEr = { ...er };
                 if (String(field).startsWith('observations.')) {
-                    const obsField = String(field).split('.')[1] as keyof ExerciseResultObservations;
+                    const obsField = String(field).split('.')[1] as keyof Omit<ExerciseResultObservations, 'comment' | 'overallBehavior'>;
                     updatedEr.observations = {
                         ...(updatedEr.observations || { 
                             nostrils: null, lips: null, ears: null, eyes: null, neck: null,
@@ -447,13 +447,23 @@ function SessionDetailContent() {
                     
                     <div className="pt-4 border-t">
                         <h5 className="font-semibold text-md mb-3">Observaciones del Ejercicio:</h5>
+                        <div className="mb-3">
+                            <Label htmlFor={`obs-notes-${result.id}`}>Notas Adicionales (del ejercicio)</Label>
+                             <Textarea
+                                id={`obs-notes-${result.id}`}
+                                value={result.observations?.additionalNotes || ''}
+                                onChange={(e) => handleExerciseResultChange(result.id, `observations.additionalNotes`, e.target.value)}
+                                placeholder="Otras notas relevantes sobre este ejercicio..."
+                                className="min-h-[80px] whitespace-pre-wrap"
+                            />
+                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-3 text-sm">
                           {OBSERVATION_ZONES.map(zone => (
                             <div key={zone.id}>
                               <Label htmlFor={`obs-${result.id}-${zone.id}`}>{zone.label}</Label>
                               <Select
-                                value={result.observations?.[zone.id as keyof Omit<ExerciseResultObservations, 'overallBehavior'>] || ''}
-                                onValueChange={(value) => handleExerciseResultChange(result.id, `observations.${zone.id as keyof Omit<ExerciseResultObservations, 'overallBehavior'>}`, value === 'N/A' ? 'N/A' : (value || null))}
+                                value={result.observations?.[zone.id as keyof Omit<ExerciseResultObservations, 'comment' | 'overallBehavior'>] || ''}
+                                onValueChange={(value) => handleExerciseResultChange(result.id, `observations.${zone.id as keyof Omit<ExerciseResultObservations, 'comment' | 'overallBehavior'>}`, value === 'N/A' ? 'N/A' : (value || null))}
                               >
                                 <SelectTrigger id={`obs-${result.id}-${zone.id}`}>
                                   <SelectValue placeholder="Estado..." />
@@ -469,16 +479,6 @@ function SessionDetailContent() {
                             </div>
                           ))}
                         </div>
-                         <div>
-                            <Label htmlFor={`obs-notes-${result.id}`}>Notas Adicionales (del ejercicio)</Label>
-                             <Textarea
-                                id={`obs-notes-${result.id}`}
-                                value={result.observations?.additionalNotes || ''}
-                                onChange={(e) => handleExerciseResultChange(result.id, `observations.additionalNotes`, e.target.value)}
-                                placeholder="Otras notas relevantes sobre este ejercicio..."
-                                className="min-h-[80px] whitespace-pre-wrap"
-                            />
-                         </div>
                       </div>
                   </Card>
                 ))}
@@ -534,3 +534,4 @@ export default function SessionDetailPage() {
     </Suspense>
   );
 }
+
