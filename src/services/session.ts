@@ -55,7 +55,10 @@ export async function addExerciseResult(horseId: string, sessionId: string, exer
     : null;
 
   const newExerciseResultDoc: Omit<ExerciseResult, 'id' | 'createdAt' | 'updatedAt'> & { createdAt: Timestamp, updatedAt: Timestamp } = {
-    ...exerciseResultData,
+    exerciseId: exerciseResultData.exerciseId,
+    plannedReps: exerciseResultData.plannedReps,
+    doneReps: exerciseResultData.doneReps,
+    rating: exerciseResultData.rating,
     observations: observationsToSave,
     createdAt: serverTimestamp() as Timestamp,
     updatedAt: serverTimestamp() as Timestamp,
@@ -89,9 +92,19 @@ export async function updateExerciseResult(
     throw new Error("Horse ID, Session ID, and Exercise Result ID are required.");
   }
   const exerciseResultDocRef = doc(db, 'horses', horseId, 'sessions', sessionId, 'exerciseResults', exerciseResultId);
+  
+  const updateData: any = { ...data };
+  if (data.observations && Object.keys(data.observations).length === 0) {
+    updateData.observations = null;
+  } else if (data.observations) {
+    // Ensure only valid fields are passed if necessary, or trust ExerciseResultUpdateData type
+    updateData.observations = data.observations;
+  }
+
+
   try {
     await updateDoc(exerciseResultDocRef, {
-      ...data,
+      ...updateData,
       updatedAt: serverTimestamp() as Timestamp,
     });
     console.log(`Exercise result ${exerciseResultId} updated successfully.`);
@@ -141,6 +154,7 @@ export async function getExerciseResults(horseId: string, sessionId: string): Pr
   }
   try {
     const exerciseResultsRef = collection(db, 'horses', horseId, 'sessions', sessionId, 'exerciseResults');
+    // Temporarily removing orderBy for diagnostics if issues persist, otherwise use createdAt or a specific order field if exists.
     const q = query(exerciseResultsRef, orderBy("createdAt", "asc")); 
     const querySnapshot = await getDocs(q);
     const results: ExerciseResult[] = [];

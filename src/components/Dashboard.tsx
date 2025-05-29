@@ -109,7 +109,10 @@ const OBSERVATION_ZONES = [
 ] as const;
 
 
-type SessionExerciseResultState = Omit<ExerciseResultInput, 'exerciseId'>;
+type SessionExerciseResultState = Omit<ExerciseResultInput, 'exerciseId' | 'observations'> & {
+    observations: Omit<ExerciseResultObservations, 'overallBehavior'>;
+};
+
 
 interface SortableExerciseItemProps {
   exercise: Exercise;
@@ -147,13 +150,13 @@ function SortableExerciseItem({ exercise, onEdit }: SortableExerciseItemProps) {
         {exercise.description && <p className="text-xs text-muted-foreground pl-2">- Desc: {exercise.description}</p>}
         {exercise.objective && <p className="text-xs text-muted-foreground pl-2">- Obj: {exercise.objective}</p>}
       </div>
-      <Button 
+       <Button 
         asChild 
         variant="ghost" 
         size="icon" 
         className="ml-2 h-7 w-7 opacity-0 group-hover:opacity-100 flex-shrink-0" 
         onClick={(e) => { 
-            e.stopPropagation(); // Prevent accordion toggle if button is inside trigger
+            e.stopPropagation(); 
             onEdit(exercise);
         }}
        >
@@ -168,7 +171,7 @@ function SortableExerciseItem({ exercise, onEdit }: SortableExerciseItemProps) {
 
 interface SortableBlockAccordionItemProps {
   block: TrainingBlock;
-  children: ReactNode; // For AccordionContent
+  children: ReactNode; 
   onEditBlock: (block: TrainingBlock) => void;
 }
 
@@ -195,8 +198,8 @@ function SortableBlockAccordionItem({ block, children, onEditBlock }: SortableBl
       style={style}
       className="bg-card border mb-1 rounded-md shadow-sm" 
     >
-      <div className="flex items-center" {...attributes} {...listeners} > 
-        <AccordionTrigger className="flex-grow text-left">
+      <div className="flex items-center w-full"> 
+        <AccordionTrigger {...attributes} {...listeners} className="flex-grow text-left p-4 hover:no-underline">
             <span className="flex-grow">
               {block.title}
               {block.notes && <span className="block sm:inline text-xs text-muted-foreground ml-0 sm:ml-2">- {block.notes}</span>}
@@ -268,7 +271,7 @@ const Dashboard = () => {
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 8, // User must drag at least 8px to start a drag
+        distance: 8, 
       },
     }),
     useSensor(KeyboardSensor, {
@@ -340,16 +343,18 @@ const Dashboard = () => {
       const fetchedBlocks = await getTrainingBlocks(planId);
       console.log(`[Dashboard] Blocks fetched by getTrainingBlocks for planId ${planId}:`, JSON.parse(JSON.stringify(fetchedBlocks.map(b => ({id: b.id, title: b.title, planId: b.planId, order: b.order})))));
       
-      // Ensure blocks are sorted by order for the state
+      
       const sortedBlocks = fetchedBlocks.sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity));
       setBlocks(sortedBlocks);
+      console.log('[Dashboard] Blocks received and set in state:', JSON.parse(JSON.stringify(sortedBlocks.map(b => ({id: b.id, title: b.title, order: b.order})))));
+
 
       if (sortedBlocks.length === 0) {
         setSelectedBlock(null);
         console.log(`[Dashboard] No blocks were found for planId ${planId}. Setting selectedBlock to null.`);
       } else {
         console.log(`[Dashboard] ${sortedBlocks.length} blocks found for planId ${planId}.`);
-        // Pass sortedBlocks to performFetchExercisesForPlan
+        
         performFetchExercisesForPlan(planId, sortedBlocks); 
       }
     } catch (error) {
@@ -360,7 +365,7 @@ const Dashboard = () => {
     } finally {
       setIsLoadingBlocks(false);
     }
-  }, [toast]); // Removed performFetchExercisesForPlan from dependencies to avoid potential loops, pass blocks directly
+  }, [toast]); 
 
 
   const performFetchExercisesForPlan = useCallback(async (planId: string, currentPlanBlocks: TrainingBlock[]) => {
@@ -383,7 +388,7 @@ const Dashboard = () => {
         }
         allExercisesForPlan = [...allExercisesForPlan, ...blockExercises];
       }
-      // Ensure exercises are sorted by their block's order first, then by their own order
+      
       const sortedAllExercises = allExercisesForPlan.sort((a, b) => {
         const blockAOrder = currentPlanBlocks.find(bl => bl.id === a.blockId)?.order ?? Infinity;
         const blockBOrder = currentPlanBlocks.find(bl => bl.id === b.blockId)?.order ?? Infinity;
@@ -404,7 +409,7 @@ const Dashboard = () => {
   }, [toast]);
 
 
-  useEffect(() => {
+ useEffect(() => {
     if (selectedPlan?.id) {
       console.log(`[Dashboard] useEffect[selectedPlan]: Plan selected, ID: ${selectedPlan.id}. Fetching blocks.`);
       performFetchBlocks(selectedPlan.id);
@@ -529,21 +534,20 @@ const Dashboard = () => {
             plannedReps: exerciseDetails?.suggestedReps ?? "",
             doneReps: 0,
             rating: 3,
-            comment: "",
             observations: {
               nostrils: null, lips: null, ears: null, eyes: null, neck: null,
               back: null, croup: null, limbs: null, tail: null,
-              overallBehavior: "", additionalNotes: ""
+              additionalNotes: ""
             }
         };
 
-        if (field.startsWith('observations.')) {
-            const obsField = field.split('.')[1] as keyof ExerciseResultObservations;
-            if (!currentExerciseData.observations) {
+        if (String(field).startsWith('observations.')) {
+            const obsField = String(field).split('.')[1] as keyof ExerciseResultObservations;
+             if (!currentExerciseData.observations) { // Should not happen with new init
                 currentExerciseData.observations = {
                     nostrils: null, lips: null, ears: null, eyes: null, neck: null,
                     back: null, croup: null, limbs: null, tail: null,
-                    overallBehavior: "", additionalNotes: ""
+                    additionalNotes: ""
                 };
             }
             currentExerciseData = {
@@ -555,7 +559,7 @@ const Dashboard = () => {
             };
         } else if (field === 'doneReps' || field === 'rating') {
             (currentExerciseData as any)[field] = Number(value);
-        } else { 
+        } else if (field === 'plannedReps') { 
             (currentExerciseData as any)[field] = String(value);
         }
         newMap.set(exerciseId, currentExerciseData);
@@ -621,7 +625,6 @@ const handleSaveSessionAndNavigate = async () => {
             const plannedRepsValue = resultData?.plannedReps ?? exercise?.suggestedReps ?? '';
             const doneRepsValue = resultData?.doneReps ?? 0;
             const ratingValue = resultData?.rating ?? 3;
-            const commentValue = resultData?.comment ?? "";
 
             let observationsToSave: ExerciseResultObservations | null = null;
              if (resultData?.observations) {
@@ -647,7 +650,6 @@ const handleSaveSessionAndNavigate = async () => {
                 plannedReps: String(plannedRepsValue),
                 doneReps: Number(doneRepsValue),
                 rating: Number(ratingValue),
-                comment: String(commentValue),
                 observations: observationsToSave,
             });
         });
@@ -756,6 +758,8 @@ const handleSaveSessionAndNavigate = async () => {
         updateBlocksOrder(selectedPlan.id, dbPayload)
           .then(() => {
             toast({ title: "Orden de etapas actualizado", description: "El nuevo orden de etapas ha sido guardado." });
+            // After successfully saving, re-fetch exercises to ensure their order reflects the new block order
+             performFetchExercisesForPlan(selectedPlan.id, updatedBlocksForDb);
           })
           .catch(err => {
             console.error("Error updating blocks order in DB:", err);
@@ -891,7 +895,7 @@ const handleSaveSessionAndNavigate = async () => {
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>
                                     <AlertDialogCancel disabled={isDeletingPlan}>Cancelar</AlertDialogCancel>
-                                    <AlertDialogAction onClick={handleDeleteSelectedPlan} disabled={isDeletingPlan}>
+                                    <AlertDialogAction onClick={handleDeleteSelectedPlan} disabled={isDeletingPlan} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
                                         {isDeletingPlan && <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />}
                                         Sí, eliminar plan
                                     </AlertDialogAction>
@@ -922,7 +926,9 @@ const handleSaveSessionAndNavigate = async () => {
                                             </p>
                                         )}
                                         {isLoadingExercises && exercisesForBlock.length === 0 && !selectedPlan && !block ? (
-                                            <p>Cargando ejercicios...</p>
+                                            <div className="flex items-center justify-center p-4">
+                                                <Icons.spinner className="h-5 w-5 animate-spin mr-2" /> Cargando ejercicios...
+                                            </div>
                                         ) : exercisesForBlock.length > 0 ? (
                                         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndExercises}>
                                             <SortableContext items={exercisesForBlock.map(e => e.id)} strategy={verticalListSortingStrategy}>
@@ -934,7 +940,7 @@ const handleSaveSessionAndNavigate = async () => {
                                             </SortableContext>
                                         </DndContext>
                                         ) : (
-                                        <p className="text-sm text-muted-foreground">
+                                        <p className="text-sm text-muted-foreground p-2">
                                             No se encontraron ejercicios para la etapa "{block.title}" (ID: {block.id}) en el plan "{selectedPlan?.title}" (ID: {selectedPlan?.id}). Verifica que los ejercicios en Firestore tengan el `planId` y `blockId` correctos.
                                         </p>
                                         )}
@@ -946,9 +952,13 @@ const handleSaveSessionAndNavigate = async () => {
                                 )})}
                                 </Accordion>
                             </SortableContext>
-                          {isLoadingBlocks && blocks.length === 0 && <p>Cargando etapas...</p>}
+                          {isLoadingBlocks && blocks.length === 0 && (
+                            <div className="flex items-center justify-center p-4">
+                                <Icons.spinner className="h-5 w-5 animate-spin mr-2" /> Cargando etapas...
+                            </div>
+                          )}
                           {!isLoadingBlocks && blocks.length === 0 && selectedPlan && (
-                            <p className="text-sm text-muted-foreground">Este plan no tiene etapas definidas. (Plan ID: {selectedPlan.id})</p>
+                            <p className="text-sm text-muted-foreground p-2">Este plan no tiene etapas definidas. (Plan ID: {selectedPlan.id})</p>
                           )}
                           <div className="flex flex-wrap justify-end mt-4 gap-2">
                               <Button onClick={() => setIsAddBlockDialogOpen(true)} disabled={!selectedPlan || isLoadingBlocks}>
@@ -957,7 +967,7 @@ const handleSaveSessionAndNavigate = async () => {
                           </div>
                          </DndContext>
                         ) : (
-                          <p className="text-sm text-muted-foreground">Selecciona o crea un plan de entrenamiento para ver sus detalles y gestionarlo.</p>
+                          <p className="text-sm text-muted-foreground p-2">Selecciona o crea un plan de entrenamiento para ver sus detalles y gestionarlo.</p>
                         )}
                       </CardContent>
                     </Card>
@@ -1009,18 +1019,19 @@ const handleSaveSessionAndNavigate = async () => {
                             />
 
                             {isLoadingExercises && exercises.filter(ex => ex.blockId === selectedBlock.id && selectedPlan && ex.planId === selectedPlan.id).length === 0 ? (
-                                <p>Cargando ejercicios...</p>
+                                <div className="flex items-center justify-center p-4">
+                                    <Icons.spinner className="h-5 w-5 animate-spin mr-2" /> Cargando ejercicios...
+                                </div>
                             ) : exercises.filter(ex => ex.blockId === selectedBlock.id && selectedPlan && ex.planId === selectedPlan.id).length > 0 ? (
                                 exercises.filter(ex => ex.blockId === selectedBlock.id && selectedPlan && ex.planId === selectedPlan.id).sort((a,b) => (a.order ?? Infinity) - (b.order ?? Infinity)).map(exercise => {
                                     const currentResult = sessionExerciseResults.get(exercise.id) || {
                                         doneReps: 0,
                                         rating: 3,
-                                        comment: "",
                                         plannedReps: exercise.suggestedReps ?? "",
                                         observations: {
                                           nostrils: null, lips: null, ears: null, eyes: null, neck: null,
                                           back: null, croup: null, limbs: null, tail: null,
-                                          overallBehavior: "", additionalNotes: ""
+                                          additionalNotes: ""
                                         }
                                     };
                                     return (
@@ -1063,16 +1074,7 @@ const handleSaveSessionAndNavigate = async () => {
                                                     onValueChange={(value) => handleSessionExerciseInputChange(exercise.id, 'rating', value[0])}
                                                 />
                                             </div>
-                                            <div>
-                                                <Label htmlFor={`comment-${exercise.id}`}>Comentarios del Ejercicio</Label>
-                                                <Textarea
-                                                    id={`comment-${exercise.id}`}
-                                                    placeholder="Notas específicas sobre este ejercicio..."
-                                                    value={currentResult.comment}
-                                                    onChange={(e) => handleSessionExerciseInputChange(exercise.id, 'comment', e.target.value)}
-                                                />
-                                            </div>
-
+                                            
                                             <div className="pt-3 border-t mt-3">
                                                 <h4 className="text-md font-semibold mb-2">Observaciones del Ejercicio:</h4>
                                                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
@@ -1098,15 +1100,6 @@ const handleSaveSessionAndNavigate = async () => {
                                                     ))}
                                                 </div>
                                                 <div className="mt-3 space-y-1">
-                                                    <Label htmlFor={`obs-overallBehavior-${exercise.id}`}>Comportamiento General (del ejercicio)</Label>
-                                                    <Textarea
-                                                      id={`obs-overallBehavior-${exercise.id}`}
-                                                      placeholder="Comportamiento durante este ejercicio..."
-                                                      value={currentResult.observations?.overallBehavior || ''}
-                                                      onChange={(e) => handleSessionExerciseInputChange(exercise.id, `observations.overallBehavior`, e.target.value)}
-                                                    />
-                                                </div>
-                                                <div className="mt-3 space-y-1">
                                                     <Label htmlFor={`obs-additionalNotes-${exercise.id}`}>Notas Adicionales (del ejercicio)</Label>
                                                     <Textarea
                                                       id={`obs-additionalNotes-${exercise.id}`}
@@ -1120,7 +1113,7 @@ const handleSaveSessionAndNavigate = async () => {
                                     )
                                 })
                             ) : (
-                                <p className="text-sm text-muted-foreground">No hay ejercicios en esta etapa para registrar.</p>
+                                <p className="text-sm text-muted-foreground p-2">No hay ejercicios en esta etapa para registrar.</p>
                             )}
                             </>
                         )}
@@ -1288,6 +1281,3 @@ const handleSaveSessionAndNavigate = async () => {
 };
 
 export default Dashboard;
-
-
-    

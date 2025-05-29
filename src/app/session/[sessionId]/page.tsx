@@ -15,7 +15,7 @@ import { Icons } from '@/components/icons';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { useToast } from '@/hooks/use-toast'; // Corrected import path
+import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
@@ -64,9 +64,10 @@ interface ExerciseResultWithDetails extends ExerciseResult {
 }
 
 // Helper type for editable exercise results
-type EditableExerciseResult = Omit<ExerciseResultWithDetails, 'createdAt' | 'updatedAt' | 'id' | 'exerciseId'> & {
-  id: string; // Keep original ID for updates
+type EditableExerciseResult = Omit<ExerciseResultWithDetails, 'createdAt' | 'updatedAt' | 'id' | 'exerciseId' | 'observations'> & {
+  id: string; 
   exerciseId: string;
+  observations: Omit<ExerciseResultObservations, 'overallBehavior'>; 
 };
 
 
@@ -142,11 +143,23 @@ function SessionDetailContent() {
             plannedReps: r.plannedReps || r.exerciseDetails?.suggestedReps || "",
             doneReps: r.doneReps,
             rating: r.rating,
-            comment: r.comment || "",
-            observations: r.observations || {
+            observations: r.observations ? 
+                {
+                    nostrils: r.observations.nostrils,
+                    lips: r.observations.lips,
+                    ears: r.observations.ears,
+                    eyes: r.observations.eyes,
+                    neck: r.observations.neck,
+                    back: r.observations.back,
+                    croup: r.observations.croup,
+                    limbs: r.observations.limbs,
+                    tail: r.observations.tail,
+                    additionalNotes: r.observations.additionalNotes || ""
+                }
+                : {
                 nostrils: null, lips: null, ears: null, eyes: null, neck: null,
                 back: null, croup: null, limbs: null, tail: null,
-                overallBehavior: "", additionalNotes: ""
+                additionalNotes: ""
             }
         })));
 
@@ -176,13 +189,13 @@ function SessionDetailContent() {
                         ...(updatedEr.observations || { 
                             nostrils: null, lips: null, ears: null, eyes: null, neck: null,
                             back: null, croup: null, limbs: null, tail: null,
-                            overallBehavior: "", additionalNotes: "" 
+                            additionalNotes: "" 
                         }),
                         [obsField]: value === '' || value === 'N/A' ? null : String(value)
                     };
                 } else if (field === 'doneReps' || field === 'rating') {
                     (updatedEr as any)[field] = Number(value);
-                } else if (field === 'plannedReps' || field === 'comment') {
+                } else if (field === 'plannedReps') {
                      (updatedEr as any)[field] = String(value);
                 }
                 return updatedEr;
@@ -216,27 +229,18 @@ function SessionDetailContent() {
       if (sessionChanged) {
         await updateSession(horseId, sessionId, sessionUpdates);
       }
-
-      // 2. Update Exercise Results
-      // Instead of a Firestore batch here which complicates the service layer,
-      // we'll update each exercise result individually via the service function.
-      // This keeps the service layer consistent.
-      // For a very large number of exercises, a batched update in the service layer would be better.
+      
       for (const er of editableExerciseResults) {
-        // Extract only the updatable fields for ExerciseResultUpdateData
-        const { id, exerciseId, exerciseDetails, createdAt, updatedAt, ...dataToUpdate } = er;
+        const { id, exerciseId, exerciseDetails, createdAt, updatedAt, ...dataToUpdateNoComment } = er;
         
         const resultUpdateData: ExerciseResultUpdateData = {
-            plannedReps: dataToUpdate.plannedReps,
-            doneReps: dataToUpdate.doneReps,
-            rating: dataToUpdate.rating,
-            comment: dataToUpdate.comment,
-            observations: dataToUpdate.observations && Object.values(dataToUpdate.observations).some(v => v !== null && v !== undefined && String(v).trim() !== '')
-                            ? dataToUpdate.observations
+            plannedReps: dataToUpdateNoComment.plannedReps,
+            doneReps: dataToUpdateNoComment.doneReps,
+            rating: dataToUpdateNoComment.rating,
+            observations: dataToUpdateNoComment.observations && Object.values(dataToUpdateNoComment.observations).some(v => v !== null && v !== undefined && String(v).trim() !== '')
+                            ? dataToUpdateNoComment.observations
                             : null,
         };
-        // Only call update if there are actual fields to update beyond just observations being null
-        // This check can be more sophisticated if needed.
         await updateExerciseResult(horseId, sessionId, er.id, resultUpdateData);
       }
 
@@ -265,11 +269,23 @@ function SessionDetailContent() {
             plannedReps: r.plannedReps || r.exerciseDetails?.suggestedReps || "",
             doneReps: r.doneReps,
             rating: r.rating,
-            comment: r.comment || "",
-            observations: r.observations || {
+             observations: r.observations ? 
+                {
+                    nostrils: r.observations.nostrils,
+                    lips: r.observations.lips,
+                    ears: r.observations.ears,
+                    eyes: r.observations.eyes,
+                    neck: r.observations.neck,
+                    back: r.observations.back,
+                    croup: r.observations.croup,
+                    limbs: r.observations.limbs,
+                    tail: r.observations.tail,
+                    additionalNotes: r.observations.additionalNotes || ""
+                }
+                : {
                 nostrils: null, lips: null, ears: null, eyes: null, neck: null,
                 back: null, croup: null, limbs: null, tail: null,
-                overallBehavior: "", additionalNotes: ""
+                additionalNotes: ""
             }
         })));
       }
@@ -429,17 +445,6 @@ function SessionDetailContent() {
                       />
                     </div>
                     
-                    <div className="mb-4">
-                      <Label htmlFor={`comment-${result.id}`}>Comentario del Ejercicio</Label>
-                      <Textarea
-                        id={`comment-${result.id}`}
-                        value={result.comment}
-                        onChange={(e) => handleExerciseResultChange(result.id, 'comment', e.target.value)}
-                        placeholder="Notas específicas sobre este ejercicio..."
-                        className="min-h-[80px] whitespace-pre-wrap"
-                      />
-                    </div>
-
                     <div className="pt-4 border-t">
                         <h5 className="font-semibold text-md mb-3">Observaciones del Ejercicio:</h5>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-3 text-sm">
@@ -447,8 +452,8 @@ function SessionDetailContent() {
                             <div key={zone.id}>
                               <Label htmlFor={`obs-${result.id}-${zone.id}`}>{zone.label}</Label>
                               <Select
-                                value={result.observations?.[zone.id as keyof ExerciseResultObservations] || ''}
-                                onValueChange={(value) => handleExerciseResultChange(result.id, `observations.${zone.id as keyof ExerciseResultObservations}`, value === 'N/A' ? 'N/A' : (value || null))}
+                                value={result.observations?.[zone.id as keyof Omit<ExerciseResultObservations, 'overallBehavior'>] || ''}
+                                onValueChange={(value) => handleExerciseResultChange(result.id, `observations.${zone.id as keyof Omit<ExerciseResultObservations, 'overallBehavior'>}`, value === 'N/A' ? 'N/A' : (value || null))}
                               >
                                 <SelectTrigger id={`obs-${result.id}-${zone.id}`}>
                                   <SelectValue placeholder="Estado..." />
@@ -464,16 +469,6 @@ function SessionDetailContent() {
                             </div>
                           ))}
                         </div>
-                         <div className="mb-3">
-                            <Label htmlFor={`obs-behavior-${result.id}`}>Comportamiento General (del ejercicio)</Label>
-                            <Textarea
-                                id={`obs-behavior-${result.id}`}
-                                value={result.observations?.overallBehavior || ''}
-                                onChange={(e) => handleExerciseResultChange(result.id, `observations.overallBehavior`, e.target.value)}
-                                placeholder="Describe el comportamiento general durante este ejercicio..."
-                                className="min-h-[80px] whitespace-pre-wrap"
-                            />
-                         </div>
                          <div>
                             <Label htmlFor={`obs-notes-${result.id}`}>Notas Adicionales (del ejercicio)</Label>
                              <Textarea
@@ -514,7 +509,7 @@ function SessionDetailContent() {
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleDeleteSessionConfirmed} disabled={isDeleting} className="bg-destructive hover:bg-destructive/90">
+                  <AlertDialogAction onClick={handleDeleteSessionConfirmed} disabled={isDeleting} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
                     {isDeleting ? <Icons.spinner className="mr-2 h-4 w-4 animate-spin" /> : null}
                     Sí, eliminar sesión
                   </AlertDialogAction>
@@ -539,6 +534,3 @@ export default function SessionDetailPage() {
     </Suspense>
   );
 }
-
-
-    

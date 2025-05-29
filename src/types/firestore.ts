@@ -77,7 +77,6 @@ export interface ExerciseResultObservations {
     croup?: string | null;   // Grupa
     limbs?: string | null;   // Miembros
     tail?: string | null;    // Cola
-    overallBehavior?: string | null; // General behavior notes for this exercise
     additionalNotes?: string | null; // Any other notes for this exercise
 }
 
@@ -88,7 +87,6 @@ export interface ExerciseResult {
     plannedReps?: string; // Number of reps planned for this specific instance
     doneReps: number;
     rating: number; // 1-5
-    comment: string;
     createdAt: Timestamp;
     updatedAt?: Timestamp;
     observations?: ExerciseResultObservations | null;
@@ -156,7 +154,6 @@ export interface ExerciseResultInput {
     plannedReps?: string;
     doneReps: number;
     rating: number;
-    comment: string;
     observations?: ExerciseResultObservations | null;
 }
 
