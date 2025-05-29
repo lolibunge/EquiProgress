@@ -97,20 +97,20 @@ const TENSION_STATUS_OPTIONS = [
 ];
 
 const OBSERVATION_ZONES = [
-  { id: 'nostrils', label: 'Ollares' },
-  { id: 'lips', label: 'Labios' },
-  { id: 'ears', label: 'Orejas' },
-  { id: 'eyes', label: 'Ojos' },
-  { id: 'neck', label: 'Cuello' },
-  { id: 'back', label: 'Dorso' },
-  { id: 'croup', label: 'Grupa' },
-  { id: 'limbs', label: 'Miembros' },
-  { id: 'tail', label: 'Cola' },
+  { id: 'ollaries', label: 'Ollares' },
+  { id: 'labios', label: 'Labios' },
+  { id: 'orejas', label: 'Orejas' },
+  { id: 'ojos', label: 'Ojos' },
+  { id: 'cuello', label: 'Cuello' },
+  { id: 'dorso', label: 'Dorso' },
+  { id: 'grupa', label: 'Grupa' },
+  { id: 'miembros', label: 'Miembros' },
+  { id: 'cola', label: 'Cola' },
 ] as const;
 
 
 type SessionExerciseResultState = Omit<ExerciseResultInput, 'exerciseId' | 'observations'> & {
-    observations: Omit<ExerciseResultObservations, 'overallBehavior' | 'comment'>;
+    observations: Omit<ExerciseResultObservations, 'comment'>;
 };
 
 
@@ -150,13 +150,13 @@ function SortableExerciseItem({ exercise, onEdit }: SortableExerciseItemProps) {
         {exercise.description && <p className="text-xs text-muted-foreground pl-2">- Desc: {exercise.description}</p>}
         {exercise.objective && <p className="text-xs text-muted-foreground pl-2">- Obj: {exercise.objective}</p>}
       </div>
-       <Button 
-        asChild 
-        variant="ghost" 
-        size="icon" 
-        className="ml-2 h-7 w-7 opacity-0 group-hover:opacity-100 flex-shrink-0" 
-        onClick={(e) => { 
-            e.stopPropagation(); 
+       <Button
+        asChild
+        variant="ghost"
+        size="icon"
+        className="ml-2 h-7 w-7 opacity-0 group-hover:opacity-100 flex-shrink-0"
+        onClick={(e) => {
+            e.stopPropagation();
             onEdit(exercise);
         }}
        >
@@ -171,7 +171,7 @@ function SortableExerciseItem({ exercise, onEdit }: SortableExerciseItemProps) {
 
 interface SortableBlockAccordionItemProps {
   block: TrainingBlock;
-  children: ReactNode; 
+  children: ReactNode;
   onEditBlock: (block: TrainingBlock) => void;
 }
 
@@ -192,14 +192,14 @@ function SortableBlockAccordionItem({ block, children, onEditBlock }: SortableBl
   };
 
   return (
-    <AccordionItem 
-      value={block.id} 
-      ref={setNodeRef} 
+    <AccordionItem
+      value={block.id}
+      ref={setNodeRef}
       style={style}
-      className="bg-card border mb-1 rounded-md shadow-sm" 
+      className="bg-card border mb-1 rounded-md shadow-sm"
     >
-       <div className="flex items-center justify-between w-full group">
-        <AccordionTrigger {...attributes} {...listeners} className="flex-grow p-4 hover:no-underline text-left">
+       <div className="flex items-center justify-between w-full group text-left">
+        <AccordionTrigger {...attributes} {...listeners} className="flex-grow p-4 hover:no-underline">
             <span className="flex-grow">
               {block.title}
               {block.notes && <span className="block sm:inline text-xs text-muted-foreground ml-0 sm:ml-2">- {block.notes}</span>}
@@ -211,13 +211,13 @@ function SortableBlockAccordionItem({ block, children, onEditBlock }: SortableBl
             asChild
             variant="ghost"
             size="icon"
-            className="ml-2 mr-2 h-7 w-7 flex-shrink-0 opacity-0 group-hover:opacity-100" 
+            className="ml-2 mr-2 h-7 w-7 flex-shrink-0 opacity-0 group-hover:opacity-100"
             onClick={(e) => {
-                e.stopPropagation(); 
+                e.stopPropagation();
                 onEditBlock(block);
             }}
         >
-            <span> 
+            <span>
             <Icons.edit className="h-4 w-4" />
             <span className="sr-only">Editar Etapa</span>
             </span>
@@ -271,7 +271,7 @@ const Dashboard = () => {
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 8, 
+        distance: 8,
       },
     }),
     useSensor(KeyboardSensor, {
@@ -337,25 +337,25 @@ const Dashboard = () => {
       return;
     }
     setIsLoadingBlocks(true);
-    setExercises([]); 
+    setExercises([]);
     try {
       console.log(`[Dashboard] performFetchBlocks: Attempting to fetch trainingBlocks with planId: "${planId}"`);
       const fetchedBlocks = await getTrainingBlocks(planId);
       console.log(`[Dashboard] Blocks fetched by getTrainingBlocks for planId ${planId}:`, JSON.parse(JSON.stringify(fetchedBlocks.map(b => ({id: b.id, title: b.title, planId: b.planId, order: b.order})))));
-      
-      
-      const sortedBlocks = fetchedBlocks.sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity));
-      setBlocks(sortedBlocks);
-      console.log('[Dashboard] Blocks received and set in state:', JSON.parse(JSON.stringify(sortedBlocks.map(b => ({id: b.id, title: b.title, order: b.order})))));
 
 
-      if (sortedBlocks.length === 0) {
+      // const sortedBlocks = fetchedBlocks.sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity)); // Already sorted by service
+      setBlocks(fetchedBlocks); // Assuming getTrainingBlocks returns them sorted
+      console.log('[Dashboard] Blocks received and set in state:', JSON.parse(JSON.stringify(fetchedBlocks.map(b => ({id: b.id, title: b.title, order: b.order})))));
+
+
+      if (fetchedBlocks.length === 0) {
         setSelectedBlock(null);
         console.log(`[Dashboard] No blocks were found for planId ${planId}. Setting selectedBlock to null.`);
       } else {
-        console.log(`[Dashboard] ${sortedBlocks.length} blocks found for planId ${planId}.`);
-        
-        performFetchExercisesForPlan(planId, sortedBlocks); 
+        console.log(`[Dashboard] ${fetchedBlocks.length} blocks found for planId ${planId}.`);
+
+        performFetchExercisesForPlan(planId, fetchedBlocks);
       }
     } catch (error) {
       console.error(`[Dashboard] Error fetching blocks for plan ${planId}:`, error);
@@ -365,7 +365,7 @@ const Dashboard = () => {
     } finally {
       setIsLoadingBlocks(false);
     }
-  }, [toast]); 
+  }, [toast, performFetchExercisesForPlan]);
 
 
   const performFetchExercisesForPlan = useCallback(async (planId: string, currentPlanBlocks: TrainingBlock[]) => {
@@ -381,14 +381,15 @@ const Dashboard = () => {
       console.log(`[Dashboard] Plan blocks for exercise fetch (planId ${planId}):`, JSON.parse(JSON.stringify(currentPlanBlocks.map(b => ({id: b.id, title: b.title, order: b.order})))));
       for (const block of currentPlanBlocks) {
         console.log(`[Dashboard] Processing block for exercises: planId "${planId}", blockId: "${block.id}" (Etapa: "${block.title}")`);
-        const blockExercises = await getExercises(planId, block.id); 
+        const blockExercises = await getExercises(planId, block.id); // Already sorted by service
         console.log(`[Dashboard] ---> Found ${blockExercises.length} exercises for blockId: "${block.id}" (Etapa: "${block.title}")`);
         if (blockExercises.length > 0) {
           console.log(`[Dashboard]      Exercises found:`, JSON.parse(JSON.stringify(blockExercises.map(e => ({ title: e.title, id: e.id, planId: e.planId, blockId: e.blockId, order: e.order })))));
         }
         allExercisesForPlan = [...allExercisesForPlan, ...blockExercises];
       }
-      
+
+      // Sort all exercises based on block order first, then exercise order within block
       const sortedAllExercises = allExercisesForPlan.sort((a, b) => {
         const blockAOrder = currentPlanBlocks.find(bl => bl.id === a.blockId)?.order ?? Infinity;
         const blockBOrder = currentPlanBlocks.find(bl => bl.id === b.blockId)?.order ?? Infinity;
@@ -492,7 +493,7 @@ const Dashboard = () => {
   const handleExerciseAdded = () => {
     setIsAddExerciseDialogOpen(false);
     if (selectedPlan && currentBlockIdForExercise && blocks.length > 0) {
-       performFetchExercisesForPlan(selectedPlan.id, blocks); 
+       performFetchExercisesForPlan(selectedPlan.id, blocks);
     }
     setCurrentBlockIdForExercise(null);
   };
@@ -524,7 +525,7 @@ const Dashboard = () => {
 
   const handleSessionExerciseInputChange = (
     exerciseId: string,
-    field: keyof Omit<SessionExerciseResultState, 'observations'> | `observations.${keyof Omit<ExerciseResultObservations, 'overallBehavior' | 'comment'>}`,
+    field: keyof Omit<SessionExerciseResultState, 'observations'> | `observations.${keyof Omit<ExerciseResultObservations, 'comment'>}`,
     value: string | number | null
   ) => {
     setSessionExerciseResults(prev => {
@@ -535,18 +536,18 @@ const Dashboard = () => {
             doneReps: 0,
             rating: 3,
             observations: {
-              nostrils: null, lips: null, ears: null, eyes: null, neck: null,
-              back: null, croup: null, limbs: null, tail: null,
+              ollaries: null, labios: null, orejas: null, ojos: null, cuello: null,
+              dorso: null, grupa: null, miembros: null, cola: null,
               additionalNotes: ""
             }
         };
 
         if (String(field).startsWith('observations.')) {
-            const obsField = String(field).split('.')[1] as keyof Omit<ExerciseResultObservations, 'overallBehavior' | 'comment'>;
-             if (!currentExerciseData.observations) { 
+            const obsField = String(field).split('.')[1] as keyof Omit<ExerciseResultObservations, 'comment'>;
+             if (!currentExerciseData.observations) {
                 currentExerciseData.observations = {
-                    nostrils: null, lips: null, ears: null, eyes: null, neck: null,
-                    back: null, croup: null, limbs: null, tail: null,
+                    ollaries: null, labios: null, orejas: null, ojos: null, cuello: null,
+                    dorso: null, grupa: null, miembros: null, cola: null,
                     additionalNotes: ""
                 };
             }
@@ -559,7 +560,7 @@ const Dashboard = () => {
             };
         } else if (field === 'doneReps' || field === 'rating') {
             (currentExerciseData as any)[field] = Number(value);
-        } else if (field === 'plannedReps') { 
+        } else if (field === 'plannedReps') {
             (currentExerciseData as any)[field] = String(value);
         }
         newMap.set(exerciseId, currentExerciseData);
@@ -626,11 +627,11 @@ const handleSaveSessionAndNavigate = async () => {
             const doneRepsValue = resultData?.doneReps ?? 0;
             const ratingValue = resultData?.rating ?? 3;
 
-            let observationsToSave: Omit<ExerciseResultObservations, 'overallBehavior' | 'comment'> | null = null;
+            let observationsToSave: Omit<ExerciseResultObservations, 'comment'> | null = null;
              if (resultData?.observations) {
-                const tempObs: Partial<Omit<ExerciseResultObservations, 'overallBehavior' | 'comment'>> = {}; 
+                const tempObs: Partial<Omit<ExerciseResultObservations, 'comment'>> = {};
                 let hasValidObservation = false;
-                (Object.keys(resultData.observations) as Array<keyof Omit<ExerciseResultObservations, 'overallBehavior' | 'comment'>>).forEach(key => {
+                (Object.keys(resultData.observations) as Array<keyof Omit<ExerciseResultObservations, 'comment'>>).forEach(key => {
                     const obsVal = resultData.observations![key];
                     if (obsVal !== undefined && obsVal !== null && String(obsVal).trim() !== '') {
                         (tempObs as any)[key] = obsVal;
@@ -640,7 +641,7 @@ const handleSaveSessionAndNavigate = async () => {
                     }
                 });
                 if (hasValidObservation) {
-                    observationsToSave = tempObs as Omit<ExerciseResultObservations, 'overallBehavior' | 'comment'>;
+                    observationsToSave = tempObs as Omit<ExerciseResultObservations, 'comment'>;
                 }
             }
 
@@ -700,13 +701,13 @@ const handleSaveSessionAndNavigate = async () => {
         const oldIndex = exercisesInBlock.findIndex((ex) => ex.id === active.id);
         const newIndex = exercisesInBlock.findIndex((ex) => ex.id === over.id);
 
-        if (oldIndex === -1 || newIndex === -1) return prevExercises; 
+        if (oldIndex === -1 || newIndex === -1) return prevExercises;
 
         const reorderedExercisesInBlock = arrayMove(exercisesInBlock, oldIndex, newIndex);
-        
+
         const updatedExercisesForDb = reorderedExercisesInBlock.map((ex, index) => ({
           ...ex,
-          order: index, 
+          order: index,
         }));
 
         const dbPayload = updatedExercisesForDb.map(ex => ({ id: ex.id, order: ex.order as number }));
@@ -718,10 +719,10 @@ const handleSaveSessionAndNavigate = async () => {
             .catch(err => {
                 console.error("Error updating exercises order in DB:", err);
                 toast({ variant: "destructive", title: "Error", description: "No se pudo guardar el nuevo orden." });
-                if (selectedPlan?.id && blocks.length > 0) performFetchExercisesForPlan(selectedPlan.id, blocks); 
+                if (selectedPlan?.id && blocks.length > 0) performFetchExercisesForPlan(selectedPlan.id, blocks);
             });
         }
-        
+
         const otherBlocksExercises = prevExercises.filter(ex => ex.blockId !== blockIdOfDraggedItem);
         const newFullExerciseList = [...otherBlocksExercises, ...updatedExercisesForDb].sort((a, b) => {
           const blockAOrder = blocks.find(bl => bl.id === a.blockId)?.order ?? Infinity;
@@ -747,14 +748,14 @@ const handleSaveSessionAndNavigate = async () => {
         if (oldIndex === -1 || newIndex === -1) return prevBlocks;
 
         const reorderedBlocks = arrayMove(prevBlocks, oldIndex, newIndex);
-        
+
         const updatedBlocksForDb = reorderedBlocks.map((block, index) => ({
           ...block,
           order: index,
         }));
 
         const dbPayload = updatedBlocksForDb.map(b => ({ id: b.id, order: b.order as number }));
-        
+
         updateBlocksOrder(selectedPlan.id, dbPayload)
           .then(() => {
             toast({ title: "Orden de etapas actualizado", description: "El nuevo orden de etapas ha sido guardado." });
@@ -764,9 +765,9 @@ const handleSaveSessionAndNavigate = async () => {
           .catch(err => {
             console.error("Error updating blocks order in DB:", err);
             toast({ variant: "destructive", title: "Error", description: "No se pudo guardar el nuevo orden de etapas." });
-            if (selectedPlan?.id) performFetchBlocks(selectedPlan.id); 
+            if (selectedPlan?.id) performFetchBlocks(selectedPlan.id);
           });
-        
+
         return updatedBlocksForDb;
       });
     }
@@ -856,7 +857,7 @@ const handleSaveSessionAndNavigate = async () => {
                                             onSelect={() => {
                                                 console.log('[Dashboard] Plan selected in UI:', JSON.parse(JSON.stringify(plan)));
                                                 setSelectedPlan(plan);
-                                                setSelectedBlock(null); 
+                                                setSelectedBlock(null);
                                             }}
                                         >
                                             {plan.title} {plan.template && "(Plantilla)"}
@@ -914,12 +915,12 @@ const handleSaveSessionAndNavigate = async () => {
                                 {blocks.map((block) => {
                                     const exercisesForBlock = exercises.filter(ex => ex.blockId === block.id && selectedPlan && ex.planId === selectedPlan.id).sort((a,b) => (a.order ?? Infinity) - (b.order ?? Infinity));
                                     return (
-                                    <SortableBlockAccordionItem 
-                                        key={block.id} 
-                                        block={block} 
+                                    <SortableBlockAccordionItem
+                                        key={block.id}
+                                        block={block}
                                         onEditBlock={openEditBlockDialog}
                                     >
-                                        <AccordionContent>
+                                        <AccordionContent className="mx-[10px] md:mx-0">
                                         {block.goal && (
                                             <p className="text-sm text-primary font-semibold mb-2">
                                             Meta de la Etapa: <span className="font-normal text-muted-foreground">{block.goal}</span>
@@ -1029,8 +1030,8 @@ const handleSaveSessionAndNavigate = async () => {
                                         rating: 3,
                                         plannedReps: exercise.suggestedReps ?? "",
                                         observations: {
-                                          nostrils: null, lips: null, ears: null, eyes: null, neck: null,
-                                          back: null, croup: null, limbs: null, tail: null,
+                                          ollaries: null, labios: null, orejas: null, ojos: null, cuello: null,
+                                          dorso: null, grupa: null, miembros: null, cola: null,
                                           additionalNotes: ""
                                         }
                                     };
@@ -1074,10 +1075,9 @@ const handleSaveSessionAndNavigate = async () => {
                                                     onValueChange={(value) => handleSessionExerciseInputChange(exercise.id, 'rating', value[0])}
                                                 />
                                             </div>
-                                            
+
                                             <div className="pt-3 border-t mt-3">
-                                                <h4 className="text-md font-semibold mb-2">Observaciones del Ejercicio:</h4>
-                                                 <div className="mt-3 space-y-1">
+                                                <div className="space-y-1 mb-3">
                                                     <Label htmlFor={`obs-additionalNotes-${exercise.id}`}>Notas Adicionales (del ejercicio)</Label>
                                                     <Textarea
                                                       id={`obs-additionalNotes-${exercise.id}`}
@@ -1086,13 +1086,14 @@ const handleSaveSessionAndNavigate = async () => {
                                                       onChange={(e) => handleSessionExerciseInputChange(exercise.id, `observations.additionalNotes`, e.target.value)}
                                                     />
                                                 </div>
+                                                <h4 className="text-md font-semibold mb-2">Observaciones de Tensión:</h4>
                                                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 mt-3">
                                                     {OBSERVATION_ZONES.map(zone => (
                                                       <div key={zone.id} className="space-y-1">
                                                         <Label htmlFor={`obs-${exercise.id}-${zone.id}`}>{zone.label}</Label>
                                                         <Select
-                                                          value={currentResult.observations?.[zone.id as keyof Omit<ExerciseResultObservations, 'overallBehavior' | 'comment'>] || ''}
-                                                          onValueChange={(value) => handleSessionExerciseInputChange(exercise.id, `observations.${zone.id as keyof Omit<ExerciseResultObservations, 'overallBehavior' | 'comment'>}`, value === 'N/A' ? 'N/A' : (value || null))}
+                                                          value={currentResult.observations?.[zone.id as keyof Omit<ExerciseResultObservations, 'comment' | 'additionalNotes'>] || ''}
+                                                          onValueChange={(value) => handleSessionExerciseInputChange(exercise.id, `observations.${zone.id as keyof Omit<ExerciseResultObservations, 'comment' | 'additionalNotes'>}`, value === 'N/A' ? 'N/A' : (value || null))}
                                                         >
                                                           <SelectTrigger id={`obs-${exercise.id}-${zone.id}`}>
                                                             <SelectValue placeholder={`Estado de ${zone.label.toLowerCase()}`} />
@@ -1282,3 +1283,4 @@ const handleSaveSessionAndNavigate = async () => {
 
 export default Dashboard;
 
+    
