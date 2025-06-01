@@ -31,6 +31,13 @@ export interface TrainingPlan {
     horseId?: string; // Optional: if this plan instance is specifically for one horse
 }
 
+export interface ExerciseReference {
+  exerciseId: string; // Refers to MasterExercise.id
+  order: number;
+  // plannedReps could be stored here if it's specific to the block instance
+  // For now, we'll assume plannedReps comes from MasterExercise or session input
+}
+
 export interface TrainingBlock {
     id: string; // Unique ID for the block, typically the Firestore document ID
     planId: string; // ID of the plan this block belongs to
@@ -39,22 +46,30 @@ export interface TrainingBlock {
     duration?: string; // Optional duration for the block, e.g., "1 semana"
     goal?: string; // Optional goal for the training block
     order?: number; // Order of the block within the plan
+    exerciseReferences?: ExerciseReference[]; // Array of references to MasterExercises
     createdAt?: Timestamp;
     updatedAt?: Timestamp;
 }
 
-export interface Exercise {
+// This is the new central library for exercises
+export interface MasterExercise {
     id: string; // Unique ID for the exercise, typically the Firestore document ID
-    planId: string; // ID of the plan this exercise belongs to
-    blockId: string; // ID of the block this exercise belongs to
     title: string;
     description?: string;
     suggestedReps?: string | null;
     objective?: string;
-    order?: number; // Order of the exercise within the block
+    // No 'order' here, as order is context-dependent (within a block)
+    // No 'planId' or 'blockId' here
     createdAt?: Timestamp;
     updatedAt?: Timestamp;
+    // createdByUid?: string; // Optional: to track who created the master exercise
 }
+
+// This type can be used when displaying exercises within a block, merging MasterExercise with its reference data
+export interface BlockExerciseDisplay extends MasterExercise {
+  orderInBlock: number;
+}
+
 
 export interface SessionData {
     id: string; // Firestore document ID, added when fetched
@@ -77,13 +92,13 @@ export interface ExerciseResultObservations {
     croup?: string | null;   // Grupa
     limbs?: string | null;   // Miembros
     tail?: string | null;    // Cola
-    additionalNotes?: string | null; // Any other notes for this exercise
+    additionalNotes?: string | null; 
 }
 
 export interface ExerciseResult {
     id: string; // Firestore document ID, added when fetched
     // sessionId is implicit as this is a subcollection of a session
-    exerciseId: string; // Reference to the Exercise document
+    exerciseId: string; // Reference to the MasterExercise document id
     plannedReps?: string; // Number of reps planned for this specific instance
     doneReps: number;
     rating: number; // 1-5
@@ -122,25 +137,28 @@ export interface TrainingPlanInput {
 
 export interface TrainingBlockInput {
   title: string;
-  notes?: string; // Subtitle or additional notes for the block
-  duration?: string; // Optional duration for the block, e.g., "1 semana"
-  goal?: string; // Optional goal for the training block
-  order?: number; // Order of the block within the plan
+  notes?: string; 
+  duration?: string; 
+  goal?: string; 
+  order?: number; 
+  exerciseReferences?: ExerciseReference[];
 }
 
-export interface ExerciseInput {
+// Input for creating a MasterExercise
+export interface MasterExerciseInput {
   title: string;
   description?: string;
   suggestedReps?: string | null;
   objective?: string;
-  order?: number; // Order of the exercise within the block
+  // createdByUid?: string;
 }
+
 
 // Input type for creating new SessionData
 export interface SessionDataInput {
     horseId: string;
     date: Timestamp;
-    blockId: string;
+    blockId: string; // This block will contain references to MasterExercises
     overallNote?: string;
 }
 
@@ -150,7 +168,7 @@ export type SessionUpdateData = Partial<Pick<SessionData, 'date' | 'overallNote'
 
 // Input type for creating new ExerciseResult
 export interface ExerciseResultInput {
-    exerciseId: string;
+    exerciseId: string; // Refers to MasterExercise.id
     plannedReps?: string;
     doneReps: number;
     rating: number;
@@ -177,3 +195,25 @@ export interface ObservationInput {
   additionalNotes?: string | null;
   photoUrl?: string | null;
 }
+
+// DEPRECATED Exercise related types - will be removed once refactor is complete
+export interface Exercise {
+    id: string;
+    planId: string; 
+    blockId: string; 
+    title: string;
+    description?: string;
+    suggestedReps?: string | null;
+    objective?: string;
+    order?: number; 
+    createdAt?: Timestamp;
+    updatedAt?: Timestamp;
+}
+export interface ExerciseInput {
+  title: string;
+  description?: string;
+  suggestedReps?: string | null;
+  objective?: string;
+  order?: number;
+}
+// END DEPRECATED
