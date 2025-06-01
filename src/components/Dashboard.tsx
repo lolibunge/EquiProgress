@@ -2,6 +2,7 @@
 "use client";
 
 import { Timestamp } from "firebase/firestore";
+import Link from 'next/link'; // Added Link import
 import {
   Card,
   CardContent,
@@ -367,8 +368,15 @@ const Dashboard = () => {
     try {
       let allExercisesForPlan: BlockExerciseDisplay[] = [];
       for (const block of currentPlanBlocks) {
-        const blockExercises = await getExercisesForBlock(block.id); // Uses new service function
-        allExercisesForPlan = [...allExercisesForPlan, ...blockExercises];
+        // Ensure block.id is valid before calling getExercisesForBlock
+        if (block && block.id) {
+          const blockExercises = await getExercisesForBlock(block.id); // Uses new service function
+          // Add blockId to each exercise for easier filtering later in session registration
+          const exercisesWithBlockId = blockExercises.map(ex => ({ ...ex, blockId: block.id }));
+          allExercisesForPlan = [...allExercisesForPlan, ...exercisesWithBlockId];
+        } else {
+          console.warn(`[Dashboard] Skipping fetch for block with undefined id in plan ${planId}`);
+        }
       }
       // Sort exercises based on block order, then exercise order within block
       const sortedExercises = allExercisesForPlan.sort((a, b) => {
@@ -1105,7 +1113,7 @@ const handleSaveSessionAndNavigate = async () => {
                                             </div>
 
                                             <div className="pt-3 border-t mt-3">
-                                                <div className="space-y-1 mb-3">
+                                                 <div className="space-y-1 mb-3">
                                                     <Label htmlFor={`obs-additionalNotes-${exercise.id}`}>Notas Adicionales (del ejercicio)</Label>
                                                     <Textarea
                                                       id={`obs-additionalNotes-${exercise.id}`}
@@ -1330,3 +1338,6 @@ const handleSaveSessionAndNavigate = async () => {
 };
 
 export default Dashboard;
+
+
+    
