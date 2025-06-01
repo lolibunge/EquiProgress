@@ -1,8 +1,8 @@
 
 "use client";
 
+import Link from 'next/link'; // Asegurar que esta importación esté presente
 import { Timestamp } from "firebase/firestore";
-import Link from 'next/link'; // Added Link import
 import {
   Card,
   CardContent,
@@ -20,28 +20,22 @@ import { useRouter } from 'next/navigation';
 
 import { createSession, addExerciseResult, getSession, getExerciseResults, updateExerciseResult, updateSession, deleteSession } from "@/services/session";
 import { getHorses as fetchHorsesService, getHorseById } from "@/services/horse";
-import { 
-  getTrainingPlans, 
-  getTrainingBlocks, 
-  // getExercises, // Deprecated
-  // getExercise, // Deprecated
-  debugGetBlocksForPlan, 
-  getBlockById, 
-  deleteTrainingPlan, 
-  // updateExercisesOrder, // Deprecated, use updateExercisesOrderInBlock
-  deleteTrainingBlock, 
-  updateTrainingBlock, 
-  // deleteExercise, // Deprecated, use deleteMasterExercise or removeExerciseFromBlockReference
-  // updateExercise, // Deprecated, use updateMasterExercise
+import {
+  getTrainingPlans,
+  getTrainingBlocks,
+  getBlockById,
+  deleteTrainingPlan,
+  deleteTrainingBlock,
+  updateTrainingBlock,
   updateBlocksOrder,
-  getMasterExercises, // New
-  getExercisesForBlock, // New
-  addExerciseToBlockReference, // New
-  removeExerciseFromBlockReference, // New
-  updateExercisesOrderInBlock, // New
-  type MasterExercise, // New
-  type BlockExerciseDisplay, // New
-  type ExerciseReference, // New
+  getMasterExercises,
+  getExercisesForBlock,
+  addExerciseToBlockReference,
+  removeExerciseFromBlockReference,
+  updateExercisesOrderInBlock,
+  type MasterExercise,
+  type BlockExerciseDisplay,
+  type ExerciseReference,
 } from "@/services/firestore";
 import type { Horse, TrainingPlan, TrainingBlock, ExerciseResult, SessionDataInput, ExerciseResultInput, SessionData, ExerciseResultObservations } from "@/types/firestore";
 import HorseHistory from "./HorseHistory";
@@ -82,13 +76,12 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import AddHorseForm from "./AddHorseForm";
 import AddPlanForm from "./AddPlanForm";
 import AddBlockForm from "./AddBlockForm";
-// import AddExerciseForm from "./AddExerciseForm"; // Deprecated
 import EditBlockForm from "./EditBlockForm";
-// import EditExerciseForm from "./EditExerciseForm"; // Deprecated
 import { Icons } from "./icons";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -140,11 +133,10 @@ type SessionExerciseResultState = Omit<ExerciseResultInput, 'exerciseId' | 'obse
 
 
 interface SortableExerciseItemProps {
-  exercise: BlockExerciseDisplay; // Changed from Exercise to BlockExerciseDisplay
+  exercise: BlockExerciseDisplay;
   blockId: string;
   planId: string;
   onRemove: (planId: string, blockId: string, masterExerciseId: string) => void;
-  // onEdit: (exercise: BlockExerciseDisplay) => void; // Edit might be different now
 }
 
 function SortableExerciseItem({ exercise, blockId, planId, onRemove }: SortableExerciseItemProps) {
@@ -155,7 +147,7 @@ function SortableExerciseItem({ exercise, blockId, planId, onRemove }: SortableE
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: exercise.id }); // Use MasterExercise.id for sortable context
+  } = useSortable({ id: exercise.id });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -184,7 +176,7 @@ function SortableExerciseItem({ exercise, blockId, planId, onRemove }: SortableE
         className="ml-2 h-7 w-7 opacity-0 group-hover:opacity-100 flex-shrink-0"
         onClick={(e) => {
             e.stopPropagation();
-            onRemove(planId, blockId, exercise.id); // exercise.id is MasterExercise.id
+            onRemove(planId, blockId, exercise.id);
         }}
        >
         <Icons.trash className="h-4 w-4 text-destructive" />
@@ -269,9 +261,8 @@ const Dashboard = () => {
 
   const [blocks, setBlocks] = useState<TrainingBlock[]>([]);
   const [isLoadingBlocks, setIsLoadingBlocks] = useState(false);
-  const [selectedBlock, setSelectedBlock] = useState<TrainingBlock | null>(null); // For session registration
+  const [selectedBlock, setSelectedBlock] = useState<TrainingBlock | null>(null);
 
-  // This state will now hold BlockExerciseDisplay which includes MasterExercise details and orderInBlock
   const [exercisesInPlan, setExercisesInPlan] = useState<BlockExerciseDisplay[]>([]);
   const [isLoadingExercises, setIsLoadingExercises] = useState(false);
 
@@ -284,17 +275,13 @@ const Dashboard = () => {
 
   const [isCreatePlanDialogOpen, setIsCreatePlanDialogOpen] = useState(false);
   const [isAddBlockDialogOpen, setIsAddBlockDialogOpen] = useState(false);
-  // const [isAddExerciseDialogOpen, setIsAddExerciseDialogOpen] = useState(false); // Old dialog
   const [currentBlockIdForNewExercise, setCurrentBlockIdForNewExercise] = useState<string | null>(null);
 
   const [isEditBlockDialogOpen, setIsEditBlockDialogOpen] = useState(false);
   const [editingBlock, setEditingBlock] = useState<TrainingBlock | null>(null);
-  // const [isEditExerciseDialogOpen, setIsEditExerciseDialogOpen] = useState(false); // Old dialog
-  // const [editingExercise, setEditingExercise] = useState<Exercise | null>(null); // Old type
   const [isDeletePlanDialogOpen, setIsDeletePlanDialogOpen] = useState(false);
   const [isDeletingPlan, setIsDeletingPlan] = useState(false);
 
-  // For "Add Exercise to Block" Dialog
   const [isSelectExerciseDialogOpen, setIsSelectExerciseDialogOpen] = useState(false);
   const [availableMasterExercises, setAvailableMasterExercises] = useState<MasterExercise[]>([]);
   const [isLoadingMasterExercises, setIsLoadingMasterExercises] = useState(false);
@@ -358,7 +345,6 @@ const Dashboard = () => {
     performFetchPlans();
   }, [performFetchPlans]);
 
-  // Fetches all exercises for ALL blocks in the current plan
   const performFetchExercisesForPlan = useCallback(async (planId: string, currentPlanBlocks: TrainingBlock[]) => {
     if (!planId || currentPlanBlocks.length === 0) {
         setExercisesInPlan([]);
@@ -368,17 +354,14 @@ const Dashboard = () => {
     try {
       let allExercisesForPlan: BlockExerciseDisplay[] = [];
       for (const block of currentPlanBlocks) {
-        // Ensure block.id is valid before calling getExercisesForBlock
         if (block && block.id) {
-          const blockExercises = await getExercisesForBlock(block.id); // Uses new service function
-          // Add blockId to each exercise for easier filtering later in session registration
+          const blockExercises = await getExercisesForBlock(block.id);
           const exercisesWithBlockId = blockExercises.map(ex => ({ ...ex, blockId: block.id }));
           allExercisesForPlan = [...allExercisesForPlan, ...exercisesWithBlockId];
         } else {
           console.warn(`[Dashboard] Skipping fetch for block with undefined id in plan ${planId}`);
         }
       }
-      // Sort exercises based on block order, then exercise order within block
       const sortedExercises = allExercisesForPlan.sort((a, b) => {
         const blockAOrder = currentPlanBlocks.find(bl => bl.id === a.blockId)?.order ?? Infinity;
         const blockBOrder = currentPlanBlocks.find(bl => bl.id === b.blockId)?.order ?? Infinity;
@@ -400,25 +383,21 @@ const Dashboard = () => {
  const performFetchBlocks = useCallback(async (planId: string) => {
     if (!planId) {
       setBlocks([]);
-      // setSelectedBlock(null); // Keep selectedBlock for session registration separate
       setExercisesInPlan([]);
       return;
     }
     setIsLoadingBlocks(true);
-    setExercisesInPlan([]); 
+    setExercisesInPlan([]);
     try {
       const fetchedBlocks = await getTrainingBlocks(planId);
       setBlocks(fetchedBlocks);
       if (fetchedBlocks.length > 0) {
         performFetchExercisesForPlan(planId, fetchedBlocks);
-      } else {
-        // setSelectedBlock(null); // Keep selectedBlock for session registration separate
       }
     } catch (error) {
       console.error(`[Dashboard] Error fetching blocks for plan ${planId}:`, error);
       toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar las etapas para este plan." });
       setBlocks([]);
-      // setSelectedBlock(null); // Keep selectedBlock for session registration separate
     } finally {
       setIsLoadingBlocks(false);
     }
@@ -430,7 +409,6 @@ const Dashboard = () => {
       performFetchBlocks(selectedPlan.id);
     } else {
       setBlocks([]);
-      // setSelectedBlock(null); // This is for session registration, not tied to plan view directly
       setExercisesInPlan([]);
     }
   }, [selectedPlan, performFetchBlocks]);
@@ -514,7 +492,7 @@ const Dashboard = () => {
     try {
       const masters = await getMasterExercises();
       setAvailableMasterExercises(masters);
-      setSelectedMasterExercisesForBlock(new Set()); // Reset selection
+      setSelectedMasterExercisesForBlock(new Set());
     } catch (error) {
       toast({ title: "Error", description: "No se pudieron cargar los ejercicios de la biblioteca.", variant: "destructive" });
       setAvailableMasterExercises([]);
@@ -528,7 +506,7 @@ const Dashboard = () => {
       toast({ title: "Nada Seleccionado", description: "Por favor, selecciona al menos un ejercicio.", variant: "default" });
       return;
     }
-    setIsLoadingExercises(true); // Use general exercise loading indicator
+    setIsLoadingExercises(true);
     try {
       for (const masterExerciseId of selectedMasterExercisesForBlock) {
         await addExerciseToBlockReference(selectedPlan.id, currentBlockIdForNewExercise, masterExerciseId);
@@ -536,7 +514,6 @@ const Dashboard = () => {
       toast({ title: "Ejercicios Añadidos", description: "Los ejercicios seleccionados se han añadido a la etapa." });
       setIsSelectExerciseDialogOpen(false);
       setCurrentBlockIdForNewExercise(null);
-      // Refresh exercises for the current plan
       if (selectedPlan?.id && blocks.length > 0) {
         performFetchExercisesForPlan(selectedPlan.id, blocks);
       }
@@ -566,13 +543,13 @@ const Dashboard = () => {
 
 
   const handleSessionExerciseInputChange = (
-    exerciseId: string, // This is MasterExercise.id
+    exerciseId: string,
     field: keyof Omit<SessionExerciseResultState, 'observations'> | `observations.${keyof Omit<ExerciseResultObservations, 'additionalNotes'>}` | 'observations.additionalNotes',
     value: string | number | null
   ) => {
     setSessionExerciseResults(prev => {
         const newMap = new Map(prev);
-        const masterExerciseDetails = exercisesInPlan.find(ex => ex.id === exerciseId); // Find from plan's exercises
+        const masterExerciseDetails = exercisesInPlan.find(ex => ex.id === exerciseId);
         let currentExerciseData = newMap.get(exerciseId) || {
             plannedReps: masterExerciseDetails?.suggestedReps ?? "",
             doneReps: 0,
@@ -628,7 +605,7 @@ const handleSaveSessionAndNavigate = async () => {
         });
         return;
     }
-    if (!selectedBlock || !selectedBlock.id) { // selectedBlock is for session registration
+    if (!selectedBlock || !selectedBlock.id) {
         toast({
             variant: "destructive",
             title: "Error de Validación",
@@ -637,7 +614,6 @@ const handleSaveSessionAndNavigate = async () => {
         return;
     }
 
-    // Get exercises specifically for the selected block for the session
     const exercisesInSelectedBlockForSession = await getExercisesForBlock(selectedBlock.id);
 
     if (exercisesInSelectedBlockForSession.length === 0) {
@@ -655,7 +631,7 @@ const handleSaveSessionAndNavigate = async () => {
       const sessionInput: SessionDataInput = {
         horseId: selectedHorse.id,
         date: Timestamp.fromDate(date),
-        blockId: selectedBlock.id, // Use selectedBlock for session
+        blockId: selectedBlock.id,
         overallNote: sessionOverallNote,
       };
 
@@ -664,8 +640,8 @@ const handleSaveSessionAndNavigate = async () => {
       if (sessionId) {
         const exerciseResultsToSave: ExerciseResultInput[] = [];
 
-        exercisesInSelectedBlockForSession.forEach(exercise => { // Iterate over exercises of the selected block for session
-            const resultData = sessionExerciseResults.get(exercise.id); // exercise.id is MasterExercise.id
+        exercisesInSelectedBlockForSession.forEach(exercise => {
+            const resultData = sessionExerciseResults.get(exercise.id);
             const plannedRepsValue = resultData?.plannedReps ?? exercise?.suggestedReps ?? '';
             const doneRepsValue = resultData?.doneReps ?? 0;
             const ratingValue = resultData?.rating ?? 3;
@@ -680,7 +656,7 @@ const handleSaveSessionAndNavigate = async () => {
                         (tempObs as any)[key] = obsVal;
                         hasValidObservation = true;
                     } else {
-                        (tempObs as any)[key] = null; 
+                        (tempObs as any)[key] = null;
                     }
                 });
                 if (hasValidObservation) {
@@ -689,7 +665,7 @@ const handleSaveSessionAndNavigate = async () => {
             }
 
             exerciseResultsToSave.push({
-                exerciseId: exercise.id, // This is MasterExercise.id
+                exerciseId: exercise.id,
                 plannedReps: String(plannedRepsValue),
                 doneReps: Number(doneRepsValue),
                 rating: Number(ratingValue),
@@ -739,8 +715,7 @@ const handleSaveSessionAndNavigate = async () => {
         toast({variant: "destructive", title: "Error", description: "No se pudo determinar la etapa del ejercicio."});
         return;
       }
-      
-      // Get current references for the block
+
       const targetBlock = blocks.find(b => b.id === blockIdOfDraggedItem);
       if (!targetBlock || !targetBlock.exerciseReferences) return;
 
@@ -755,16 +730,15 @@ const handleSaveSessionAndNavigate = async () => {
         ...ref,
         order: index,
       }));
-      
+
       try {
         await updateExercisesOrderInBlock(blockIdOfDraggedItem, reorderedReferences);
         toast({ title: "Orden de ejercicios actualizado", description: "El nuevo orden ha sido guardado." });
-        // Refresh exercises for the plan to reflect new order in UI
         performFetchExercisesForPlan(selectedPlan.id, blocks);
       } catch (err) {
         console.error("Error updating exercises order in DB:", err);
         toast({ variant: "destructive", title: "Error", description: "No se pudo guardar el nuevo orden." });
-        performFetchExercisesForPlan(selectedPlan.id, blocks); // Re-fetch on error to revert UI
+        performFetchExercisesForPlan(selectedPlan.id, blocks);
       }
     }
   };
@@ -886,7 +860,7 @@ const handleSaveSessionAndNavigate = async () => {
                                             key={plan.id}
                                             onSelect={() => {
                                                 setSelectedPlan(plan);
-                                                setSelectedBlock(null); // Reset session block selection
+                                                setSelectedBlock(null);
                                             }}
                                         >
                                             {plan.title} {plan.template && "(Plantilla)"}
@@ -964,9 +938,9 @@ const handleSaveSessionAndNavigate = async () => {
                                             <SortableContext items={exercisesForThisBlock.map(e => e.id)} strategy={verticalListSortingStrategy}>
                                                 <ul className="list-none pl-0 space-y-1 text-sm">
                                                 {exercisesForThisBlock.map((exercise) => (
-                                                    <SortableExerciseItem 
-                                                      key={exercise.id} // MasterExercise.id
-                                                      exercise={exercise} 
+                                                    <SortableExerciseItem
+                                                      key={exercise.id}
+                                                      exercise={exercise}
                                                       blockId={block.id}
                                                       planId={selectedPlan.id}
                                                       onRemove={handleRemoveExerciseFromBlock}
@@ -1031,8 +1005,8 @@ const handleSaveSessionAndNavigate = async () => {
                             ) : blocks.length > 0 ? (
                               blocks.sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity)).map((block) => (
                                   <DropdownMenuItem key={block.id} onSelect={() => {
-                                    setSelectedBlock(block); // This is for session registration
-                                    setSessionExerciseResults(new Map()); // Reset results when block changes
+                                    setSelectedBlock(block);
+                                    setSessionExerciseResults(new Map());
                                   }}>
                                       {block.title}
                                       {block.notes && <span className="text-xs text-muted-foreground ml-1">({block.notes})</span>}
@@ -1044,7 +1018,7 @@ const handleSaveSessionAndNavigate = async () => {
                           </DropdownMenuContent>
                         </DropdownMenu>
 
-                        {selectedBlock && ( // selectedBlock is for session registration
+                        {selectedBlock && (
                             <>
                             <Label htmlFor="session-overall-note">Notas Generales de la Sesión</Label>
                             <Textarea
@@ -1058,10 +1032,9 @@ const handleSaveSessionAndNavigate = async () => {
                                 <div className="flex items-center justify-center p-4">
                                     <Icons.spinner className="h-5 w-5 animate-spin mr-2" /> Cargando ejercicios para la etapa...
                                 </div>
-                            // Filter exercisesInPlan by selectedBlock.id for session logging
-                            ) : exercisesInPlan.filter(ex => ex.blockId === selectedBlock.id).length > 0 ? ( 
+                            ) : exercisesInPlan.filter(ex => ex.blockId === selectedBlock.id).length > 0 ? (
                                 exercisesInPlan.filter(ex => ex.blockId === selectedBlock.id).sort((a,b) => (a.orderInBlock ?? Infinity) - (b.orderInBlock ?? Infinity)).map(exercise => {
-                                    const currentResult = sessionExerciseResults.get(exercise.id) || { // exercise.id is MasterExercise.id
+                                    const currentResult = sessionExerciseResults.get(exercise.id) || {
                                         doneReps: 0,
                                         rating: 3,
                                         plannedReps: exercise.suggestedReps ?? "",
@@ -1269,9 +1242,8 @@ const handleSaveSessionAndNavigate = async () => {
         </DialogContent>
       </Dialog>
 
-      {/* Dialog to Select Master Exercises to add to a Block */}
       <Dialog open={isSelectExerciseDialogOpen} onOpenChange={(open) => {
-        if (!open) setCurrentBlockIdForNewExercise(null); // Reset when closing
+        if (!open) setCurrentBlockIdForNewExercise(null);
         setIsSelectExerciseDialogOpen(open);
       }}>
         <DialogContent className="sm:max-w-lg">
@@ -1338,6 +1310,3 @@ const handleSaveSessionAndNavigate = async () => {
 };
 
 export default Dashboard;
-
-
-    

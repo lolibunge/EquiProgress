@@ -16,8 +16,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Icons } from './icons'; 
-import { BookMarked } from 'lucide-react';
+import { Icons } from './icons';
+import { BookMarked, ListChecks } from 'lucide-react'; // Added ListChecks for Exercises
 
 export default function Navbar() {
   const { currentUser, userProfile, loading } = useAuth();
@@ -29,7 +29,6 @@ export default function Navbar() {
       router.push('/login');
     } catch (error) {
       console.error("Failed to log out", error);
-      // Handle error (e.g., show toast)
     }
   };
 
@@ -49,11 +48,16 @@ export default function Navbar() {
           <Icons.logo className="h-6 w-6 text-primary"/>
           EquiProgress
         </Link>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 md:gap-4">
           {!loading && currentUser && (
-            <Button variant="ghost" asChild>
-              <Link href="/horse-history">Historial</Link>
-            </Button>
+            <>
+              <Button variant="ghost" asChild>
+                <Link href="/library/exercises">Ejercicios</Link>
+              </Button>
+              <Button variant="ghost" asChild>
+                <Link href="/horse-history">Historial</Link>
+              </Button>
+            </>
           )}
           {!loading && !currentUser && (
             <>
@@ -85,23 +89,27 @@ export default function Navbar() {
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => router.push('/profile')}> 
+                <DropdownMenuItem onClick={() => router.push('/profile')}>
                   <Icons.user className="mr-2 h-4 w-4" />
                   <span>Perfil</span>
                 </DropdownMenuItem>
-                {/* <DropdownMenuItem onClick={() => router.push('/horse-history')}>
+                {/* <DropdownMenuItem onClick={() => router.push('/library/exercises')}>
+                  <ListChecks className="mr-2 h-4 w-4" />
+                  <span>Biblioteca de Ejercicios</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => router.push('/horse-history')}>
                   <Icons.bookMarked className="mr-2 h-4 w-4" />
-                  <span>Historial</span>
+                  <span>Historial de Sesiones</span>
                 </DropdownMenuItem> */}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout}>
-                  <Icons.close className="mr-2 h-4 w-4" /> 
+                  <Icons.close className="mr-2 h-4 w-4" />
                   <span>Cerrar Sesión</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           )}
-           {!loading && currentUser && !userProfile && ( 
+           {!loading && currentUser && !userProfile && (
              <Button variant="ghost" onClick={handleLogout}>Cerrar Sesión</Button>
            )}
         </div>
@@ -109,4 +117,3 @@ export default function Navbar() {
     </nav>
   );
 }
-
