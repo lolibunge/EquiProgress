@@ -305,13 +305,13 @@ const Dashboard = () => {
     try {
       const userHorses = await fetchHorsesService(uid);
       setHorses(userHorses);
-      console.log("[Dashboard] Horses fetched successfully:", userHorses);
+      console.log("[Dashboard] Horses fetched successfully:", userHorses.length);
       if (userHorses.length === 0) {
         setSelectedHorse(null);
       }
     } catch (error) {
       console.error("[Dashboard] Error fetching horses:", error);
-      toast({ variant: "destructive", title: "Error al Cargar Caballos", description: "No se pudieron cargar los caballos. Verifica tu conexión y los permisos de Firestore." });
+      toast({ variant: "destructive", title: "Error al Cargar Caballos", description: "No se pudieron cargar los caballos." });
       setHorses([]);
     } finally {
       setIsLoadingHorses(false);
@@ -319,12 +319,12 @@ const Dashboard = () => {
   }, [toast]);
 
   useEffect(() => {
-    console.log("[Dashboard] currentUser state changed:", currentUser);
+    console.log("[Dashboard] Horses useEffect triggered. currentUser?.uid:", currentUser?.uid);
     if (currentUser?.uid) {
-      console.log("[Dashboard] Valid currentUser found, calling performFetchHorses with UID:", currentUser.uid);
+      console.log("[Dashboard] Valid currentUser.uid for fetching horses:", currentUser.uid);
       performFetchHorses(currentUser.uid);
     } else {
-      console.log("[Dashboard] No valid currentUser or UID, clearing horses data.");
+      console.log("[Dashboard] No valid currentUser.uid for fetching horses. Clearing horses data.");
       setHorses([]);
       setSelectedHorse(null);
       setIsLoadingHorses(false);
@@ -338,10 +338,10 @@ const Dashboard = () => {
     try {
       const plans = await getTrainingPlans();
       setTrainingPlans(plans);
-      console.log("[Dashboard] Training plans fetched successfully:", plans);
+      console.log("[Dashboard] Training plans fetched successfully:", plans.length);
     } catch (error) {
       console.error("[Dashboard] Error fetching training plans:", error);
-      toast({ variant: "destructive", title: "Error al Cargar Planes", description: "No se pudieron cargar los planes. Verifica tu conexión y los permisos de Firestore." });
+      toast({ variant: "destructive", title: "Error al Cargar Planes", description: "No se pudieron cargar los planes." });
       setTrainingPlans([]);
     } finally {
       setIsLoadingPlans(false);
@@ -349,13 +349,16 @@ const Dashboard = () => {
   }, [toast]);
 
   useEffect(() => {
-    console.log("[Dashboard] Checking currentUser for fetching plans:", currentUser);
+    console.log("[Dashboard] Plans useEffect triggered. currentUser:", currentUser ? currentUser.uid : 'null');
     if (currentUser) {
-      console.log("[Dashboard] Valid currentUser found, calling performFetchPlans.");
+      console.log("[Dashboard] Valid currentUser for fetching plans:", currentUser.uid);
       performFetchPlans();
     } else {
-      console.log("[Dashboard] No currentUser, clearing training plans data.");
+      console.log("[Dashboard] No currentUser for fetching plans. Clearing plans data.");
       setTrainingPlans([]);
+      setSelectedPlan(null);
+      setBlocks([]);
+      setExercisesInPlan([]);
       setIsLoadingPlans(false);
     }
   }, [currentUser, performFetchPlans]);
@@ -363,6 +366,7 @@ const Dashboard = () => {
   const performFetchExercisesForPlan = useCallback(async (planId: string, currentPlanBlocks: TrainingBlock[]) => {
     if (!planId || currentPlanBlocks.length === 0) {
         setExercisesInPlan([]);
+        console.log(`[Dashboard] No planId or no blocks for plan ${planId}, clearing exercises.`)
         return;
     }
     console.log(`[Dashboard] Fetching exercises for plan ${planId} with ${currentPlanBlocks.length} blocks.`);
@@ -371,9 +375,11 @@ const Dashboard = () => {
       let allExercisesForPlan: BlockExerciseDisplay[] = [];
       for (const block of currentPlanBlocks) {
         if (block && block.id) {
+          console.log(`[Dashboard] Fetching exercises for block ${block.id} in plan ${planId}`);
           const blockExercises = await getExercisesForBlock(block.id);
           const exercisesWithBlockId = blockExercises.map(ex => ({ ...ex, blockId: block.id }));
           allExercisesForPlan = [...allExercisesForPlan, ...exercisesWithBlockId];
+          console.log(`[Dashboard] Fetched ${blockExercises.length} exercises for block ${block.id}. Total so far: ${allExercisesForPlan.length}`);
         } else {
           console.warn(`[Dashboard] Skipping fetch for block with undefined id in plan ${planId}`);
         }
@@ -387,7 +393,7 @@ const Dashboard = () => {
         return (a.orderInBlock ?? Infinity) - (b.orderInBlock ?? Infinity);
       });
       setExercisesInPlan(sortedExercises);
-       console.log(`[Dashboard] Exercises for plan ${planId} fetched:`, sortedExercises.length);
+      console.log(`[Dashboard] Exercises for plan ${planId} fetched and sorted:`, sortedExercises.length);
     } catch (error) {
       console.error(`[Dashboard] Error fetching exercises for plan ${planId}:`, error);
       toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar los ejercicios del plan." });
@@ -401,17 +407,20 @@ const Dashboard = () => {
     if (!planId) {
       setBlocks([]);
       setExercisesInPlan([]);
+      console.log("[Dashboard] No planId for fetching blocks, clearing blocks and exercises.")
       return;
     }
     console.log(`[Dashboard] Fetching blocks for plan ${planId}.`);
     setIsLoadingBlocks(true);
-    setExercisesInPlan([]);
+    setExercisesInPlan([]); // Clear exercises before fetching new blocks' exercises
     try {
       const fetchedBlocks = await getTrainingBlocks(planId);
       setBlocks(fetchedBlocks);
       console.log(`[Dashboard] Blocks for plan ${planId} fetched:`, fetchedBlocks.length);
       if (fetchedBlocks.length > 0) {
         performFetchExercisesForPlan(planId, fetchedBlocks);
+      } else {
+         setExercisesInPlan([]); // Ensure exercises are cleared if no blocks
       }
     } catch (error) {
       console.error(`[Dashboard] Error fetching blocks for plan ${planId}:`, error);
@@ -425,8 +434,10 @@ const Dashboard = () => {
 
   useEffect(() => {
     if (selectedPlan?.id) {
+      console.log(`[Dashboard] selectedPlan changed to ${selectedPlan.id}, fetching its blocks.`);
       performFetchBlocks(selectedPlan.id);
     } else {
+      console.log("[Dashboard] selectedPlan is null, clearing blocks and exercises.");
       setBlocks([]);
       setExercisesInPlan([]);
     }
@@ -435,12 +446,16 @@ const Dashboard = () => {
 
   const handleHorseAdded = () => {
     setIsAddHorseDialogOpen(false);
-    if (currentUser?.uid) performFetchHorses(currentUser.uid);
+    if (currentUser?.uid) {
+        console.log("[Dashboard] Horse added, re-fetching horses.");
+        performFetchHorses(currentUser.uid);
+    }
   };
   const handleAddHorseCancel = () => setIsAddHorseDialogOpen(false);
 
   const handlePlanAdded = (newPlanId: string) => {
     setIsCreatePlanDialogOpen(false);
+    console.log(`[Dashboard] Plan added with ID ${newPlanId}, re-fetching plans and selecting new one.`);
     performFetchPlans().then(() => {
       getTrainingPlans().then(refreshedPlans => {
         setTrainingPlans(refreshedPlans);
@@ -457,12 +472,14 @@ const Dashboard = () => {
     setSelectedPlan(null);
     setBlocks([]);
     setExercisesInPlan([]);
+    console.log("[Dashboard] Plan deleted, re-fetching plans.");
     performFetchPlans();
   };
 
   const handleDeleteSelectedPlan = async () => {
     if (!selectedPlan) return;
     setIsDeletingPlan(true);
+    console.log(`[Dashboard] Deleting plan ${selectedPlan.id}`);
     try {
       await deleteTrainingPlan(selectedPlan.id);
       toast({
@@ -487,6 +504,7 @@ const Dashboard = () => {
   const handleBlockAdded = () => {
     setIsAddBlockDialogOpen(false);
     if (selectedPlan) {
+      console.log(`[Dashboard] Block added to plan ${selectedPlan.id}, re-fetching blocks.`);
       performFetchBlocks(selectedPlan.id);
     }
   };
@@ -495,6 +513,7 @@ const Dashboard = () => {
     setIsEditBlockDialogOpen(false);
     setEditingBlock(null);
     if (selectedPlan) {
+      console.log(`[Dashboard] Block updated in plan ${selectedPlan.id}, re-fetching blocks.`);
       performFetchBlocks(selectedPlan.id);
     }
   };
@@ -508,10 +527,12 @@ const Dashboard = () => {
     setCurrentBlockIdForNewExercise(blockId);
     setIsLoadingMasterExercises(true);
     setIsSelectExerciseDialogOpen(true);
+    console.log(`[Dashboard] Opening select exercise dialog for block ${blockId}. Fetching master exercises.`);
     try {
       const masters = await getMasterExercises();
       setAvailableMasterExercises(masters);
       setSelectedMasterExercisesForBlock(new Set());
+      console.log(`[Dashboard] Master exercises fetched for dialog: ${masters.length}`);
     } catch (error) {
       toast({ title: "Error", description: "No se pudieron cargar los ejercicios de la biblioteca.", variant: "destructive" });
       setAvailableMasterExercises([]);
@@ -525,7 +546,8 @@ const Dashboard = () => {
       toast({ title: "Nada Seleccionado", description: "Por favor, selecciona al menos un ejercicio.", variant: "default" });
       return;
     }
-    setIsLoadingExercises(true);
+    setIsLoadingExercises(true); // Potentially a different loading state if preferred
+    console.log(`[Dashboard] Adding ${selectedMasterExercisesForBlock.size} exercises to block ${currentBlockIdForNewExercise}.`);
     try {
       for (const masterExerciseId of selectedMasterExercisesForBlock) {
         await addExerciseToBlockReference(selectedPlan.id, currentBlockIdForNewExercise, masterExerciseId);
@@ -533,8 +555,9 @@ const Dashboard = () => {
       toast({ title: "Ejercicios Añadidos", description: "Los ejercicios seleccionados se han añadido a la etapa." });
       setIsSelectExerciseDialogOpen(false);
       setCurrentBlockIdForNewExercise(null);
-      if (selectedPlan?.id && blocks.length > 0) {
-        performFetchExercisesForPlan(selectedPlan.id, blocks);
+      if (selectedPlan?.id && blocks.length > 0) { // Refetch exercises for the current plan
+        console.log(`[Dashboard] Exercises added to block, re-fetching exercises for plan ${selectedPlan.id}.`);
+        performFetchExercisesForPlan(selectedPlan.id, blocks); // Pass current blocks to avoid re-fetching blocks unnecessarily
       }
     } catch (error) {
       toast({ title: "Error", description: "No se pudieron añadir los ejercicios a la etapa.", variant: "destructive" });
@@ -545,11 +568,13 @@ const Dashboard = () => {
   };
 
   const handleRemoveExerciseFromBlock = async (planId: string, blockId: string, masterExerciseId: string) => {
-    setIsLoadingExercises(true);
+    setIsLoadingExercises(true); // Potentially a different loading state
+    console.log(`[Dashboard] Removing exercise ${masterExerciseId} from block ${blockId}.`);
     try {
       await removeExerciseFromBlockReference(planId, blockId, masterExerciseId);
       toast({title: "Ejercicio Removido", description: "El ejercicio ha sido quitado de esta etapa."});
       if (selectedPlan?.id && blocks.length > 0) {
+        console.log(`[Dashboard] Exercise removed, re-fetching exercises for plan ${selectedPlan.id}.`);
         performFetchExercisesForPlan(selectedPlan.id, blocks);
       }
     } catch (error) {
@@ -632,8 +657,11 @@ const handleSaveSessionAndNavigate = async () => {
         });
         return;
     }
+    console.log(`[Dashboard] Attempting to save session for horse ${selectedHorse.id}, block ${selectedBlock.id}.`);
 
     const exercisesInSelectedBlockForSession = await getExercisesForBlock(selectedBlock.id);
+    console.log(`[Dashboard] Exercises fetched for selected block ${selectedBlock.id} to save in session: ${exercisesInSelectedBlockForSession.length}`);
+
 
     if (exercisesInSelectedBlockForSession.length === 0) {
         toast({
@@ -641,6 +669,7 @@ const handleSaveSessionAndNavigate = async () => {
             title: "Sin Ejercicios",
             description: "La etapa seleccionada para la sesión no tiene ejercicios. Añade ejercicios a esta etapa en la pestaña 'Plan'.",
         });
+        console.warn(`[Dashboard] Cannot save session: block ${selectedBlock.id} has no exercises.`);
         return;
     }
 
@@ -653,8 +682,11 @@ const handleSaveSessionAndNavigate = async () => {
         blockId: selectedBlock.id,
         overallNote: sessionOverallNote,
       };
+      console.log("[Dashboard] Session input data for creation:", sessionInput);
 
       const sessionId = await createSession(sessionInput);
+      console.log(`[Dashboard] Session created with ID: ${sessionId}`);
+
 
       if (sessionId) {
         const exerciseResultsToSave: ExerciseResultInput[] = [];
@@ -691,11 +723,14 @@ const handleSaveSessionAndNavigate = async () => {
                 observations: observationsToSave,
             });
         });
+        console.log("[Dashboard] Exercise results to save:", exerciseResultsToSave.length, JSON.parse(JSON.stringify(exerciseResultsToSave)));
+
 
         if (exerciseResultsToSave.length > 0) {
              for (const resultInput of exerciseResultsToSave) {
                 await addExerciseResult(selectedHorse.id, sessionId, resultInput);
             }
+            console.log(`[Dashboard] ${exerciseResultsToSave.length} exercise results added to session ${sessionId}.`);
         }
 
         toast({ title: "Sesión Guardada", description: "La sesión y los resultados de los ejercicios han sido registrados." });
@@ -705,6 +740,7 @@ const handleSaveSessionAndNavigate = async () => {
         router.push(`/session/${sessionId}?horseId=${selectedHorse.id}`);
       } else {
         toast({ variant: "destructive", title: "Error", description: "No se pudo crear la sesión." });
+        console.error("[Dashboard] Session ID was null after creation attempt.");
       }
     } catch (error) {
       console.error("[Dashboard] Error saving session:", error);
@@ -720,43 +756,63 @@ const handleSaveSessionAndNavigate = async () => {
 
   const handleDragEndExercises = async (event: DragEndEvent) => {
     const { active, over } = event;
+    console.log(`[Dashboard] DragEndExercises: Active - ${active?.id}, Over - ${over?.id}`);
 
     if (active && over && active.id !== over.id) {
       const activeExerciseId = String(active.id);
       const overExerciseId = String(over.id);
 
       const activeExercise = exercisesInPlan.find(ex => ex.id === activeExerciseId);
-      if (!activeExercise || !selectedPlan) return;
+      if (!activeExercise || !selectedPlan) {
+          console.warn("[Dashboard] DragEndExercises: Active exercise or selected plan not found.");
+          return;
+      }
 
       const blockIdOfDraggedItem = activeExercise.blockId;
       if (!blockIdOfDraggedItem) {
-        console.error("Dragged exercise does not have a blockId. Cannot reorder.");
+        console.error("[Dashboard] DragEndExercises: Dragged exercise does not have a blockId. Cannot reorder.");
         toast({variant: "destructive", title: "Error", description: "No se pudo determinar la etapa del ejercicio."});
         return;
       }
+      console.log(`[Dashboard] DragEndExercises: Dragged item from block ${blockIdOfDraggedItem}`);
+
 
       const targetBlock = blocks.find(b => b.id === blockIdOfDraggedItem);
-      if (!targetBlock || !targetBlock.exerciseReferences) return;
+      if (!targetBlock || !targetBlock.exerciseReferences) {
+          console.warn(`[Dashboard] DragEndExercises: Target block ${blockIdOfDraggedItem} or its references not found.`);
+          return;
+      }
 
       let currentReferences: ExerciseReference[] = [...targetBlock.exerciseReferences];
+      console.log(`[Dashboard] DragEndExercises: Current references for block ${blockIdOfDraggedItem}:`, JSON.parse(JSON.stringify(currentReferences)));
+
 
       const oldIndex = currentReferences.findIndex((ref) => ref.exerciseId === activeExerciseId);
       const newIndex = currentReferences.findIndex((ref) => ref.exerciseId === overExerciseId);
+      console.log(`[Dashboard] DragEndExercises: Old index - ${oldIndex}, New index - ${newIndex}`);
 
-      if (oldIndex === -1 || newIndex === -1) return;
+
+      if (oldIndex === -1 || newIndex === -1) {
+          console.warn("[Dashboard] DragEndExercises: Could not find old or new index in references.");
+          return;
+      }
 
       const reorderedReferences = arrayMove(currentReferences, oldIndex, newIndex).map((ref, index) => ({
         ...ref,
         order: index,
       }));
+      console.log(`[Dashboard] DragEndExercises: Reordered references for block ${blockIdOfDraggedItem}:`, JSON.parse(JSON.stringify(reorderedReferences)));
+
 
       try {
         await updateExercisesOrderInBlock(blockIdOfDraggedItem, reorderedReferences);
         toast({ title: "Orden de ejercicios actualizado", description: "El nuevo orden ha sido guardado." });
+        console.log(`[Dashboard] DragEndExercises: Order updated in DB, re-fetching exercises for plan ${selectedPlan.id}.`);
         performFetchExercisesForPlan(selectedPlan.id, blocks);
       } catch (err) {
-        console.error("Error updating exercises order in DB:", err);
+        console.error("[Dashboard] DragEndExercises: Error updating exercises order in DB:", err);
         toast({ variant: "destructive", title: "Error", description: "No se pudo guardar el nuevo orden." });
+        console.log(`[Dashboard] DragEndExercises: Error in DB, re-fetching exercises for plan ${selectedPlan.id} to revert UI (optimistic update failed).`);
         performFetchExercisesForPlan(selectedPlan.id, blocks);
       }
     }
@@ -764,34 +820,47 @@ const handleSaveSessionAndNavigate = async () => {
 
   const handleDragEndBlocks = async (event: DragEndEvent) => {
     const { active, over } = event;
+    console.log(`[Dashboard] DragEndBlocks: Active - ${active?.id}, Over - ${over?.id}`);
+
 
     if (active && over && active.id !== over.id && selectedPlan) {
       setBlocks((prevBlocks) => {
         const oldIndex = prevBlocks.findIndex(b => b.id === active.id);
         const newIndex = prevBlocks.findIndex(b => b.id === over.id);
+        console.log(`[Dashboard] DragEndBlocks: Old block index - ${oldIndex}, New block index - ${newIndex}`);
+
 
         if (oldIndex === -1 || newIndex === -1) return prevBlocks;
 
         const reorderedBlocks = arrayMove(prevBlocks, oldIndex, newIndex);
+        console.log("[Dashboard] DragEndBlocks: Blocks reordered in state (optimistic).");
+
 
         const updatedBlocksForDb = reorderedBlocks.map((block, index) => ({
           ...block,
           order: index,
         }));
+        console.log("[Dashboard] DragEndBlocks: Updated block data for DB:", JSON.parse(JSON.stringify(updatedBlocksForDb)));
+
 
         const dbPayload = updatedBlocksForDb.map(b => ({ id: b.id, order: b.order as number }));
 
         updateBlocksOrder(selectedPlan.id, dbPayload)
           .then(() => {
             toast({ title: "Orden de etapas actualizado", description: "El nuevo orden de etapas ha sido guardado." });
-            performFetchExercisesForPlan(selectedPlan.id, updatedBlocksForDb);
+            console.log(`[Dashboard] DragEndBlocks: Order updated in DB, re-fetching exercises for plan ${selectedPlan.id} with new block order.`);
+            performFetchExercisesForPlan(selectedPlan.id, updatedBlocksForDb); // Use the reordered blocks for fetching exercises
           })
           .catch(err => {
-            console.error("Error updating blocks order in DB:", err);
+            console.error("[Dashboard] DragEndBlocks: Error updating blocks order in DB:", err);
             toast({ variant: "destructive", title: "Error", description: "No se pudo guardar el nuevo orden de etapas." });
-            if (selectedPlan?.id) performFetchBlocks(selectedPlan.id);
+            // Revert optimistic update by re-fetching blocks
+            if (selectedPlan?.id) {
+                console.log(`[Dashboard] DragEndBlocks: Error in DB, re-fetching blocks for plan ${selectedPlan.id} to revert UI.`);
+                performFetchBlocks(selectedPlan.id);
+            }
           });
-        return updatedBlocksForDb;
+        return updatedBlocksForDb; // Return the optimistically updated blocks for immediate UI feedback
       });
     }
   };
@@ -1329,3 +1398,4 @@ const handleSaveSessionAndNavigate = async () => {
 };
 
 export default Dashboard;
+
