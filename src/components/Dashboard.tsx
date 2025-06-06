@@ -1,7 +1,7 @@
 
 "use client";
 
-import Link from 'next/link'; // Asegurar que esta importación esté presente
+import Link from 'next/link';
 import { Timestamp } from "firebase/firestore";
 import {
   Card,
@@ -342,8 +342,13 @@ const Dashboard = () => {
   }, [toast]);
 
   useEffect(() => {
-    performFetchPlans();
-  }, [performFetchPlans]);
+    if (currentUser) { // Only fetch plans if a user is logged in
+      performFetchPlans();
+    } else {
+      setTrainingPlans([]);
+      setIsLoadingPlans(false);
+    }
+  }, [currentUser, performFetchPlans]);
 
   const performFetchExercisesForPlan = useCallback(async (planId: string, currentPlanBlocks: TrainingBlock[]) => {
     if (!planId || currentPlanBlocks.length === 0) {
