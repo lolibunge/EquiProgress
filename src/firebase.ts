@@ -1,44 +1,49 @@
+
 // src/firebase.ts
 'use client';
 
 import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
-import { getStorage } from 'firebase/storage';
-import { getFirestore } from "firebase/firestore";
-import { getAuth } from "firebase/auth";
+import { getStorage, type FirebaseStorage } from 'firebase/storage';
+import { getFirestore, type Firestore } from "firebase/firestore";
+import { getAuth, type Auth } from "firebase/auth";
 import { getAnalytics, isSupported, type Analytics } from "firebase/analytics";
 
 // Log individual environment variables to help debug
-console.log("Reading Environment Variables for Firebase Config:");
+console.log("Firebase Service: Reading Environment Variables for Firebase Config:");
 const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
 const authDomain = process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN;
 const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
 const storageBucket = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
 const messagingSenderId = process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID;
-const appId = process.env.NEXT_PUBLIC_FIREBASE_APP_ID;
+const appIdEnv = process.env.NEXT_PUBLIC_FIREBASE_APP_ID; // Renamed to avoid conflict
 const measurementId = process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID;
 
-console.log("NEXT_PUBLIC_FIREBASE_API_KEY:", apiKey);
-console.log("NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN:", authDomain);
-console.log("NEXT_PUBLIC_FIREBASE_PROJECT_ID:", projectId);
-console.log("NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET:", storageBucket);
-console.log("NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID:", messagingSenderId);
-console.log("NEXT_PUBLIC_FIREBASE_APP_ID:", appId);
-console.log("NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID:", measurementId);
+console.log("Firebase Service: NEXT_PUBLIC_FIREBASE_API_KEY:", apiKey);
+console.log("Firebase Service: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN:", authDomain);
+console.log("Firebase Service: NEXT_PUBLIC_FIREBASE_PROJECT_ID:", projectId);
+console.log("Firebase Service: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET:", storageBucket);
+console.log("Firebase Service: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID:", messagingSenderId);
+console.log("Firebase Service: NEXT_PUBLIC_FIREBASE_APP_ID:", appIdEnv);
+console.log("Firebase Service: NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID:", measurementId);
 
-// Your web app's Firebase configuration using environment variables
 const firebaseConfig = {
   apiKey: apiKey,
   authDomain: authDomain,
   projectId: projectId,
   storageBucket: storageBucket,
   messagingSenderId: messagingSenderId,
-  appId: appId,
+  appId: appIdEnv,
   measurementId: measurementId,
 };
 
-console.log("Attempting to initialize Firebase with API Key:", firebaseConfig.apiKey);
+console.log("Firebase Service: Attempting to initialize Firebase with API Key:", firebaseConfig.apiKey);
 
-// Specific checks for essential config values
+let app: FirebaseApp | undefined;
+let db: Firestore | undefined;
+let authService: Auth | undefined;
+let storageService: FirebaseStorage | undefined;
+let analyticsInstance: Analytics | undefined;
+
 let configError = false;
 if (!firebaseConfig.apiKey) {
   console.error("Firebase Config Error: NEXT_PUBLIC_FIREBASE_API_KEY is missing or undefined.");
@@ -53,64 +58,72 @@ if (!firebaseConfig.projectId) {
   configError = true;
 }
 
-// General critical error message if any of the main three are missing
 if (configError) {
   console.error(
-    "CRITICAL FIREBASE CONFIG ERROR: One or more essential Firebase configuration variables (apiKey, authDomain, projectId) are missing or undefined. " +
-    "Please ensure these (e.g., NEXT_PUBLIC_FIREBASE_API_KEY, NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN, NEXT_PUBLIC_FIREBASE_PROJECT_ID) " +
-    "are correctly set in your environment variables (e.g., .env.local file or Vercel project settings) AND that they are being accessed correctly by the application."
+    "Firebase Service: CRITICAL FIREBASE CONFIG ERROR: One or more essential Firebase configuration variables (apiKey, authDomain, projectId) are missing or undefined. " +
+    "Firebase will NOT be initialized. Please ensure these are correctly set in your environment variables (e.g., .env.local file or Vercel project settings)."
   );
-  // You might want to throw an error here in a real app to halt execution,
-  // or handle this state gracefully in your UI.
-  // For now, we'll let initialization proceed, which will likely fail with auth/invalid-api-key if apiKey is missing,
-  // or other errors if different essential keys are missing.
+} else {
+  try {
+    if (!getApps().length) {
+      app = initializeApp(firebaseConfig);
+      console.log("Firebase Service: initializeApp() called successfully. App Name:", app.name);
+    } else {
+      app = getApp();
+      console.log("Firebase Service: getApp() called as app already exists. App Name:", app.name);
+    }
+  } catch (e: any) {
+    console.error("Firebase Service: CRITICAL ERROR during Firebase app initialization (initializeApp or getApp):", e.message, e);
+    // app will remain undefined
+  }
 }
 
-// Initialize Firebase
-let app: FirebaseApp;
-// Check if all essential keys are present before attempting to initialize
-// This prevents Firebase from throwing its own "invalid-api-key" if apiKey is just one of the missing ones.
-if (firebaseConfig.apiKey && firebaseConfig.authDomain && firebaseConfig.projectId) {
-  if (!getApps().length) {
-    app = initializeApp(firebaseConfig);
-  } else {
-    app = getApp();
+// Only initialize services if app was successfully initialized
+if (app && typeof app.name !== 'undefined') { // A more robust check for a valid FirebaseApp
+  console.log("Firebase Service: Firebase app object appears valid. Attempting to initialize services.");
+  try {
+    db = getFirestore(app);
+    console.log("Firebase Service: Firestore initialized.");
+  } catch (e: any) {
+    console.error("Firebase Service: Error initializing Firestore:", e.message, e);
+  }
+  try {
+    authService = getAuth(app);
+    console.log("Firebase Service: Auth initialized.");
+  } catch (e: any) {
+    console.error("Firebase Service: Error initializing Auth:", e.message, e);
+  }
+  try {
+    storageService = getStorage(app);
+    console.log("Firebase Service: Storage initialized.");
+  } catch (e: any) {
+    console.error("Firebase Service: Error initializing Storage:", e.message, e);
+  }
+
+  if (typeof window !== 'undefined') {
+    isSupported().then((supported) => {
+      if (supported) {
+        if (firebaseConfig.measurementId && app) {
+          try {
+            analyticsInstance = getAnalytics(app);
+            console.log("Firebase Service: Analytics initialized.");
+          } catch(e: any) {
+            console.error("Firebase Service: Error initializing Analytics:", e.message, e);
+          }
+        } else if (!firebaseConfig.measurementId) {
+          console.log("Firebase Service: Analytics not initialized: measurementId is missing.");
+        }
+      } else {
+        console.log("Firebase Service: Analytics not supported on this browser.");
+      }
+    }).catch(err => {
+      console.error("Firebase Service: Error checking Analytics support:", err);
+    });
   }
 } else {
-  // If essential config is missing, we cannot initialize Firebase.
-  // Log this and set app to a state that downstream services can check.
-  // However, for this example, we'll let the individual service initializations (getAuth, getFirestore) fail
-  // if 'app' is not properly initialized. A more robust app might handle this by not initializing services.
-  console.error("Firebase app NOT initialized due to missing critical configuration.");
-  // To prevent "app is not defined" errors later, we might assign a dummy or handle this more gracefully.
-  // For now, this structure will lead to errors in getAuth/getFirestore if config is bad.
-  // This is acceptable for now as the primary issue is the missing env vars.
+  if (!configError) { 
+    console.error("Firebase Service: Firebase app object is undefined or invalid after initialization attempt. Services (db, auth, storage, analytics) will be undefined.");
+  }
 }
 
-// @ts-ignore app might not be initialized if config is missing
-export const db = getFirestore(app);
-// @ts-ignore app might not be initialized if config is missing
-export const auth = getAuth(app);
-// @ts-ignore app might not be initialized if config is missing
-export const storage = getStorage(app);
-
-// Initialize Analytics if supported (client-side only)
-let analyticsInstance: Analytics | undefined;
-if (typeof window !== 'undefined' && app) { // Ensure app is initialized before trying to use it
-  isSupported().then((supported) => {
-    if (supported) {
-      if (firebaseConfig.measurementId) { // Only initialize if measurementId is present
-        analyticsInstance = getAnalytics(app);
-        console.log("Firebase Analytics initialized");
-      } else {
-        console.log("Firebase Analytics not initialized: measurementId is missing in firebaseConfig.");
-      }
-    } else {
-      console.log("Firebase Analytics not supported on this browser.");
-    }
-  }).catch(err => {
-    console.error("Error checking Firebase Analytics support:", err);
-  });
-}
-
-export { app, analyticsInstance as analytics };
+export { app, db, authService as auth, storageService as storage, analyticsInstance as analytics };
