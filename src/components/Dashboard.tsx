@@ -300,16 +300,18 @@ const Dashboard = () => {
   );
 
   const performFetchHorses = useCallback(async (uid: string) => {
+    console.log("[Dashboard] Attempting to fetch horses for UID:", uid);
     setIsLoadingHorses(true);
     try {
       const userHorses = await fetchHorsesService(uid);
       setHorses(userHorses);
+      console.log("[Dashboard] Horses fetched successfully:", userHorses);
       if (userHorses.length === 0) {
         setSelectedHorse(null);
       }
     } catch (error) {
       console.error("[Dashboard] Error fetching horses:", error);
-      toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar los caballos." });
+      toast({ variant: "destructive", title: "Error al Cargar Caballos", description: "No se pudieron cargar los caballos. Verifica tu conexión y los permisos de Firestore." });
       setHorses([]);
     } finally {
       setIsLoadingHorses(false);
@@ -317,9 +319,12 @@ const Dashboard = () => {
   }, [toast]);
 
   useEffect(() => {
+    console.log("[Dashboard] currentUser state changed:", currentUser);
     if (currentUser?.uid) {
+      console.log("[Dashboard] Valid currentUser found, calling performFetchHorses with UID:", currentUser.uid);
       performFetchHorses(currentUser.uid);
     } else {
+      console.log("[Dashboard] No valid currentUser or UID, clearing horses data.");
       setHorses([]);
       setSelectedHorse(null);
       setIsLoadingHorses(false);
@@ -328,13 +333,15 @@ const Dashboard = () => {
 
 
   const performFetchPlans = useCallback(async () => {
+    console.log("[Dashboard] Attempting to fetch training plans.");
     setIsLoadingPlans(true);
     try {
       const plans = await getTrainingPlans();
       setTrainingPlans(plans);
+      console.log("[Dashboard] Training plans fetched successfully:", plans);
     } catch (error) {
       console.error("[Dashboard] Error fetching training plans:", error);
-      toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar los planes de entrenamiento." });
+      toast({ variant: "destructive", title: "Error al Cargar Planes", description: "No se pudieron cargar los planes. Verifica tu conexión y los permisos de Firestore." });
       setTrainingPlans([]);
     } finally {
       setIsLoadingPlans(false);
@@ -342,9 +349,12 @@ const Dashboard = () => {
   }, [toast]);
 
   useEffect(() => {
-    if (currentUser) { // Only fetch plans if a user is logged in
+    console.log("[Dashboard] Checking currentUser for fetching plans:", currentUser);
+    if (currentUser) {
+      console.log("[Dashboard] Valid currentUser found, calling performFetchPlans.");
       performFetchPlans();
     } else {
+      console.log("[Dashboard] No currentUser, clearing training plans data.");
       setTrainingPlans([]);
       setIsLoadingPlans(false);
     }
@@ -355,6 +365,7 @@ const Dashboard = () => {
         setExercisesInPlan([]);
         return;
     }
+    console.log(`[Dashboard] Fetching exercises for plan ${planId} with ${currentPlanBlocks.length} blocks.`);
     setIsLoadingExercises(true);
     try {
       let allExercisesForPlan: BlockExerciseDisplay[] = [];
@@ -376,6 +387,7 @@ const Dashboard = () => {
         return (a.orderInBlock ?? Infinity) - (b.orderInBlock ?? Infinity);
       });
       setExercisesInPlan(sortedExercises);
+       console.log(`[Dashboard] Exercises for plan ${planId} fetched:`, sortedExercises.length);
     } catch (error) {
       console.error(`[Dashboard] Error fetching exercises for plan ${planId}:`, error);
       toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar los ejercicios del plan." });
@@ -391,11 +403,13 @@ const Dashboard = () => {
       setExercisesInPlan([]);
       return;
     }
+    console.log(`[Dashboard] Fetching blocks for plan ${planId}.`);
     setIsLoadingBlocks(true);
     setExercisesInPlan([]);
     try {
       const fetchedBlocks = await getTrainingBlocks(planId);
       setBlocks(fetchedBlocks);
+      console.log(`[Dashboard] Blocks for plan ${planId} fetched:`, fetchedBlocks.length);
       if (fetchedBlocks.length > 0) {
         performFetchExercisesForPlan(planId, fetchedBlocks);
       }
