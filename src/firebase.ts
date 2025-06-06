@@ -1,29 +1,33 @@
 
+// src/firebase.ts
 'use client';
 
-// Import the functions you need from the SDKs you need
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getStorage } from 'firebase/storage';
 import { getFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import { getAnalytics, isSupported } from "firebase/analytics";
 
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
-
-// IMPORTANTE: Reemplaza la siguiente configuración con la configuración real de tu proyecto Firebase.
-// Especialmente, la 'apiKey' DEBE SER LA REAL DE TU PROYECTO.
-// El error 'auth/configuration-not-found' suele ocurrir si la apiKey es incorrecta
-// o si los métodos de autenticación (ej. Email/Password, Google) no están habilitados
-// en la consola de Firebase (Authentication -> Sign-in method).
+// Your web app's Firebase configuration using environment variables
 const firebaseConfig = {
-  apiKey: "AIzaSyBmYwqWxbQRVQ5tZ-VgiscagoUfNYBZ1Q0", // <-- !!! REEMPLAZA ESTA CLAVE !!!
-  authDomain: "equiprogress.firebaseapp.com",
-  projectId: "equiprogress",
-  storageBucket: "equiprogress.firebasestorage.app",
-  messagingSenderId: "336154971034",
-  appId: "1:336154971034:web:3a3e519c02b84d96894823"
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  // measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID, // Uncomment if you use it
 };
+
+// Basic check for essential config values
+if (!firebaseConfig.apiKey || !firebaseConfig.authDomain || !firebaseConfig.projectId) {
+  console.error(
+    "CRITICAL FIREBASE CONFIG ERROR: Essential Firebase configuration (apiKey, authDomain, projectId) is missing. " +
+    "Please ensure NEXT_PUBLIC_FIREBASE_API_KEY, NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN, and NEXT_PUBLIC_FIREBASE_PROJECT_ID " +
+    "are set in your environment variables (e.g., .env.local file or Vercel project settings)."
+  );
+  // In a real app, you might want to display a more user-friendly error or prevent app initialization.
+}
 
 // Initialize Firebase
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
@@ -33,9 +37,3 @@ export const storage = getStorage(app);
 
 if (typeof window !== 'undefined') {
   isSupported().then((supported) => {
-    if (supported) {
-      getAnalytics(app);
-    }
-  });
-}
-
