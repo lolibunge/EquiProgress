@@ -13,8 +13,10 @@ export interface HorseInputData {
 }
 
 export const addHorse = async (horseData: HorseInputData): Promise<string> => {
+  console.log("[HorseService] addHorse called with data:", horseData);
   const user = auth.currentUser;
   if (!user) {
+    console.error("[HorseService] addHorse: User not authenticated.");
     throw new Error("Usuario no autenticado. Por favor, inicie sesión.");
   }
 
@@ -24,23 +26,24 @@ export const addHorse = async (horseData: HorseInputData): Promise<string> => {
     sex: horseData.sex,
     color: horseData.color,
     ownerUid: user.uid,
-    createdAt: serverTimestamp() as Timestamp, 
+    createdAt: serverTimestamp() as Timestamp,
     updatedAt: serverTimestamp() as Timestamp,
   };
 
   try {
     const docRef = await addDoc(collection(db, 'horses'), newHorseData);
-    console.log('Document written with ID: ', docRef.id);
-    return docRef.id; 
+    console.log('[HorseService] addHorse: Document written with ID: ', docRef.id);
+    return docRef.id;
   } catch (e) {
-    console.error('Error adding document: ', e);
-    throw e; 
+    console.error('[HorseService] addHorse: Error adding document: ', e);
+    throw e;
   }
 };
 
 export const getHorses = async (ownerUid: string): Promise<Horse[]> => {
+  console.log(`[HorseService] getHorses called for ownerUid: ${ownerUid}`);
   if (!ownerUid) {
-    console.warn("ownerUid is required to fetch horses.");
+    console.warn("[HorseService] getHorses: ownerUid is required. Returning empty array.");
     return [];
   }
   try {
@@ -54,29 +57,36 @@ export const getHorses = async (ownerUid: string): Promise<Horse[]> => {
     querySnapshot.forEach((doc) => {
       horses.push({ id: doc.id, ...doc.data() } as Horse);
     });
+    console.log(`[HorseService] getHorses: Fetched ${horses.length} horses for ownerUid ${ownerUid}.`);
     return horses;
-  } catch (e) {
-    console.error('Error fetching documents: ', e);
-    throw e; 
+  } catch (e: any) {
+    console.error(`[HorseService] getHorses: Error fetching documents for ownerUid ${ownerUid}:`, e);
+    if (e.code === 'failed-precondition' && e.message.includes('index')) {
+      console.error(`[HorseService] INDEX_REQUIRED: Firestore query for getHorses (ownerUid: ${ownerUid}, orderBy: createdAt desc) likely needs a composite index. Please check the Firebase console for a link to create it.`);
+    }
+    throw e;
   }
 };
 
 export const getHorseById = async (horseId: string): Promise<Horse | null> => {
+  console.log(`[HorseService] getHorseById called for horseId: ${horseId}`);
   if (!horseId) {
-    console.warn("horseId is required to fetch a horse.");
+    console.warn("[HorseService] getHorseById: horseId is required. Returning null.");
     return null;
   }
   try {
     const horseDocRef = doc(db, 'horses', horseId);
     const horseDocSnap = await getDoc(horseDocRef);
     if (horseDocSnap.exists()) {
-      return { id: horseDocSnap.id, ...horseDocSnap.data() } as Horse;
+      const horseData = { id: horseDocSnap.id, ...horseDocSnap.data() } as Horse;
+      console.log(`[HorseService] getHorseById: Found horse for ID ${horseId}:`, horseData);
+      return horseData;
     } else {
-      console.log("No such horse document!");
+      console.log(`[HorseService] getHorseById: No such horse document for ID: ${horseId}`);
       return null;
     }
   } catch (e) {
-    console.error('Error fetching horse document: ', e);
+    console.error(`[HorseService] getHorseById: Error fetching horse document for ID ${horseId}:`, e);
     throw e;
   }
 };

@@ -5,7 +5,7 @@ import type { TrainingPlan, TrainingBlock, TrainingPlanInput, TrainingBlockInput
 
 // --- TrainingPlan Functions ---
 export async function getTrainingPlans(): Promise<TrainingPlan[]> {
-  console.log("[Firestore Service] Fetching training plans");
+  console.log("[FirestoreService] getTrainingPlans called");
   try {
     const trainingPlansRef = collection(db, "trainingPlans");
     const q = query(trainingPlansRef, orderBy("createdAt", "desc"));
@@ -14,15 +14,19 @@ export async function getTrainingPlans(): Promise<TrainingPlan[]> {
     querySnapshot.forEach((doc) => {
       trainingPlans.push({ id: doc.id, ...doc.data() } as TrainingPlan);
     });
-    console.log(`[Firestore Service] Fetched ${trainingPlans.length} training plans.`);
+    console.log(`[FirestoreService] getTrainingPlans: Fetched ${trainingPlans.length} training plans.`);
     return trainingPlans;
-  } catch (error) {
-    console.error("[Firestore Service] Error fetching training plans:", error);
+  } catch (error: any) {
+    console.error("[FirestoreService] getTrainingPlans: Error fetching training plans:", error);
+     if (error.code === 'failed-precondition' && error.message.includes('index')) {
+      console.error(`[FirestoreService] INDEX_REQUIRED: Firestore query for getTrainingPlans (orderBy: createdAt desc) likely needs an index. Please check the Firebase console for a link to create it.`);
+    }
     throw error;
   }
 }
 
 export async function addTrainingPlan(planData: TrainingPlanInput): Promise<string> {
+  console.log("[FirestoreService] addTrainingPlan called with data:", planData);
   const planCollectionRef = collection(db, "trainingPlans");
   const newPlanData = {
     ...planData,
@@ -32,35 +36,38 @@ export async function addTrainingPlan(planData: TrainingPlanInput): Promise<stri
   };
   try {
     const docRef = await addDoc(planCollectionRef, newPlanData);
-    console.log("[Firestore Service] Training plan added with ID:", docRef.id);
+    console.log("[FirestoreService] addTrainingPlan: Training plan added with ID:", docRef.id);
     return docRef.id;
   } catch (error) {
-    console.error("[Firestore Service] Error adding training plan:", error);
+    console.error("[FirestoreService] addTrainingPlan: Error adding training plan:", error);
     throw error;
   }
 }
 
 export async function deleteTrainingPlan(planId: string): Promise<void> {
-  console.log(`[Firestore Service] Attempting to delete plan ${planId} and its blocks.`);
+  console.log(`[FirestoreService] deleteTrainingPlan: Attempting to delete plan ${planId} and its blocks.`);
   const batch = writeBatch(db);
 
   const blocksRef = collection(db, "trainingBlocks");
   const blocksQuery = query(blocksRef, where("planId", "==", planId));
-  const blocksSnapshot = await getDocs(blocksQuery);
-
-  blocksSnapshot.forEach((blockDoc) => {
-    batch.delete(doc(db, "trainingBlocks", blockDoc.id));
-  });
-  console.log(`[Firestore Service] Found ${blocksSnapshot.size} blocks for plan ${planId} to delete.`);
-
-  const planDocRef = doc(db, "trainingPlans", planId);
-  batch.delete(planDocRef);
-
+  
   try {
+    const blocksSnapshot = await getDocs(blocksQuery);
+    blocksSnapshot.forEach((blockDoc) => {
+      batch.delete(doc(db, "trainingBlocks", blockDoc.id));
+    });
+    console.log(`[FirestoreService] deleteTrainingPlan: Found ${blocksSnapshot.size} blocks for plan ${planId} to delete.`);
+
+    const planDocRef = doc(db, "trainingPlans", planId);
+    batch.delete(planDocRef);
+
     await batch.commit();
-    console.log(`[Firestore Service] Successfully deleted plan ${planId} and its associated blocks.`);
-  } catch (error) {
-    console.error(`[Firestore Service] Error deleting plan ${planId}:`, error);
+    console.log(`[FirestoreService] deleteTrainingPlan: Successfully deleted plan ${planId} and its associated blocks.`);
+  } catch (error: any) {
+    console.error(`[FirestoreService] deleteTrainingPlan: Error deleting plan ${planId}:`, error);
+    if (error.code === 'failed-precondition' && error.message.includes('index')) {
+      console.error(`[FirestoreService] INDEX_REQUIRED: Firestore query for deleting plan (finding blocks by planId) likely needs an index on 'planId'. Please check the Firebase console for a link to create it.`);
+    }
     throw error;
   }
 }
@@ -69,9 +76,9 @@ export async function deleteTrainingPlan(planId: string): Promise<void> {
 // --- TrainingBlock Functions ---
 export async function getTrainingBlocks(planId: string): Promise<TrainingBlock[]> {
   const trimmedPlanId = planId.trim();
-  console.log(`[Firestore Service] Attempting to fetch trainingBlocks with planId: "${trimmedPlanId}" (ordering by 'order' asc)`);
+  console.log(`[FirestoreService] getTrainingBlocks called for planId: "${trimmedPlanId}" (ordering by 'order' asc)`);
   if (!trimmedPlanId) {
-    console.warn("[Firestore Service] getTrainingBlocks: planId is null or empty. Returning empty array.");
+    console.warn("[FirestoreService] getTrainingBlocks: planId is null or empty. Returning empty array.");
     return [];
   }
   try {
@@ -84,44 +91,48 @@ export async function getTrainingBlocks(planId: string): Promise<TrainingBlock[]
       trainingBlocks.push({ id: docSnap.id, ...docSnap.data() } as TrainingBlock);
     });
     
-    console.log(`[Firestore Service] getTrainingBlocks for planId "${trimmedPlanId}" is returning ${trainingBlocks.length} blocks (orderBy 'order' asc).`);
+    console.log(`[FirestoreService] getTrainingBlocks for planId "${trimmedPlanId}" fetched ${trainingBlocks.length} blocks.`);
     return trainingBlocks;
   } catch (error: any) {
-    console.error(`[Firestore Service] Error fetching training blocks for plan ${trimmedPlanId}:`, error);
-    if (error.code === 'failed-precondition') {
-        console.error(`[Firestore Service] INDEX REQUIRED for trainingBlocks: The query (planId: ${trimmedPlanId}, orderBy: order) requires a composite index on 'planId' (asc) and 'order' (asc). Please create it in Firebase Firestore.`);
+    console.error(`[FirestoreService] getTrainingBlocks: Error fetching training blocks for plan ${trimmedPlanId}:`, error);
+    if (error.code === 'failed-precondition' && error.message.includes('index')) {
+        console.error(`[FirestoreService] INDEX_REQUIRED: Firestore query for getTrainingBlocks (planId: ${trimmedPlanId}, orderBy: order asc) needs a composite index on 'planId' (ASC) and 'order' (ASC). Please create it in Firebase Firestore. Link: ${error.message.substring(error.message.indexOf('https://'))}`);
     }
     throw error;
   }
 }
 
 export async function getBlockById(blockId: string): Promise<TrainingBlock | null> {
+  console.log(`[FirestoreService] getBlockById called for blockId: ${blockId}`);
   if (!blockId) {
-    console.warn("[Firestore Service] getBlockById: blockId is required.");
+    console.warn("[FirestoreService] getBlockById: blockId is required. Returning null.");
     return null;
   }
   try {
     const blockDocRef = doc(db, 'trainingBlocks', blockId);
     const blockDocSnap = await getDoc(blockDocRef);
     if (blockDocSnap.exists()) {
-      return { id: blockDocSnap.id, ...blockDocSnap.data() } as TrainingBlock;
+      const blockData = { id: blockDocSnap.id, ...blockDocSnap.data() } as TrainingBlock;
+      console.log(`[FirestoreService] getBlockById: Found block for ID ${blockId}:`, blockData);
+      return blockData;
     } else {
-      console.log(`[Firestore Service] No block document found for ID: ${blockId}`);
+      console.log(`[FirestoreService] getBlockById: No block document found for ID: ${blockId}`);
       return null;
     }
   } catch (e) {
-    console.error(`[Firestore Service] Error fetching block document ID ${blockId}:`, e);
+    console.error(`[FirestoreService] getBlockById: Error fetching block document ID ${blockId}:`, e);
     throw e;
   }
 }
 
 export async function addTrainingBlock(planId: string, blockData: Omit<TrainingBlockInput, 'exerciseReferences' | 'order'>): Promise<string> {
+  console.log(`[FirestoreService] addTrainingBlock called for planId: ${planId} with data:`, blockData);
   const blockCollectionRef = collection(db, "trainingBlocks");
 
   const q = query(
     collection(db, "trainingBlocks"),
     where("planId", "==", planId),
-    orderBy("order", "desc"), 
+    orderBy("order", "desc"),
     limit(1)
   );
   let newOrder = 0;
@@ -131,7 +142,8 @@ export async function addTrainingBlock(planId: string, blockData: Omit<TrainingB
       const lastBlock = existingBlocksSnapshot.docs[0].data() as TrainingBlock;
       newOrder = (typeof lastBlock.order === 'number' ? lastBlock.order : -1) + 1;
     }
-  
+    console.log(`[FirestoreService] addTrainingBlock: Determined new order: ${newOrder}`);
+
     const newBlockData: Omit<TrainingBlock, 'id' | 'createdAt' | 'updatedAt'> & { createdAt: Timestamp, updatedAt: Timestamp } = {
       planId: planId,
       title: blockData.title,
@@ -139,24 +151,25 @@ export async function addTrainingBlock(planId: string, blockData: Omit<TrainingB
       duration: blockData.duration || undefined,
       goal: blockData.goal || undefined,
       order: newOrder,
-      exerciseReferences: [], // Initialize with empty array
+      exerciseReferences: [], 
       createdAt: serverTimestamp() as Timestamp,
       updatedAt: serverTimestamp() as Timestamp,
     };
 
     const docRef = await addDoc(blockCollectionRef, newBlockData);
-    console.log("[Firestore Service] Training block added with ID:", docRef.id, "and order:", newOrder);
+    console.log("[FirestoreService] addTrainingBlock: Training block added with ID:", docRef.id, "and order:", newOrder);
     return docRef.id;
   } catch (error: any) {
-    console.error("[Firestore Service] Error adding training block:", error);
+    console.error("[FirestoreService] addTrainingBlock: Error adding training block:", error);
      if (error.code === 'failed-precondition' && (error.message.includes('order') || error.message.includes('planId'))) {
-        console.error("[Firestore Service] INDEX REQUIRED for adding training block (determining new order): The query requires an index on 'planId' (ASC) and 'order' (DESC). Please create this index in Firebase Firestore.");
+        console.error(`[FirestoreService] INDEX_REQUIRED: Firestore query for adding training block (determining new order) (planId: ${planId}, orderBy: order desc) needs an index. Please create this index in Firebase Firestore. Link: ${error.message.substring(error.message.indexOf('https://'))}`);
     }
     throw error;
   }
 }
 
 export async function updateTrainingBlock(planId: string, blockId: string, blockData: Partial<Omit<TrainingBlockInput, 'planId' | 'order' | 'exerciseReferences'>>): Promise<void> {
+  console.log(`[FirestoreService] updateTrainingBlock called for blockId: ${blockId}, planId: ${planId}, data:`, blockData);
   const blockDocRef = doc(db, "trainingBlocks", blockId);
   const dataToUpdate: Partial<TrainingBlockInput & { updatedAt: Timestamp }> = {
     ...blockData,
@@ -165,21 +178,21 @@ export async function updateTrainingBlock(planId: string, blockId: string, block
 
   try {
     await updateDoc(blockDocRef, dataToUpdate);
-    console.log(`[Firestore Service] Training block ${blockId} updated successfully.`);
+    console.log(`[FirestoreService] updateTrainingBlock: Training block ${blockId} updated successfully.`);
   } catch (error) {
-    console.error(`[Firestore Service] Error updating training block ${blockId}:`, error);
+    console.error(`[FirestoreService] updateTrainingBlock: Error updating training block ${blockId}:`, error);
     throw error;
   }
 }
 
 export async function deleteTrainingBlock(planId: string, blockId: string): Promise<void> {
-  console.log(`[Firestore Service] Attempting to delete block ${blockId} from plan ${planId}. Exercise references will remain in MasterExercises.`);
+  console.log(`[FirestoreService] deleteTrainingBlock: Attempting to delete block ${blockId} from plan ${planId}.`);
   const blockDocRef = doc(db, "trainingBlocks", blockId);
   try {
     await deleteDoc(blockDocRef);
-    console.log(`[Firestore Service] Successfully deleted block ${blockId}.`);
+    console.log(`[FirestoreService] deleteTrainingBlock: Successfully deleted block ${blockId}.`);
   } catch (error) {
-    console.error(`[Firestore Service] Error deleting block ${blockId}:`, error);
+    console.error(`[FirestoreService] deleteTrainingBlock: Error deleting block ${blockId}:`, error);
     throw error;
   }
 }
@@ -188,7 +201,7 @@ export async function updateBlocksOrder(
   planId: string,
   orderedBlocks: Array<{ id: string; order: number }>
 ): Promise<void> {
-  console.log("[Firestore Service] Updating blocks order for plan:", planId, JSON.parse(JSON.stringify(orderedBlocks)));
+  console.log("[FirestoreService] updateBlocksOrder called for plan:", planId, "with data:", JSON.parse(JSON.stringify(orderedBlocks)));
   const batch = writeBatch(db);
 
   for (const block of orderedBlocks) {
@@ -198,15 +211,16 @@ export async function updateBlocksOrder(
 
   try {
     await batch.commit();
-    console.log("[Firestore Service] Blocks order updated successfully for plan:", planId);
+    console.log("[FirestoreService] updateBlocksOrder: Blocks order updated successfully for plan:", planId);
   } catch (error) {
-    console.error("[Firestore Service] Error updating blocks order for plan:", planId, error);
+    console.error("[FirestoreService] updateBlocksOrder: Error updating blocks order for plan:", planId, error);
     throw error;
   }
 }
 
 // --- MasterExercise Functions ---
 export async function addMasterExercise(exerciseData: MasterExerciseInput): Promise<string> {
+  console.log("[FirestoreService] addMasterExercise called with data:", exerciseData);
   const collectionRef = collection(db, "masterExercises");
   const newExercise = {
     ...exerciseData,
@@ -215,71 +229,77 @@ export async function addMasterExercise(exerciseData: MasterExerciseInput): Prom
   };
   try {
     const docRef = await addDoc(collectionRef, newExercise);
-    console.log("[Firestore Service] MasterExercise added with ID:", docRef.id);
+    console.log("[FirestoreService] addMasterExercise: MasterExercise added with ID:", docRef.id);
     return docRef.id;
   } catch (error) {
-    console.error("[Firestore Service] Error adding MasterExercise:", error);
+    console.error("[FirestoreService] addMasterExercise: Error adding MasterExercise:", error);
     throw error;
   }
 }
 
 export async function getMasterExercises(): Promise<MasterExercise[]> {
-  console.log("[Firestore Service] Fetching all master exercises");
+  console.log("[FirestoreService] getMasterExercises called");
   try {
     const collectionRef = collection(db, "masterExercises");
-    const q = query(collectionRef, orderBy("title", "asc")); // Or orderBy createdAt
+    const q = query(collectionRef, orderBy("title", "asc")); 
     const querySnapshot = await getDocs(q);
     const exercises: MasterExercise[] = [];
     querySnapshot.forEach((doc) => {
       exercises.push({ id: doc.id, ...doc.data() } as MasterExercise);
     });
-    console.log(`[Firestore Service] Fetched ${exercises.length} master exercises.`);
+    console.log(`[FirestoreService] getMasterExercises: Fetched ${exercises.length} master exercises.`);
     return exercises;
-  } catch (error) {
-    console.error("[Firestore Service] Error fetching master exercises:", error);
+  } catch (error: any) {
+    console.error("[FirestoreService] getMasterExercises: Error fetching master exercises:", error);
+    if (error.code === 'failed-precondition' && error.message.includes('index')) {
+      console.error(`[FirestoreService] INDEX_REQUIRED: Firestore query for getMasterExercises (orderBy: title asc) likely needs an index. Please check the Firebase console for a link to create it. Link: ${error.message.substring(error.message.indexOf('https://'))}`);
+    }
     throw error;
   }
 }
 
 export async function getMasterExerciseById(exerciseId: string): Promise<MasterExercise | null> {
-  if (!exerciseId) return null;
+  console.log(`[FirestoreService] getMasterExerciseById called for exerciseId: ${exerciseId}`);
+  if (!exerciseId) {
+    console.warn("[FirestoreService] getMasterExerciseById: exerciseId is null or empty. Returning null.");
+    return null;
+  }
   try {
     const docRef = doc(db, "masterExercises", exerciseId);
     const docSnap = await getDoc(docRef);
     if (docSnap.exists()) {
-      return { id: docSnap.id, ...docSnap.data() } as MasterExercise;
+      const exerciseData = { id: docSnap.id, ...docSnap.data() } as MasterExercise;
+      console.log(`[FirestoreService] getMasterExerciseById: Found exercise for ID ${exerciseId}:`, exerciseData);
+      return exerciseData;
     }
+    console.log(`[FirestoreService] getMasterExerciseById: No master exercise found for ID ${exerciseId}.`);
     return null;
   } catch (error) {
-    console.error(`[Firestore Service] Error fetching MasterExercise by ID ${exerciseId}:`, error);
+    console.error(`[FirestoreService] getMasterExerciseById: Error fetching MasterExercise by ID ${exerciseId}:`, error);
     throw error;
   }
 }
 
 export async function updateMasterExercise(exerciseId: string, data: Partial<MasterExerciseInput>): Promise<void> {
+  console.log(`[FirestoreService] updateMasterExercise called for exerciseId: ${exerciseId} with data:`, data);
   const docRef = doc(db, "masterExercises", exerciseId);
   try {
     await updateDoc(docRef, { ...data, updatedAt: serverTimestamp() });
-    console.log(`[Firestore Service] MasterExercise ${exerciseId} updated.`);
+    console.log(`[FirestoreService] updateMasterExercise: MasterExercise ${exerciseId} updated.`);
   } catch (error) {
-    console.error(`[Firestore Service] Error updating MasterExercise ${exerciseId}:`, error);
+    console.error(`[FirestoreService] updateMasterExercise: Error updating MasterExercise ${exerciseId}:`, error);
     throw error;
   }
 }
 
 export async function deleteMasterExercise(exerciseId: string): Promise<void> {
-  // Consider implications: what if this exercise is referenced in trainingBlocks?
-  // For now, simple delete. Blocks will have dangling references.
-  // A more robust solution might involve checking references or using cloud functions.
+  console.log(`[FirestoreService] deleteMasterExercise: Attempting to delete master exercise ${exerciseId}.`);
   const docRef = doc(db, "masterExercises", exerciseId);
   try {
     await deleteDoc(docRef);
-    console.log(`[Firestore Service] MasterExercise ${exerciseId} deleted.`);
-    // TODO: Potentially find and remove this exerciseId from all trainingBlocks.exerciseReferences
-    // This would require iterating through all trainingBlocks, which can be expensive.
-    // Or, handle dangling references in the UI.
+    console.log(`[FirestoreService] deleteMasterExercise: MasterExercise ${exerciseId} deleted.`);
   } catch (error) {
-    console.error(`[Firestore Service] Error deleting MasterExercise ${exerciseId}:`, error);
+    console.error(`[FirestoreService] deleteMasterExercise: Error deleting MasterExercise ${exerciseId}:`, error);
     throw error;
   }
 }
@@ -287,51 +307,64 @@ export async function deleteMasterExercise(exerciseId: string): Promise<void> {
 // --- Functions for Managing Exercises within Blocks (using references) ---
 
 export async function getExercisesForBlock(blockId: string): Promise<BlockExerciseDisplay[]> {
-  console.log(`[Firestore Service] Getting exercises for blockId: ${blockId}`);
+  console.log(`[FirestoreService] getExercisesForBlock called for blockId: ${blockId}`);
   const block = await getBlockById(blockId);
-  if (!block || !block.exerciseReferences || block.exerciseReferences.length === 0) {
+  if (!block) {
+    console.warn(`[FirestoreService] getExercisesForBlock: Block ${blockId} not found. Returning empty array.`);
     return [];
   }
+  if (!block.exerciseReferences || block.exerciseReferences.length === 0) {
+    console.log(`[FirestoreService] getExercisesForBlock: Block ${blockId} has no exercise references. Returning empty array.`);
+    return [];
+  }
+  console.log(`[FirestoreService] getExercisesForBlock: Block ${blockId} has ${block.exerciseReferences.length} references.`);
 
   const exercises: BlockExerciseDisplay[] = [];
-  for (const ref of block.exerciseReferences) {
-    const masterEx = await getMasterExerciseById(ref.exerciseId);
-    if (masterEx) {
-      exercises.push({
-        ...masterEx,
-        orderInBlock: ref.order,
-      });
-    } else {
-      console.warn(`[Firestore Service] MasterExercise with ID ${ref.exerciseId} referenced in block ${blockId} not found.`);
-      // Optionally, push a placeholder or skip
+  try {
+    for (const ref of block.exerciseReferences) {
+      console.log(`[FirestoreService] getExercisesForBlock: Fetching master exercise for ref: ${ref.exerciseId} (order: ${ref.order})`);
+      const masterEx = await getMasterExerciseById(ref.exerciseId);
+      if (masterEx) {
+        exercises.push({
+          ...masterEx,
+          orderInBlock: ref.order,
+        });
+      } else {
+        console.warn(`[FirestoreService] getExercisesForBlock: MasterExercise with ID ${ref.exerciseId} referenced in block ${blockId} not found.`);
+      }
     }
+    const sortedExercises = exercises.sort((a, b) => (a.orderInBlock ?? Infinity) - (b.orderInBlock ?? Infinity));
+    console.log(`[FirestoreService] getExercisesForBlock: Fetched and sorted ${sortedExercises.length} exercises for block ${blockId}.`);
+    return sortedExercises;
+  } catch (error) {
+    console.error(`[FirestoreService] getExercisesForBlock: Error fetching exercises for block ${blockId}:`, error);
+    throw error; // Re-throw to be caught by the caller
   }
-  // Ensure they are sorted by the order in the reference array, though getMasterExerciseById is async and order of results from Promise.all might not be guaranteed
-  // So explicitly sort again by ref.order
-  return exercises.sort((a, b) => a.orderInBlock - b.orderInBlock);
 }
 
 
 export async function addExerciseToBlockReference(planId: string, blockId: string, masterExerciseId: string): Promise<void> {
+  console.log(`[FirestoreService] addExerciseToBlockReference called for planId: ${planId}, blockId: ${blockId}, masterExerciseId: ${masterExerciseId}`);
   const blockDocRef = doc(db, "trainingBlocks", blockId);
   try {
     await runTransaction(db, async (transaction) => {
       const blockDoc = await transaction.get(blockDocRef);
       if (!blockDoc.exists()) {
+        console.error(`[FirestoreService] addExerciseToBlockReference: Block ${blockId} does not exist!`);
         throw new Error(`Block ${blockId} does not exist!`);
       }
       const blockData = blockDoc.data() as TrainingBlock;
       const currentReferences = blockData.exerciseReferences || [];
       
-      // Check if exercise already exists in block to prevent duplicates
       if (currentReferences.some(ref => ref.exerciseId === masterExerciseId)) {
-        console.warn(`[Firestore Service] Exercise ${masterExerciseId} already exists in block ${blockId}.`);
-        return; // Or throw error
+        console.warn(`[FirestoreService] addExerciseToBlockReference: Exercise ${masterExerciseId} already exists in block ${blockId}.`);
+        return; 
       }
 
       const newOrder = currentReferences.length > 0 
         ? Math.max(...currentReferences.map(ref => ref.order)) + 1 
         : 0;
+      console.log(`[FirestoreService] addExerciseToBlockReference: New order for exercise ${masterExerciseId} in block ${blockId} will be ${newOrder}.`);
       
       const newReference: ExerciseReference = {
         exerciseId: masterExerciseId,
@@ -343,19 +376,21 @@ export async function addExerciseToBlockReference(planId: string, blockId: strin
         updatedAt: serverTimestamp(),
       });
     });
-    console.log(`[Firestore Service] MasterExercise ${masterExerciseId} referenced in block ${blockId}.`);
+    console.log(`[FirestoreService] addExerciseToBlockReference: MasterExercise ${masterExerciseId} referenced in block ${blockId}.`);
   } catch (error) {
-    console.error(`[Firestore Service] Error adding MasterExercise reference to block ${blockId}:`, error);
+    console.error(`[FirestoreService] addExerciseToBlockReference: Error adding MasterExercise reference to block ${blockId}:`, error);
     throw error;
   }
 }
 
 export async function removeExerciseFromBlockReference(planId: string, blockId: string, masterExerciseIdToRemove: string): Promise<void> {
+  console.log(`[FirestoreService] removeExerciseFromBlockReference called for planId: ${planId}, blockId: ${blockId}, masterExerciseIdToRemove: ${masterExerciseIdToRemove}`);
   const blockDocRef = doc(db, "trainingBlocks", blockId);
   try {
     await runTransaction(db, async (transaction) => {
       const blockDoc = await transaction.get(blockDocRef);
       if (!blockDoc.exists()) {
+         console.error(`[FirestoreService] removeExerciseFromBlockReference: Block ${blockId} does not exist!`);
         throw new Error(`Block ${blockId} does not exist!`);
       }
       const blockData = blockDoc.data() as TrainingBlock;
@@ -363,24 +398,24 @@ export async function removeExerciseFromBlockReference(planId: string, blockId: 
       
       const referenceToRemove = currentReferences.find(ref => ref.exerciseId === masterExerciseIdToRemove);
       if (!referenceToRemove) {
-        console.warn(`[Firestore Service] Exercise ${masterExerciseIdToRemove} not found in block ${blockId} references.`);
-        return; // Or throw error
+        console.warn(`[FirestoreService] removeExerciseFromBlockReference: Exercise ${masterExerciseIdToRemove} not found in block ${blockId} references.`);
+        return; 
       }
       
-      // Filter out the reference and re-order the remaining ones
       const updatedReferences = currentReferences
         .filter(ref => ref.exerciseId !== masterExerciseIdToRemove)
-        .sort((a, b) => a.order - b.order) // Sort by original order first
-        .map((ref, index) => ({ ...ref, order: index })); // Re-assign order
+        .sort((a, b) => a.order - b.order) 
+        .map((ref, index) => ({ ...ref, order: index })); 
+      console.log(`[FirestoreService] removeExerciseFromBlockReference: Updated references for block ${blockId}:`, updatedReferences);
 
       transaction.update(blockDocRef, {
-        exerciseReferences: updatedReferences, // Set the new array
+        exerciseReferences: updatedReferences, 
         updatedAt: serverTimestamp(),
       });
     });
-    console.log(`[Firestore Service] MasterExercise ${masterExerciseIdToRemove} reference removed from block ${blockId} and order updated.`);
+    console.log(`[FirestoreService] removeExerciseFromBlockReference: MasterExercise ${masterExerciseIdToRemove} reference removed from block ${blockId} and order updated.`);
   } catch (error) {
-    console.error(`[Firestore Service] Error removing MasterExercise reference from block ${blockId}:`, error);
+    console.error(`[FirestoreService] removeExerciseFromBlockReference: Error removing MasterExercise reference from block ${blockId}:`, error);
     throw error;
   }
 }
@@ -388,44 +423,37 @@ export async function removeExerciseFromBlockReference(planId: string, blockId: 
 
 export async function updateExercisesOrderInBlock(
   blockId: string,
-  orderedExerciseReferences: ExerciseReference[] // This should be the full, re-ordered list of references for the block
+  orderedExerciseReferences: ExerciseReference[] 
 ): Promise<void> {
-  console.log("[Firestore Service] Updating exercises order for block:", blockId);
+  console.log("[FirestoreService] updateExercisesOrderInBlock called for block:", blockId, "with data:", JSON.parse(JSON.stringify(orderedExerciseReferences)));
   const blockRef = doc(db, "trainingBlocks", blockId);
   try {
-    // Ensure the incoming references are correctly ordered by their 'order' field before setting
     const sortedReferences = orderedExerciseReferences.sort((a,b) => a.order - b.order);
     await updateDoc(blockRef, { 
         exerciseReferences: sortedReferences, 
         updatedAt: serverTimestamp() 
     });
-    console.log("[Firestore Service] Exercises order in block updated successfully.");
+    console.log("[FirestoreService] updateExercisesOrderInBlock: Exercises order in block updated successfully.");
   } catch (error) {
-    console.error("[Firestore Service] Error updating exercises order in block:", error);
+    console.error("[FirestoreService] updateExercisesOrderInBlock: Error updating exercises order in block:", error);
     throw error;
   }
 }
 
 
 // --- DEPRECATED Exercise Functions (Old model: exercises as subcollection) ---
-// These functions will be removed or heavily modified.
-// For now, they are kept to avoid breaking existing calls until the UI is updated.
-
-export async function getExercises(planId: string, blockId: string): Promise<any[]> { // Using any[] for now as Exercise type will change
-  console.warn("[Firestore Service] DEPRECATED getExercises called. Refactor to use MasterExercises and block references.");
-  return []; // Return empty or adapt if old data model still needs support
+export async function getExercises(planId: string, blockId: string): Promise<any[]> { 
+  console.warn("[FirestoreService] DEPRECATED getExercises called. Refactor to use MasterExercises and block references. Returning empty array.");
+  return []; 
 }
 
 export async function getExercise(exerciseId: string): Promise<any | null> {
-  console.warn("[Firestore Service] DEPRECATED getExercise called. Refactor to use getMasterExerciseById.");
-  // Try fetching from masterExercises as a fallback if ID matches
+  console.warn("[FirestoreService] DEPRECATED getExercise called. Attempting to use getMasterExerciseById as fallback.");
   return getMasterExerciseById(exerciseId);
 }
 
 export async function addExerciseToBlock(planId: string, blockId: string, exerciseData: any): Promise<string> {
-  console.warn("[Firestore Service] DEPRECATED addExerciseToBlock called. Refactor to use addMasterExercise and addExerciseToBlockReference.");
-  // This function is problematic in the new model. What would it do? Create a master exercise and then reference it?
-  // For now, let's assume it tries to create a master exercise if the data looks like MasterExerciseInput
+  console.warn("[FirestoreService] DEPRECATED addExerciseToBlock called. This will create a MasterExercise and reference it.");
   if (exerciseData.title) {
     const masterExId = await addMasterExercise({
         title: exerciseData.title,
@@ -434,22 +462,20 @@ export async function addExerciseToBlock(planId: string, blockId: string, exerci
         suggestedReps: exerciseData.suggestedReps,
     });
     await addExerciseToBlockReference(planId, blockId, masterExId);
-    return masterExId; // Returning the ID of the master exercise created
+    console.log(`[FirestoreService] DEPRECATED addExerciseToBlock: Created MasterExercise ${masterExId} and referenced in block ${blockId}.`);
+    return masterExId; 
   }
+  console.error("[FirestoreService] DEPRECATED addExerciseToBlock: 'title' is required to create a new MasterExercise.");
   throw new Error("Deprecated addExerciseToBlock requires at least a title for new MasterExercise.");
 }
 
 export async function updateExercise(planId: string, blockId: string, exerciseId: string, exerciseData: Partial<any>): Promise<void> {
-   console.warn("[Firestore Service] DEPRECATED updateExercise called. Refactor to use updateMasterExercise or update exercise reference details if any.");
-   // This should probably map to updateMasterExercise
+   console.warn("[FirestoreService] DEPRECATED updateExercise called. This will attempt to update a MasterExercise.");
    await updateMasterExercise(exerciseId, exerciseData);
 }
 
 export async function deleteExercise(exerciseId: string): Promise<void> {
-  console.warn("[Firestore Service] DEPRECATED deleteExercise called. Refactor to use removeExerciseFromBlockReference or deleteMasterExercise.");
-  // This should map to removeExerciseFromBlockReference if context (planId, blockId) is known,
-  // or deleteMasterExercise if it's deleting from the library.
-  // For now, assume it's deleting a MasterExercise.
+  console.warn("[FirestoreService] DEPRECATED deleteExercise called. This will attempt to delete a MasterExercise. If used in a block, consider removeExerciseFromBlockReference instead.");
   await deleteMasterExercise(exerciseId);
 }
 
@@ -458,32 +484,33 @@ export async function updateExercisesOrder(
   blockId: string,
   orderedExercises: Array<{ id: string; order: number }>
 ): Promise<void> {
-  console.warn("[Firestore Service] DEPRECATED updateExercisesOrder called. Refactor to use updateExercisesOrderInBlock.");
+  console.warn("[FirestoreService] DEPRECATED updateExercisesOrder called. Refactoring to use updateExercisesOrderInBlock.");
   const newReferences: ExerciseReference[] = orderedExercises.map(ex => ({ exerciseId: ex.id, order: ex.order }));
   await updateExercisesOrderInBlock(blockId, newReferences);
 }
 
 // --- Debug Functions ---
 export async function debugGetBlocksForPlan(planId: string): Promise<void> {
-  console.log(`[DEBUG Firestore Service] debugGetBlocksForPlan called for plan: ${planId}`);
+  console.log(`[DEBUG FirestoreService] debugGetBlocksForPlan called for plan: ${planId}`);
   try {
     const trainingBlocksRef = collection(db, "trainingBlocks");
     const q = query(trainingBlocksRef, where("planId", "==", planId.trim()), orderBy("order", "asc"));
     const querySnapshot = await getDocs(q);
     const blocks: any[] = [];
     
-    console.log(`[DEBUG Firestore Service] Query snapshot for planId "${planId.trim()}" (orderBy 'order') has ${querySnapshot.size} documents.`);
+    console.log(`[DEBUG FirestoreService] Query snapshot for planId "${planId.trim()}" (orderBy 'order') has ${querySnapshot.size} documents.`);
     querySnapshot.forEach((docSnap) => {
       const blockData = docSnap.data();
-      console.log(`[DEBUG Firestore Service] Raw block data (debug): ID=${docSnap.id}, Title=${blockData.title}, planId=${blockData.planId}, order=${blockData.order}, exerciseReferences=${JSON.stringify(blockData.exerciseReferences)}, createdAt exists: ${!!blockData.createdAt}`);
+      console.log(`[DEBUG FirestoreService] Raw block data (debug): ID=${docSnap.id}, Title=${blockData.title}, planId=${blockData.planId}, order=${blockData.order}, exerciseReferences=${JSON.stringify(blockData.exerciseReferences)}, createdAt exists: ${!!blockData.createdAt}`);
       blocks.push({ id: docSnap.id, ...blockData });
     });
-    console.log(`[DEBUG Firestore Service] Found ${blocks.length} blocks for plan ${planId.trim()} (orderBy 'order'):`, JSON.parse(JSON.stringify(blocks)));
+    console.log(`[DEBUG FirestoreService] Found ${blocks.length} blocks for plan ${planId.trim()} (orderBy 'order'):`, JSON.parse(JSON.stringify(blocks)));
 
   } catch (error: any) {
-    console.error(`[DEBUG Firestore Service] Error in debugGetBlocksForPlan for plan ${planId}:`, error);
+    console.error(`[DEBUG FirestoreService] Error in debugGetBlocksForPlan for plan ${planId}:`, error);
     if (error.code === 'failed-precondition') {
-        console.error(`[DEBUG Firestore Service] INDEX REQUIRED for debugGetBlocksForPlan (planId: ${planId}, orderBy: order). Please create an index on 'planId' (asc) and 'order' (asc) in the 'trainingBlocks' collection.`);
+        console.error(`[DEBUG FirestoreService] INDEX REQUIRED for debugGetBlocksForPlan (planId: ${planId}, orderBy: order). Please create an index on 'planId' (asc) and 'order' (asc) in the 'trainingBlocks' collection.`);
     }
   }
 }
+
