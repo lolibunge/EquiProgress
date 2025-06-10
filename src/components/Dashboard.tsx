@@ -228,7 +228,7 @@ function SortableBlockAccordionItem({ block, children, onEditBlock }: SortableBl
             asChild
             variant="ghost"
             size="icon"
-            className="ml-2 mr-2 h-7 w-7 flex-shrink-0 opacity-0 group-hover:opacity-100"
+            className="ml-2 mr-2 h-7 w-7 flex-shrink-0 opacity-0 group-hover:opacity-100 hover:bg-muted/70 hover:text-muted-foreground"
             onClick={(e) => {
                 e.stopPropagation();
                 onEditBlock(block);
@@ -1449,3 +1449,4 @@ const handleSaveSessionAndNavigate = async () => {
 };
 
 export default Dashboard;
+
