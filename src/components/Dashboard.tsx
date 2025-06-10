@@ -286,6 +286,7 @@ const Dashboard = () => {
   const [availableMasterExercises, setAvailableMasterExercises] = useState<MasterExercise[]>([]);
   const [isLoadingMasterExercises, setIsLoadingMasterExercises] = useState(false);
   const [selectedMasterExercisesForBlock, setSelectedMasterExercisesForBlock] = useState<Set<string>>(new Set());
+  const [exerciseSearchTerm, setExerciseSearchTerm] = useState("");
 
 
   const sensors = useSensors(
@@ -531,6 +532,7 @@ const Dashboard = () => {
   const openSelectExerciseDialog = async (blockId: string) => {
     console.log(`[Dashboard] openSelectExerciseDialog: Opening select exercise dialog for block ${blockId}.`);
     setCurrentBlockIdForNewExercise(blockId);
+    setExerciseSearchTerm(""); // Reset search term
     setIsLoadingMasterExercises(true);
     setIsSelectExerciseDialogOpen(true);
     try {
@@ -884,6 +886,10 @@ const handleSaveSessionAndNavigate = async () => {
       });
     }
   };
+
+  const filteredMasterExercises = availableMasterExercises.filter(exercise =>
+    exercise.title.toLowerCase().includes(exerciseSearchTerm.toLowerCase())
+  );
 
 
   return (
@@ -1361,7 +1367,10 @@ const handleSaveSessionAndNavigate = async () => {
       </Dialog>
 
       <Dialog open={isSelectExerciseDialogOpen} onOpenChange={(open) => {
-        if (!open) setCurrentBlockIdForNewExercise(null);
+        if (!open) {
+          setCurrentBlockIdForNewExercise(null);
+          setExerciseSearchTerm(""); // Reset search term when dialog closes
+        }
         setIsSelectExerciseDialogOpen(open);
       }}>
         <DialogContent className="sm:max-w-lg">
@@ -1371,13 +1380,24 @@ const handleSaveSessionAndNavigate = async () => {
               Selecciona ejercicios de la biblioteca para añadir a la etapa: {blocks.find(b => b.id === currentBlockIdForNewExercise)?.title || ""}
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4 space-y-4 max-h-[60vh] overflow-y-auto">
+          <div className="my-4">
+            <Input
+              type="search"
+              placeholder="Buscar ejercicios por título..."
+              value={exerciseSearchTerm}
+              onChange={(e) => setExerciseSearchTerm(e.target.value)}
+              className="w-full"
+            />
+          </div>
+          <div className="space-y-4 max-h-[50vh] overflow-y-auto">
             {isLoadingMasterExercises ? (
               <div className="flex justify-center"><Icons.spinner className="h-6 w-6 animate-spin" /></div>
-            ) : availableMasterExercises.length === 0 ? (
+            ) : filteredMasterExercises.length === 0 && availableMasterExercises.length > 0 ? (
+                 <p className="text-center text-muted-foreground">No se encontraron ejercicios con &quot;{exerciseSearchTerm}&quot;.</p>
+            ) : filteredMasterExercises.length === 0 && availableMasterExercises.length === 0 ? (
               <p className="text-center text-muted-foreground">No hay ejercicios en la biblioteca. <Link href="/library/exercises" className="text-primary hover:underline" onClick={() => setIsSelectExerciseDialogOpen(false)}>Añade algunos primero.</Link></p>
             ) : (
-              availableMasterExercises.map(masterEx => (
+              filteredMasterExercises.map(masterEx => (
                 <div key={masterEx.id} className="flex items-center space-x-3 rounded-md border p-3 hover:bg-accent/50">
                   <Checkbox
                     id={`master-ex-${masterEx.id}`}
@@ -1413,6 +1433,7 @@ const handleSaveSessionAndNavigate = async () => {
             <Button variant="outline" onClick={() => {
               setIsSelectExerciseDialogOpen(false);
               setCurrentBlockIdForNewExercise(null);
+              setExerciseSearchTerm("");
             }}>
               Cancelar
             </Button>
@@ -1428,4 +1449,3 @@ const handleSaveSessionAndNavigate = async () => {
 };
 
 export default Dashboard;
-
