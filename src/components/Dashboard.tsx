@@ -162,7 +162,7 @@ function SortableExerciseItem({ exercise, blockId, planId, onRemove }: SortableE
       style={style}
       {...attributes}
       {...listeners}
-      className="flex items-center justify-between group p-2 rounded-md hover:bg-accent/50 bg-card border mb-1"
+ className="flex items-center justify-between group p-2 rounded-md hover:bg-muted/70 active:bg-muted bg-card border mx-[10px]"
     >
       <div>
         <span className="font-medium">{exercise.title}</span>
@@ -213,7 +213,7 @@ function SortableBlockAccordionItem({ block, children, onEditBlock }: SortableBl
       value={block.id}
       ref={setNodeRef}
       style={style}
-      className="bg-card border mb-1 rounded-md shadow-sm"
+      className="bg-card border mx-[10px] rounded-md shadow-sm"
     >
        <div className="flex items-center justify-between w-full group text-left">
         <AccordionTrigger {...attributes} {...listeners} className="flex-grow p-4 hover:no-underline">
