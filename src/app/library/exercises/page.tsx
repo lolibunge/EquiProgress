@@ -249,7 +249,7 @@ export default function ExerciseLibraryPage() {
 
       {/* Dialog para Añadir Ejercicio */}
       <Dialog open={isAddExerciseDialogOpen} onOpenChange={setIsAddExerciseDialogOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Añadir Nuevo Ejercicio Maestro</DialogTitle>
             <DialogDescription>
@@ -269,7 +269,7 @@ export default function ExerciseLibraryPage() {
             if (!open) setEditingExercise(null);
             setIsEditExerciseDialogOpen(open);
         }}>
-          <DialogContent className="sm:max-w-lg">
+          <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Editar Ejercicio Maestro</DialogTitle>
               <DialogDescription>
@@ -311,3 +311,4 @@ export default function ExerciseLibraryPage() {
     </div>
   );
 }
+
