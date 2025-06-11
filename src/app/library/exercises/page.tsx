@@ -2,13 +2,14 @@
 // src/app/library/exercises/page.tsx
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { getMasterExercises, deleteMasterExercise, type MasterExercise } from "@/services/firestore";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Icons } from "@/components/icons";
+import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import {
   Dialog,
@@ -16,7 +17,6 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -27,7 +27,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import AddMasterExerciseForm from "@/components/AddMasterExerciseForm";
 import EditMasterExerciseForm from "@/components/EditMasterExerciseForm";
@@ -38,6 +37,7 @@ export default function ExerciseLibraryPage() {
 
   const [exercises, setExercises] = useState<MasterExercise[]>([]);
   const [isLoadingExercises, setIsLoadingExercises] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const [isAddExerciseDialogOpen, setIsAddExerciseDialogOpen] = useState(false);
   const [isEditExerciseDialogOpen, setIsEditExerciseDialogOpen] = useState(false);
@@ -105,6 +105,13 @@ export default function ExerciseLibraryPage() {
     }
   };
 
+  const filteredExercises = useMemo(() => {
+    if (!searchTerm) return exercises;
+    return exercises.filter(exercise =>
+      exercise.title.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [exercises, searchTerm]);
+
   if (authLoading) {
     return (
       <div className="flex h-[calc(100vh-4rem)] w-full items-center justify-center">
@@ -141,16 +148,25 @@ export default function ExerciseLibraryPage() {
       <Card>
         <CardHeader>
           <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-            <div>
+            <div className="flex-grow">
               <CardTitle className="text-2xl md:text-3xl">Biblioteca de Ejercicios</CardTitle>
               <CardDescription>
                 Aquí puedes ver, crear, editar y eliminar los ejercicios maestros de tu biblioteca.
               </CardDescription>
             </div>
-            <Button onClick={() => setIsAddExerciseDialogOpen(true)}>
+            <Button onClick={() => setIsAddExerciseDialogOpen(true)} className="w-full sm:w-auto">
               <Icons.plus className="mr-2 h-4 w-4" />
               Añadir Nuevo Ejercicio
             </Button>
+          </div>
+          <div className="mt-4">
+            <Input
+              type="search"
+              placeholder="Buscar ejercicios por título..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full"
+            />
           </div>
         </CardHeader>
         <CardContent>
@@ -170,9 +186,17 @@ export default function ExerciseLibraryPage() {
                  Crear Primer Ejercicio
               </Button>
             </div>
+          ) : filteredExercises.length === 0 && searchTerm ? (
+             <div className="flex flex-col items-center justify-center rounded-lg border border-dashed p-10 text-center">
+                <Icons.search className="h-16 w-16 text-muted-foreground mb-4" data-ai-hint="magnifying glass empty" />
+                <h3 className="text-xl font-semibold">No se Encontraron Ejercicios</h3>
+                <p className="text-muted-foreground">
+                  No hay ejercicios que coincidan con &quot;{searchTerm}&quot;. Intenta con otra búsqueda o <button onClick={() => setSearchTerm("")} className="text-primary hover:underline">limpia la búsqueda</button>.
+                </p>
+            </div>
           ) : (
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {exercises.map((exercise) => (
+              {filteredExercises.map((exercise) => (
                 <Card key={exercise.id} className="flex flex-col">
                   <CardHeader>
                     <CardTitle className="text-xl">{exercise.title}</CardTitle>
