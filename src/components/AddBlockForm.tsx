@@ -45,8 +45,10 @@ export default function AddBlockForm({ planId, onSuccess, onCancel }: AddBlockFo
 
   const onSubmit: SubmitHandler<AddBlockFormValues> = async (data) => {
     setIsLoading(true);
+    console.log("[AddBlockForm] onSubmit called with planId:", planId, "and data:", data);
     if (!planId) {
-        toast({ variant: "destructive", title: "Error", description: "ID del plan no encontrado."});
+        toast({ variant: "destructive", title: "Error", description: "ID del plan no encontrado. No se puede añadir la etapa."});
+        console.error("[AddBlockForm] onSubmit: planId is missing.");
         setIsLoading(false);
         return;
     }
@@ -65,7 +67,7 @@ export default function AddBlockForm({ planId, onSuccess, onCancel }: AddBlockFo
       form.reset();
       onSuccess(blockId);
     } catch (error: any) {
-      console.error("Error adding training block/etapa:", error);
+      console.error("[AddBlockForm] Error adding training block/etapa:", error);
       toast({
         variant: "destructive",
         title: "Error al Añadir Etapa",

@@ -19,7 +19,7 @@ export async function getTrainingPlans(): Promise<TrainingPlan[]> {
   } catch (error: any) {
     console.error("[FirestoreService] getTrainingPlans: Error fetching training plans:", error);
      if (error.code === 'failed-precondition' && error.message.includes('index')) {
-      console.error(`[FirestoreService] INDEX_REQUIRED: Firestore query for getTrainingPlans (orderBy: createdAt desc) likely needs an index. Please check the Firebase console for a link to create it.`);
+      console.error(`[FirestoreService] INDEX_REQUIRED: Firestore query for getTrainingPlans (orderBy: createdAt desc) likely needs an index. Please check the Firebase console for a link to create it. The error message usually contains a direct link to create the required index. Error: ${error.message}`);
     }
     throw error;
   }
@@ -66,7 +66,7 @@ export async function deleteTrainingPlan(planId: string): Promise<void> {
   } catch (error: any) {
     console.error(`[FirestoreService] deleteTrainingPlan: Error deleting plan ${planId}:`, error);
     if (error.code === 'failed-precondition' && error.message.includes('index')) {
-      console.error(`[FirestoreService] INDEX_REQUIRED: Firestore query for deleting plan (finding blocks by planId) likely needs an index on 'planId'. Please check the Firebase console for a link to create it.`);
+      console.error(`[FirestoreService] INDEX_REQUIRED: Firestore query for deleting plan (finding blocks by planId) likely needs an index on 'planId'. Please check the Firebase console for a link to create it. The error message usually contains a direct link to create the required index. Error: ${error.message}`);
     }
     throw error;
   }
@@ -96,7 +96,7 @@ export async function getTrainingBlocks(planId: string): Promise<TrainingBlock[]
   } catch (error: any) {
     console.error(`[FirestoreService] getTrainingBlocks: Error fetching training blocks for plan ${trimmedPlanId}:`, error);
     if (error.code === 'failed-precondition' && error.message.includes('index')) {
-        console.error(`[FirestoreService] INDEX_REQUIRED: Firestore query for getTrainingBlocks (planId: ${trimmedPlanId}, orderBy: order asc) needs a composite index on 'planId' (ASC) and 'order' (ASC). Please create it in Firebase Firestore. Link: ${error.message.substring(error.message.indexOf('https://'))}`);
+        console.error(`[FirestoreService] INDEX_REQUIRED: Firestore query for getTrainingBlocks (planId: ${trimmedPlanId}, orderBy: order asc) needs a composite index on 'planId' (ASC) and 'order' (ASC). Please create it in Firebase Firestore. The error message usually contains a direct link to create the required index. Error: ${error.message}`);
     }
     throw error;
   }
@@ -126,9 +126,14 @@ export async function getBlockById(blockId: string): Promise<TrainingBlock | nul
 }
 
 export async function addTrainingBlock(planId: string, blockData: Omit<TrainingBlockInput, 'exerciseReferences' | 'order'>): Promise<string> {
-  console.log(`[FirestoreService] addTrainingBlock called for planId: ${planId} with data:`, blockData);
+  console.log(`[FirestoreService] addTrainingBlock called for planId: "${planId}" with data:`, blockData);
+  if (!planId || planId.trim() === "") {
+    console.error("[FirestoreService] addTrainingBlock: planId is missing or empty.");
+    throw new Error("planId is required to add a training block.");
+  }
   const blockCollectionRef = collection(db, "trainingBlocks");
 
+  // Query to get the last block's order for the given planId
   const q = query(
     collection(db, "trainingBlocks"),
     where("planId", "==", planId),
@@ -137,12 +142,15 @@ export async function addTrainingBlock(planId: string, blockData: Omit<TrainingB
   );
   let newOrder = 0;
   try {
+    console.log(`[FirestoreService] addTrainingBlock: Querying for last block order for planId "${planId}"`);
     const existingBlocksSnapshot = await getDocs(q);
     if (!existingBlocksSnapshot.empty) {
       const lastBlock = existingBlocksSnapshot.docs[0].data() as TrainingBlock;
       newOrder = (typeof lastBlock.order === 'number' ? lastBlock.order : -1) + 1;
+      console.log(`[FirestoreService] addTrainingBlock: Last block found with order ${lastBlock.order}. New order will be ${newOrder}.`);
+    } else {
+      console.log(`[FirestoreService] addTrainingBlock: No existing blocks found for planId "${planId}". New order will be 0.`);
     }
-    console.log(`[FirestoreService] addTrainingBlock: Determined new order: ${newOrder}`);
 
     const newBlockData: Omit<TrainingBlock, 'id' | 'createdAt' | 'updatedAt'> & { createdAt: Timestamp, updatedAt: Timestamp } = {
       planId: planId,
@@ -155,14 +163,14 @@ export async function addTrainingBlock(planId: string, blockData: Omit<TrainingB
       createdAt: serverTimestamp() as Timestamp,
       updatedAt: serverTimestamp() as Timestamp,
     };
-
+    console.log(`[FirestoreService] addTrainingBlock: Attempting to add new block with data:`, newBlockData);
     const docRef = await addDoc(blockCollectionRef, newBlockData);
     console.log("[FirestoreService] addTrainingBlock: Training block added with ID:", docRef.id, "and order:", newOrder);
     return docRef.id;
   } catch (error: any) {
     console.error("[FirestoreService] addTrainingBlock: Error adding training block:", error);
-     if (error.code === 'failed-precondition' && (error.message.includes('order') || error.message.includes('planId'))) {
-        console.error(`[FirestoreService] INDEX_REQUIRED: Firestore query for adding training block (determining new order) (planId: ${planId}, orderBy: order desc) needs an index. Please create this index in Firebase Firestore. Link: ${error.message.substring(error.message.indexOf('https://'))}`);
+    if (error.code === 'failed-precondition' && (error.message.includes('index') || error.message.includes('planId') || error.message.includes('order'))) {
+        console.error(`[FirestoreService] INDEX_REQUIRED: The query to determine the next block order for planId "${planId}" (orderBy 'order' DESC) likely requires a composite index on (planId ASC, order DESC) in the 'trainingBlocks' collection. Please check the Firebase console. The error message usually contains a direct link to create it. Error: ${error.message}`);
     }
     throw error;
   }
@@ -252,7 +260,7 @@ export async function getMasterExercises(): Promise<MasterExercise[]> {
   } catch (error: any) {
     console.error("[FirestoreService] getMasterExercises: Error fetching master exercises:", error);
     if (error.code === 'failed-precondition' && error.message.includes('index')) {
-      console.error(`[FirestoreService] INDEX_REQUIRED: Firestore query for getMasterExercises (orderBy: title asc) likely needs an index. Please check the Firebase console for a link to create it. Link: ${error.message.substring(error.message.indexOf('https://'))}`);
+      console.error(`[FirestoreService] INDEX_REQUIRED: Firestore query for getMasterExercises (orderBy: title asc) likely needs an index. Please check the Firebase console for a link to create it. The error message usually contains a direct link to create the required index. Error: ${error.message}`);
     }
     throw error;
   }
@@ -513,4 +521,3 @@ export async function debugGetBlocksForPlan(planId: string): Promise<void> {
     }
   }
 }
-
