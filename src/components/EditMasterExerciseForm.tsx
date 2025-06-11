@@ -19,6 +19,8 @@ const editMasterExerciseSchema = z.object({
   description: z.string().max(1000, { message: "La descripción no puede exceder los 1000 caracteres."}).optional(),
   objective: z.string().max(1000, { message: "El objetivo no puede exceder los 1000 caracteres."}).optional(),
   suggestedReps: z.string().max(100, { message: "Las repeticiones sugeridas no pueden exceder los 100 caracteres."}).optional().nullable(),
+  whenToAdvance: z.string().max(1000, { message: "El campo 'Cuándo Avanzar' no puede exceder los 1000 caracteres."}).optional(),
+  whatNotToDo: z.string().max(1000, { message: "El campo 'Qué no hacer' no puede exceder los 1000 caracteres."}).optional(),
 });
 
 type EditMasterExerciseFormValues = z.infer<typeof editMasterExerciseSchema>;
@@ -40,15 +42,19 @@ export default function EditMasterExerciseForm({ exercise, onSuccess, onCancel }
       description: exercise.description || "",
       objective: exercise.objective || "",
       suggestedReps: exercise.suggestedReps || "",
+      whenToAdvance: exercise.whenToAdvance || "",
+      whatNotToDo: exercise.whatNotToDo || "",
     },
   });
-  
+
   useEffect(() => {
     form.reset({
       title: exercise.title || "",
       description: exercise.description || "",
       objective: exercise.objective || "",
       suggestedReps: exercise.suggestedReps || "",
+      whenToAdvance: exercise.whenToAdvance || "",
+      whatNotToDo: exercise.whatNotToDo || "",
     });
   }, [exercise, form]);
 
@@ -65,6 +71,8 @@ export default function EditMasterExerciseForm({ exercise, onSuccess, onCancel }
         description: data.description,
         objective: data.objective,
         suggestedReps: data.suggestedReps || null,
+        whenToAdvance: data.whenToAdvance,
+        whatNotToDo: data.whatNotToDo,
       };
       await updateMasterExercise(exercise.id, exerciseInputData);
       toast({
@@ -133,12 +141,38 @@ export default function EditMasterExerciseForm({ exercise, onSuccess, onCancel }
             <FormItem>
               <FormLabel>Repeticiones/Duración Sugeridas (Opcional)</FormLabel>
               <FormControl>
-                <Input 
-                  type="text" 
-                  placeholder="Ej: 10 reps, 5 min, o 'Hasta calmarse'" 
-                  {...field} 
+                <Input
+                  type="text"
+                  placeholder="Ej: 10 reps, 5 min, o 'Hasta calmarse'"
+                  {...field}
                   value={field.value ?? ''}
                 />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="whenToAdvance"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Cuándo Avanzar (Opcional)</FormLabel>
+              <FormControl>
+                <Textarea placeholder="Criterios o señales para pasar al siguiente nivel o ejercicio..." {...field} value={field.value ?? ''} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="whatNotToDo"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Qué NO Hacer (Opcional)</FormLabel>
+              <FormControl>
+                <Textarea placeholder="Errores comunes a evitar o acciones contraproducentes..." {...field} value={field.value ?? ''} />
               </FormControl>
               <FormMessage />
             </FormItem>

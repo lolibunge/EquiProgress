@@ -38,11 +38,11 @@ export default function ExerciseLibraryPage() {
 
   const [exercises, setExercises] = useState<MasterExercise[]>([]);
   const [isLoadingExercises, setIsLoadingExercises] = useState(true);
-  
+
   const [isAddExerciseDialogOpen, setIsAddExerciseDialogOpen] = useState(false);
   const [isEditExerciseDialogOpen, setIsEditExerciseDialogOpen] = useState(false);
   const [editingExercise, setEditingExercise] = useState<MasterExercise | null>(null);
-  
+
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [deletingExerciseId, setDeletingExerciseId] = useState<string | null>(null);
   const [isProcessingDelete, setIsProcessingDelete] = useState(false);
@@ -104,7 +104,7 @@ export default function ExerciseLibraryPage() {
       setIsProcessingDelete(false);
     }
   };
-  
+
   if (authLoading) {
     return (
       <div className="flex h-[calc(100vh-4rem)] w-full items-center justify-center">
@@ -193,6 +193,18 @@ export default function ExerciseLibraryPage() {
                             <p className="text-muted-foreground whitespace-pre-wrap">{exercise.objective}</p>
                         </div>
                     )}
+                    {exercise.whenToAdvance && (
+                        <div className="text-sm">
+                            <p className="font-medium">Cuándo Avanzar:</p>
+                            <p className="text-muted-foreground whitespace-pre-wrap">{exercise.whenToAdvance}</p>
+                        </div>
+                    )}
+                    {exercise.whatNotToDo && (
+                        <div className="text-sm">
+                            <p className="font-medium">Qué NO Hacer:</p>
+                            <p className="text-muted-foreground whitespace-pre-wrap">{exercise.whatNotToDo}</p>
+                        </div>
+                    )}
                   </CardContent>
                   <CardFooter className="flex justify-end gap-2 border-t pt-4">
                     <Button variant="outline" size="sm" onClick={() => openEditDialog(exercise)}>
@@ -220,7 +232,7 @@ export default function ExerciseLibraryPage() {
               Define un nuevo ejercicio para tu biblioteca.
             </DialogDescription>
           </DialogHeader>
-          <AddMasterExerciseForm 
+          <AddMasterExerciseForm
             onSuccess={handleAddSuccess}
             onCancel={() => setIsAddExerciseDialogOpen(false)}
           />

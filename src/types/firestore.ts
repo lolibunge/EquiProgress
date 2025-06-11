@@ -58,6 +58,8 @@ export interface MasterExercise {
     description?: string;
     suggestedReps?: string | null;
     objective?: string;
+    whenToAdvance?: string; // New field: Cuándo Avanzar
+    whatNotToDo?: string;   // New field: Qué no hacer
     // No 'order' here, as order is context-dependent (within a block)
     // No 'planId' or 'blockId' here
     createdAt?: Timestamp;
@@ -92,7 +94,7 @@ export interface ExerciseResultObservations {
     croup?: string | null;   // Grupa
     limbs?: string | null;   // Miembros
     tail?: string | null;    // Cola
-    additionalNotes?: string | null; 
+    additionalNotes?: string | null;
 }
 
 export interface ExerciseResult {
@@ -137,10 +139,10 @@ export interface TrainingPlanInput {
 
 export interface TrainingBlockInput {
   title: string;
-  notes?: string; 
-  duration?: string; 
-  goal?: string; 
-  order?: number; 
+  notes?: string;
+  duration?: string;
+  goal?: string;
+  order?: number;
   exerciseReferences?: ExerciseReference[];
 }
 
@@ -150,6 +152,8 @@ export interface MasterExerciseInput {
   description?: string;
   suggestedReps?: string | null;
   objective?: string;
+  whenToAdvance?: string; // New field
+  whatNotToDo?: string;   // New field
   // createdByUid?: string;
 }
 
@@ -199,13 +203,13 @@ export interface ObservationInput {
 // DEPRECATED Exercise related types - will be removed once refactor is complete
 export interface Exercise {
     id: string;
-    planId: string; 
-    blockId: string; 
+    planId: string;
+    blockId: string;
     title: string;
     description?: string;
     suggestedReps?: string | null;
     objective?: string;
-    order?: number; 
+    order?: number;
     createdAt?: Timestamp;
     updatedAt?: Timestamp;
 }
