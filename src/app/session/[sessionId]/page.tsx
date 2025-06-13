@@ -65,9 +65,9 @@ interface ExerciseResultWithDetails extends ExerciseResult {
 
 // Helper type for editable exercise results
 type EditableExerciseResult = Omit<ExerciseResultWithDetails, 'createdAt' | 'updatedAt' | 'id' | 'exerciseId' | 'observations'> & {
-  id: string; 
+  id: string;
   exerciseId: string;
-  observations: Omit<ExerciseResultObservations, 'overallBehavior'>; 
+  observations: Omit<ExerciseResultObservations, 'overallBehavior'>;
 };
 
 
@@ -84,14 +84,14 @@ function SessionDetailContent() {
   const [session, setSession] = useState<SessionData | null>(null);
   const [editableOverallNote, setEditableOverallNote] = useState<string>("");
   const [editableDate, setEditableDate] = useState<Date | undefined>(undefined);
-  
+
   const [editableExerciseResults, setEditableExerciseResults] = useState<EditableExerciseResult[]>([]);
-  
+
   const [horse, setHorse] = useState<Horse | null>(null);
   const [block, setBlock] = useState<TrainingBlock | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
+
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -135,7 +135,7 @@ function SessionDetailContent() {
             return { ...result, exerciseDetails };
           })
         );
-        
+
         setEditableExerciseResults(resultsWithDetails.map(r => ({
             id: r.id,
             exerciseId: r.exerciseId,
@@ -143,7 +143,7 @@ function SessionDetailContent() {
             plannedReps: r.plannedReps || r.exerciseDetails?.suggestedReps || "",
             doneReps: r.doneReps,
             rating: r.rating,
-            observations: r.observations ? 
+            observations: r.observations ?
                 {
                     nostrils: r.observations.nostrils,
                     lips: r.observations.lips,
@@ -179,17 +179,17 @@ function SessionDetailContent() {
     field: keyof Omit<EditableExerciseResult, 'id' | 'exerciseId' | 'exerciseDetails' | 'observations'> | `observations.${keyof Omit<ExerciseResultObservations, 'overallBehavior'>}`,
     value: string | number | null
   ) => {
-    setEditableExerciseResults(prev => 
+    setEditableExerciseResults(prev =>
         prev.map(er => {
             if (er.id === exerciseResultId) {
                 const updatedEr = { ...er };
                 if (String(field).startsWith('observations.')) {
                     const obsField = String(field).split('.')[1] as keyof Omit<ExerciseResultObservations, 'overallBehavior'>;
                     updatedEr.observations = {
-                        ...(updatedEr.observations || { 
+                        ...(updatedEr.observations || {
                             nostrils: null, lips: null, ears: null, eyes: null, neck: null,
                             back: null, croup: null, limbs: null, tail: null,
-                            additionalNotes: "" 
+                            additionalNotes: ""
                         }),
                         [obsField]: value === '' || value === 'N/A' ? null : String(value)
                     };
@@ -229,10 +229,10 @@ function SessionDetailContent() {
       if (sessionChanged) {
         await updateSession(horseId, sessionId, sessionUpdates);
       }
-      
+
       for (const er of editableExerciseResults) {
         const { id, exerciseId, exerciseDetails, createdAt, updatedAt, ...dataToUpdateNoComment } = er;
-        
+
         const resultUpdateData: ExerciseResultUpdateData = {
             plannedReps: dataToUpdateNoComment.plannedReps,
             doneReps: dataToUpdateNoComment.doneReps,
@@ -248,7 +248,7 @@ function SessionDetailContent() {
         title: "Cambios Guardados",
         description: "La sesión y los resultados de los ejercicios han sido actualizados.",
       });
-      
+
       // Re-fetch data to reflect changes immediately and correctly
       const updatedSessionData = await getSession(horseId, sessionId);
       if (updatedSessionData) {
@@ -269,7 +269,7 @@ function SessionDetailContent() {
             plannedReps: r.plannedReps || r.exerciseDetails?.suggestedReps || "",
             doneReps: r.doneReps,
             rating: r.rating,
-             observations: r.observations ? 
+             observations: r.observations ?
                 {
                     nostrils: r.observations.nostrils,
                     lips: r.observations.lips,
@@ -328,7 +328,7 @@ function SessionDetailContent() {
 
   if (error) {
     return (
-      <div className="container mx-auto py-10 text-center">
+      <div className="container mx-auto py-6 sm:py-10 text-center">
         <Alert variant="destructive">
           <AlertTitle>Error</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
@@ -342,7 +342,7 @@ function SessionDetailContent() {
 
   if (!session) {
     return (
-      <div className="container mx-auto py-10 text-center">
+      <div className="container mx-auto py-6 sm:py-10 text-center">
         <p>No se encontró la sesión.</p>
         <Button onClick={() => router.back()} className="mt-4">
            <Icons.arrowRight className="mr-2 h-4 w-4 rotate-180" /> Volver
@@ -352,7 +352,7 @@ function SessionDetailContent() {
   }
 
   return (
-    <div className="container mx-auto py-10">
+    <div className="container mx-auto py-6 sm:py-10">
       <Card className="w-full max-w-3xl mx-auto">
         <CardHeader>
           <CardTitle className="text-2xl md:text-3xl">
@@ -410,7 +410,7 @@ function SessionDetailContent() {
                       {result.exerciseDetails?.title || 'Ejercicio Desconocido'}
                     </h4>
                     {result.exerciseDetails?.description && <p className="text-sm text-muted-foreground mb-3">{result.exerciseDetails.description}</p>}
-                    
+
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-3">
                       <div>
                         <Label htmlFor={`plannedReps-${result.id}`}>Planificado</Label>
@@ -444,7 +444,7 @@ function SessionDetailContent() {
                         className="mt-1"
                       />
                     </div>
-                    
+
                     <div className="pt-4 border-t">
                         <h5 className="font-semibold text-md mb-3">Observaciones del Ejercicio:</h5>
                         <div className="mb-3">
@@ -489,14 +489,14 @@ function SessionDetailContent() {
           )}
 
           <div className="mt-8 flex flex-col sm:flex-row justify-center items-center gap-4">
-             <Button onClick={handleSaveChanges} disabled={isSaving || isDeleting}>
+             <Button onClick={handleSaveChanges} disabled={isSaving || isDeleting} className="w-full sm:w-auto">
               {isSaving ? <Icons.spinner className="mr-2 h-4 w-4 animate-spin" /> : <Icons.save className="mr-2 h-4 w-4" />}
-              Guardar Todos los Cambios
+              Guardar Cambios
             </Button>
-            
+
             <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
               <AlertDialogTrigger asChild>
-                <Button variant="destructive" disabled={isSaving || isDeleting}>
+                <Button variant="destructive" disabled={isSaving || isDeleting} className="w-full sm:w-auto">
                   <Icons.trash className="mr-2 h-4 w-4" /> Eliminar Sesión
                 </Button>
               </AlertDialogTrigger>
@@ -517,7 +517,7 @@ function SessionDetailContent() {
               </AlertDialogContent>
             </AlertDialog>
 
-            <Button onClick={() => router.back()} variant="outline" disabled={isSaving || isDeleting}>
+            <Button onClick={() => router.back()} variant="outline" disabled={isSaving || isDeleting} className="w-full sm:w-auto">
               <Icons.arrowRight className="mr-2 h-4 w-4 rotate-180" /> Volver
             </Button>
           </div>

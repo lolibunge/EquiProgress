@@ -18,7 +18,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import AddHorseForm from './AddHorseForm';
 
 interface BlockDetailsCache {
-  [blockId: string]: string; 
+  [blockId: string]: string;
 }
 
 interface HorseHistoryProps {
@@ -72,7 +72,7 @@ export default function HorseHistory({ preselectedHorse }: HorseHistoryProps) {
     }
 
     setIsLoadingSessions(true);
-    setSessions([]); 
+    setSessions([]);
 
     const fetchHorseSessions = async () => {
       try {
@@ -80,7 +80,7 @@ export default function HorseHistory({ preselectedHorse }: HorseHistoryProps) {
         setSessions(fetchedSessions);
       } catch (error) {
         console.error("Error fetching sessions for horse:", selectedHorse.id, error);
-        setSessions([]); 
+        setSessions([]);
       } finally {
         setIsLoadingSessions(false);
       }
@@ -126,11 +126,11 @@ export default function HorseHistory({ preselectedHorse }: HorseHistoryProps) {
       fetchAllMissingBlockTitles();
     }
   }, [sessions, blockDetailsCache]);
-  
+
   const handleHorseAdded = () => {
     setIsAddHorseDialogOpen(false);
     if (!preselectedHorse) { // Only refetch all horses if not preselected
-      fetchHorses(); 
+      fetchHorses();
     }
   };
 
@@ -155,24 +155,21 @@ export default function HorseHistory({ preselectedHorse }: HorseHistoryProps) {
       }
       if (!preselectedHorse && horses.length > 0) { // Show select horse message only if not preselected
         return (
-          <div className="mx-[10px]">
             <Card>
                 <CardContent className="py-6 text-center">
                 <Icons.logo className="mx-auto h-12 w-12 text-muted-foreground mb-4" data-ai-hint="horse pointing" />
                 <p className="text-muted-foreground">Por favor, selecciona un caballo para ver su historial.</p>
                 </CardContent>
             </Card>
-          </div>
         );
       }
       // If preselectedHorse was null or no horses exist
       return (
-        <div className="mx-[10px]">
           <Card>
               <CardContent className="py-6 text-center">
               <Icons.logo className="mx-auto h-12 w-12 text-muted-foreground mb-4" data-ai-hint="horse plus" />
               <p className="text-muted-foreground">
-                { preselectedHorse === null && horses.length === 0 ? "No se ha seleccionado un caballo o no hay caballos registrados." : 
+                { preselectedHorse === null && horses.length === 0 ? "No se ha seleccionado un caballo o no hay caballos registrados." :
                   !preselectedHorse ? "No tienes caballos registrados. Añade uno para empezar." :
                   "No hay información de caballo disponible."
                 }
@@ -184,25 +181,22 @@ export default function HorseHistory({ preselectedHorse }: HorseHistoryProps) {
               )}
               </CardContent>
           </Card>
-        </div>
       );
     }
 
     if (sessions.length === 0) {
       return (
-        <div className="mx-[10px]">
         <Card>
           <CardContent className="py-6 text-center">
             <Icons.logo className="mx-auto h-12 w-12 text-muted-foreground mb-4" data-ai-hint="horse sad" />
             <p className="text-muted-foreground">No hay sesiones registradas para {selectedHorse.name}.</p>
           </CardContent>
         </Card>
-        </div>
       );
     }
 
     return (
-      <div className="mx-[10px] space-y-4">
+      <div className="space-y-4">
         <h2 className="text-2xl font-semibold">Sesiones de {selectedHorse.name}</h2>
         {sessions.map((session) => (
           <Card key={session.id}>
@@ -231,7 +225,7 @@ export default function HorseHistory({ preselectedHorse }: HorseHistoryProps) {
   };
 
   return (
-    <div className="container mx-auto py-10">
+    <div className="container mx-auto py-6 sm:py-10">
       {!preselectedHorse && ( // Only show selector if no horse is preselected
         <Card className="mb-6">
           <CardHeader>
@@ -272,7 +266,7 @@ export default function HorseHistory({ preselectedHorse }: HorseHistoryProps) {
       )}
 
       {renderSessionContent()}
-      
+
       <Dialog open={isAddHorseDialogOpen} onOpenChange={setIsAddHorseDialogOpen}>
         <DialogContent className="sm:max-w-[480px]">
           <DialogHeader>
@@ -281,15 +275,12 @@ export default function HorseHistory({ preselectedHorse }: HorseHistoryProps) {
               Completa los detalles para registrar un nuevo caballo.
             </DialogDescription>
           </DialogHeader>
-          <AddHorseForm 
-            onSuccess={handleHorseAdded} 
-            onCancel={() => setIsAddHorseDialogOpen(false)} 
+          <AddHorseForm
+            onSuccess={handleHorseAdded}
+            onCancel={() => setIsAddHorseDialogOpen(false)}
           />
         </DialogContent>
       </Dialog>
     </div>
   );
 }
-
-
-    

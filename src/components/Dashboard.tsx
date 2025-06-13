@@ -162,7 +162,7 @@ function SortableExerciseItem({ exercise, blockId, planId, onRemove }: SortableE
       style={style}
       {...attributes}
       {...listeners}
- className="flex items-center justify-between group p-2 rounded-md hover:bg-muted/70 active:bg-muted bg-card border mx-[10px]"
+      className="flex items-center justify-between group p-2 rounded-md hover:bg-muted/70 active:bg-muted bg-card border mx-2.5"
     >
       <div>
         <span className="font-medium">{exercise.title}</span>
@@ -213,7 +213,7 @@ function SortableBlockAccordionItem({ block, children, onEditBlock }: SortableBl
       value={block.id}
       ref={setNodeRef}
       style={style}
-      className="bg-card border mx-[10px] rounded-md shadow-sm"
+      className="bg-card border mx-2.5 rounded-md shadow-sm"
     >
        <div className="flex items-center justify-between w-full group text-left">
         <AccordionTrigger {...attributes} {...listeners} className="flex-grow p-4 hover:no-underline">
@@ -414,7 +414,7 @@ const Dashboard = () => {
       return;
     }
     setIsLoadingBlocks(true);
-    setExercisesInPlan([]); 
+    setExercisesInPlan([]);
     try {
       const fetchedBlocks = await getTrainingBlocks(planId);
       const sortedBlocks = fetchedBlocks.sort((a,b) => (a.order ?? Infinity) - (b.order ?? Infinity));
@@ -423,7 +423,7 @@ const Dashboard = () => {
       if (sortedBlocks.length > 0) {
         await performFetchExercisesForPlan(planId, sortedBlocks);
       } else {
-         setExercisesInPlan([]); 
+         setExercisesInPlan([]);
       }
     } catch (error) {
       console.error(`[Dashboard] performFetchBlocks: Error fetching blocks for plan ${planId}:`, error);
@@ -555,7 +555,7 @@ const Dashboard = () => {
       console.warn("[Dashboard] handleAddSelectedExercisesToBlock: Aborted - missing plan, block, or no exercises selected.");
       return;
     }
-    setIsLoadingExercises(true); 
+    setIsLoadingExercises(true);
     console.log(`[Dashboard] handleAddSelectedExercisesToBlock: Adding ${selectedMasterExercisesForBlock.size} exercises to block ${currentBlockIdForNewExercise} in plan ${selectedPlan.id}.`);
     try {
       for (const masterExerciseId of selectedMasterExercisesForBlock) {
@@ -564,9 +564,9 @@ const Dashboard = () => {
       toast({ title: "Ejercicios Añadidos", description: "Los ejercicios seleccionados se han añadido a la etapa." });
       setIsSelectExerciseDialogOpen(false);
       setCurrentBlockIdForNewExercise(null);
-      if (selectedPlan?.id && blocks.length > 0) { 
+      if (selectedPlan?.id && blocks.length > 0) {
         console.log(`[Dashboard] handleAddSelectedExercisesToBlock: Exercises added, re-fetching exercises for plan ${selectedPlan.id}.`);
-        await performFetchExercisesForPlan(selectedPlan.id, blocks); 
+        await performFetchExercisesForPlan(selectedPlan.id, blocks);
       }
     } catch (error) {
       console.error("[Dashboard] handleAddSelectedExercisesToBlock: Error adding exercises to block:", error);
@@ -578,7 +578,7 @@ const Dashboard = () => {
 
   const handleRemoveExerciseFromBlock = async (planId: string, blockId: string, masterExerciseId: string) => {
     console.log(`[Dashboard] handleRemoveExerciseFromBlock: Removing exercise ${masterExerciseId} from block ${blockId} in plan ${planId}.`);
-    setIsLoadingExercises(true); 
+    setIsLoadingExercises(true);
     try {
       await removeExerciseFromBlockReference(planId, blockId, masterExerciseId);
       toast({title: "Ejercicio Removido", description: "El ejercicio ha sido quitado de esta etapa."});
@@ -861,7 +861,7 @@ const handleSaveSessionAndNavigate = async () => {
 
         const updatedBlocksForDb = reorderedBlocks.map((block, index) => ({
           ...block,
-          order: index, 
+          order: index,
         }));
         console.log("[Dashboard] handleDragEndBlocks: Updated block data for DB:", JSON.parse(JSON.stringify(updatedBlocksForDb)));
 
@@ -872,7 +872,7 @@ const handleSaveSessionAndNavigate = async () => {
             toast({ title: "Orden de etapas actualizado", description: "El nuevo orden de etapas ha sido guardado." });
             console.log(`[Dashboard] handleDragEndBlocks: Order updated in DB. Re-fetching blocks and their exercises for plan ${selectedPlan.id}.`);
             // Full re-fetch of blocks (which will trigger exercise fetch)
-            await performFetchBlocks(selectedPlan.id); 
+            await performFetchBlocks(selectedPlan.id);
           })
           .catch(async err => {
             console.error("[Dashboard] handleDragEndBlocks: Error updating blocks order in DB:", err);
@@ -882,7 +882,7 @@ const handleSaveSessionAndNavigate = async () => {
                 await performFetchBlocks(selectedPlan.id);
             }
           });
-        return updatedBlocksForDb; 
+        return updatedBlocksForDb;
       });
     }
   };
@@ -893,8 +893,8 @@ const handleSaveSessionAndNavigate = async () => {
 
 
   return (
-    <div className="container mx-auto py-10">
-      <div className="mx-[10px] md:mx-0 grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+    <div className="container mx-auto py-6 sm:py-10">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
 
         <div className="md:col-span-2 space-y-6">
           <Card>
@@ -958,10 +958,10 @@ const handleSaveSessionAndNavigate = async () => {
                       <CardHeader>
                         <CardTitle>Plan de Entrenamiento para {selectedHorse.name}</CardTitle>
                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mt-2">
-                           <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                           <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full">
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
-                                    <Button variant="outline" className="w-full sm:w-auto justify-between">
+                                    <Button variant="outline" className="w-full sm:w-auto justify-between flex-grow">
                                         {isLoadingPlans ? "Cargando planes..." : selectedPlan ? selectedPlan.title : "Seleccionar Plan"}
                                         {!isLoadingPlans && <Icons.chevronDown className="ml-2 h-4 w-4" />}
                                     </Button>
@@ -989,8 +989,8 @@ const handleSaveSessionAndNavigate = async () => {
                                     )}
                                     </DropdownMenuContent>
                                 </DropdownMenu>
-                                <Button onClick={() => setIsCreatePlanDialogOpen(true)} className="w-full sm:w-auto">
-                                    <Icons.plus className="mr-2 h-4 w-4" /> Crear Plan Nuevo
+                                <Button onClick={() => setIsCreatePlanDialogOpen(true)} className="w-full sm:w-auto flex-shrink-0">
+                                    <Icons.plus className="mr-2 h-4 w-4" /> Crear Plan
                                 </Button>
                             </div>
                             {selectedPlan && (
@@ -1000,11 +1000,11 @@ const handleSaveSessionAndNavigate = async () => {
                                     variant="destructive"
                                     size="sm"
                                     onClick={() => setIsDeletePlanDialogOpen(true)}
-                                    className="w-full sm:w-auto"
+                                    className="w-full sm:w-auto mt-2 sm:mt-0"
                                     disabled={!selectedPlan || isDeletingPlan}
                                     >
                                     {isDeletingPlan ? <Icons.spinner className="mr-2 h-4 w-4 animate-spin" /> : <Icons.trash className="mr-2 h-4 w-4" />}
-                                    Eliminar Plan Seleccionado
+                                    Eliminar Plan
                                     </Button>
                                 </AlertDialogTrigger>
                                 <AlertDialogContent>
@@ -1048,7 +1048,7 @@ const handleSaveSessionAndNavigate = async () => {
                                           block={block}
                                           onEditBlock={openEditBlockDialog}
                                       >
-                                          <AccordionContent className="mx-[10px] md:mx-0">
+                                          <AccordionContent className="px-1 sm:px-2.5">
                                           {block.goal && (
                                               <p className="text-sm text-primary font-semibold mb-2">
                                               Meta de la Etapa: <span className="font-normal text-muted-foreground">{block.goal}</span>
@@ -1080,7 +1080,7 @@ const handleSaveSessionAndNavigate = async () => {
                                           </p>
                                           )}
                                           <Button size="sm" variant="outline" className="mt-2" onClick={() => openSelectExerciseDialog(block.id)}>
-                                            <Icons.plus className="mr-2 h-4 w-4" /> Añadir Ejercicio desde Biblioteca
+                                            <Icons.plus className="mr-2 h-4 w-4" /> Añadir Ejercicio
                                           </Button>
                                       </AccordionContent>
                                       </SortableBlockAccordionItem>
@@ -1243,7 +1243,7 @@ const handleSaveSessionAndNavigate = async () => {
                                 })
                             ) : (
                                 <p className="text-sm text-muted-foreground p-2 text-center">
-                                    { selectedBlock.exerciseReferences && selectedBlock.exerciseReferences.length > 0 && isLoadingExercises ? 
+                                    { selectedBlock.exerciseReferences && selectedBlock.exerciseReferences.length > 0 && isLoadingExercises ?
                                         'Cargando ejercicios...' :
                                         'Selecciona una etapa con ejercicios para registrar la sesión, o añade ejercicios a esta etapa en la pestaña "Plan".'
                                     }
@@ -1269,7 +1269,7 @@ const handleSaveSessionAndNavigate = async () => {
             </Card>
           ) : (
             <Card>
-              <CardContent className="flex flex-col items-center justify-center h-64 text-center">
+              <CardContent className="flex flex-col items-center justify-center h-64 text-center p-4">
                 <Icons.logo className="w-16 h-16 mb-4 text-muted-foreground" data-ai-hint="horse head" />
                 <p className="text-muted-foreground">Selecciona un caballo para ver sus detalles o registra uno nuevo usando el menú desplegable de arriba.</p>
               </CardContent>
@@ -1277,7 +1277,7 @@ const handleSaveSessionAndNavigate = async () => {
           )}
         </div>
 
-        <Card className="col-span-1 md:col-span-1">
+        <Card className="col-span-1">
           <CardHeader>
             <CardTitle>Calendario</CardTitle>
             <CardDescription>

@@ -23,7 +23,7 @@ export default function HorseHistoryPage() {
 
   if (!currentUser) {
     return (
-      <div className="container mx-auto flex flex-col items-center justify-center py-10 text-center">
+      <div className="container mx-auto flex flex-col items-center justify-center py-6 sm:py-10 text-center">
         <Card className="w-full max-w-md">
           <CardHeader>
             <CardTitle>Acceso Restringido</CardTitle>
@@ -32,10 +32,10 @@ export default function HorseHistoryPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col items-center gap-4">
-            <Button asChild>
+            <Button asChild className="w-full sm:w-auto">
               <Link href="/login">Iniciar Sesión</Link>
             </Button>
-            <Button variant="outline" onClick={() => router.back()}>
+            <Button variant="outline" onClick={() => router.back()} className="w-full sm:w-auto">
               Volver
             </Button>
           </CardContent>
@@ -45,10 +45,10 @@ export default function HorseHistoryPage() {
   }
 
   return (
-    <div className="container mx-auto py-10">
+    <div className="container mx-auto py-6 sm:py-10">
       <HorseHistory />
       <div className="mt-8 flex justify-center">
-        <Button variant="outline" onClick={() => router.back()}>
+        <Button variant="outline" onClick={() => router.back()} className="w-full sm:w-auto">
           <Icons.arrowRight className="mr-2 h-4 w-4 rotate-180" /> Volver
         </Button>
       </div>
