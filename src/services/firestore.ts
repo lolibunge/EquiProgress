@@ -133,7 +133,6 @@ export async function addTrainingBlock(planId: string, blockData: Omit<TrainingB
   }
   const blockCollectionRef = collection(db, "trainingBlocks");
 
-  // Query to get the last block's order for the given planId
   const q = query(
     collection(db, "trainingBlocks"),
     where("planId", "==", planId),
@@ -152,19 +151,37 @@ export async function addTrainingBlock(planId: string, blockData: Omit<TrainingB
       console.log(`[FirestoreService] addTrainingBlock: No existing blocks found for planId "${planId}". New order will be 0.`);
     }
 
-    const newBlockData: Omit<TrainingBlock, 'id' | 'createdAt' | 'updatedAt'> & { createdAt: Timestamp, updatedAt: Timestamp } = {
+    const dataForFirestore: {
+      planId: string;
+      title: string;
+      order: number;
+      exerciseReferences: ExerciseReference[];
+      createdAt: Timestamp;
+      updatedAt: Timestamp;
+      notes?: string;
+      duration?: string;
+      goal?: string;
+    } = {
       planId: planId,
       title: blockData.title,
-      notes: blockData.notes || undefined,
-      duration: blockData.duration || undefined,
-      goal: blockData.goal || undefined,
       order: newOrder,
-      exerciseReferences: [], 
+      exerciseReferences: [],
       createdAt: serverTimestamp() as Timestamp,
       updatedAt: serverTimestamp() as Timestamp,
     };
-    console.log(`[FirestoreService] addTrainingBlock: Attempting to add new block with data:`, newBlockData);
-    const docRef = await addDoc(blockCollectionRef, newBlockData);
+
+    if (blockData.notes !== undefined) {
+      dataForFirestore.notes = blockData.notes;
+    }
+    if (blockData.duration !== undefined) {
+      dataForFirestore.duration = blockData.duration;
+    }
+    if (blockData.goal !== undefined) {
+      dataForFirestore.goal = blockData.goal;
+    }
+
+    console.log(`[FirestoreService] addTrainingBlock: Attempting to add new block with data:`, dataForFirestore);
+    const docRef = await addDoc(blockCollectionRef, dataForFirestore);
     console.log("[FirestoreService] addTrainingBlock: Training block added with ID:", docRef.id, "and order:", newOrder);
     return docRef.id;
   } catch (error: any) {
@@ -179,10 +196,17 @@ export async function addTrainingBlock(planId: string, blockData: Omit<TrainingB
 export async function updateTrainingBlock(planId: string, blockId: string, blockData: Partial<Omit<TrainingBlockInput, 'planId' | 'order' | 'exerciseReferences'>>): Promise<void> {
   console.log(`[FirestoreService] updateTrainingBlock called for blockId: ${blockId}, planId: ${planId}, data:`, blockData);
   const blockDocRef = doc(db, "trainingBlocks", blockId);
-  const dataToUpdate: Partial<TrainingBlockInput & { updatedAt: Timestamp }> = {
-    ...blockData,
+  
+  // Construct the data to update, omitting undefined fields
+  const dataToUpdate: { [key: string]: any } = {
     updatedAt: serverTimestamp() as Timestamp,
   };
+
+  if (blockData.title !== undefined) dataToUpdate.title = blockData.title;
+  if (blockData.notes !== undefined) dataToUpdate.notes = blockData.notes === "" ? null : blockData.notes; // Store "" as null or as "" based on preference
+  if (blockData.duration !== undefined) dataToUpdate.duration = blockData.duration === "" ? null : blockData.duration;
+  if (blockData.goal !== undefined) dataToUpdate.goal = blockData.goal === "" ? null : blockData.goal;
+
 
   try {
     await updateDoc(blockDocRef, dataToUpdate);

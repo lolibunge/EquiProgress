@@ -53,7 +53,7 @@ export default function AddBlockForm({ planId, onSuccess, onCancel }: AddBlockFo
         return;
     }
     try {
-      const blockInputData: TrainingBlockInput = { 
+      const blockInputData: Omit<TrainingBlockInput, 'exerciseReferences' | 'order'> = { 
         title: data.title,
         notes: data.notes,
         duration: data.duration,
@@ -101,7 +101,7 @@ export default function AddBlockForm({ planId, onSuccess, onCancel }: AddBlockFo
             <FormItem>
               <FormLabel>Subtítulo (Opcional)</FormLabel>
               <FormControl>
-                <Textarea placeholder="Notas adicionales o un subtítulo para la etapa..." {...field} />
+                <Textarea placeholder="Notas adicionales o un subtítulo para la etapa..." {...field} value={field.value ?? ''} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -114,7 +114,7 @@ export default function AddBlockForm({ planId, onSuccess, onCancel }: AddBlockFo
             <FormItem>
               <FormLabel>Duración (Opcional)</FormLabel>
               <FormControl>
-                <Input placeholder="Ej: 1 semana, 3 días" {...field} />
+                <Input placeholder="Ej: 1 semana, 3 días" {...field} value={field.value ?? ''} />
               </FormControl>
               <FormMessage />
             </FormItem>

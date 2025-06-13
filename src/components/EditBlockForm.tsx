@@ -73,12 +73,11 @@ export default function EditBlockForm({ block, planId, onSuccess, onCancel }: Ed
         return;
     }
     try {
-      const blockInputData: TrainingBlockInput = { 
+      const blockInputData: Partial<Omit<TrainingBlockInput, 'planId' | 'order' | 'exerciseReferences'>> = { 
         title: data.title,
         notes: data.notes,
         duration: data.duration,
         goal: data.goal,
-        // order is not updated here, should be handled by drag-and-drop or specific reorder function
       };
       await updateTrainingBlock(planId, block.id, blockInputData); 
       toast({
