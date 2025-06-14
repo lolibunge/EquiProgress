@@ -1,7 +1,8 @@
 
 import { auth, db } from '@/firebase';
 import { collection, addDoc, getDocs, serverTimestamp, query, where, orderBy, Timestamp, doc, getDoc, updateDoc, setDoc } from 'firebase/firestore';
-import type { Horse } from '@/types/firestore';
+import type { Horse, TrainingBlock } from '@/types/firestore';
+import { getTrainingBlocks } from './firestore';
 
 
 // Interface for the data collected from the form
@@ -113,53 +114,30 @@ export async function startPlanForHorse(horseId: string, planId: string, firstBl
 export async function updateDayCompletionStatus(horseId: string, currentBlockId: string, dayExerciseId: string, completed: boolean): Promise<void> {
   console.log(`[HorseService] updateDayCompletionStatus called for horseId: ${horseId}, blockId: ${currentBlockId}, dayExerciseId: ${dayExerciseId}, completed: ${completed}`);
   const horseDocRef = doc(db, 'horses', horseId);
-
-  // Construct the path for the specific day's completion status
-  // Firestore field paths with variables need to be constructed carefully
-  const progressFieldPath = `planProgress.${currentBlockId}.${dayExerciseId}.completed`;
-  const progressTimestampPath = `planProgress.${currentBlockId}.${dayExerciseId}.completedAt`;
-
-  const updateData: { [key: string]: any } = {
-    [progressFieldPath]: completed,
-    updatedAt: serverTimestamp() as Timestamp,
-  };
-
-  if (completed) {
-    updateData[progressTimestampPath] = serverTimestamp() as Timestamp;
-  } else {
-    // If unchecking, you might want to remove completedAt or set to null
-    // For simplicity, Firestore often handles non-existent paths gracefully,
-    // but explicitly setting to null might be cleaner if you query by it.
-    // For now, we'll just update 'completed'. If completedAt is only set when true, this is fine.
-  }
-
-
+    
   try {
-    // Using updateDoc to set nested properties.
-    // This requires that the `planProgress` and `planProgress[currentBlockId]` objects exist.
-    // A more robust solution might use a transaction to read, modify, and write if these parent objects might not exist.
-    // For now, we assume `startPlanForHorse` initializes `planProgress: {}`.
-    // And when the first day in a block is completed, `planProgress[currentBlockId]` will be implicitly created by Firestore
-    // if `planProgress` itself exists.
-    
-    // To ensure the parent path (planProgress.blockId) exists:
     const horseSnap = await getDoc(horseDocRef);
-    const horseData = horseSnap.data() as Horse | undefined;
+    if (!horseSnap.exists()) {
+        console.error(`[HorseService] updateDayCompletionStatus: Horse with ID ${horseId} not found.`);
+        throw new Error(`Horse with ID ${horseId} not found.`);
+    }
+    const horseData = horseSnap.data() as Horse;
     
-    const currentPlanProgress = horseData?.planProgress || {};
+    const currentPlanProgress = horseData.planProgress || {};
     if (!currentPlanProgress[currentBlockId]) {
         currentPlanProgress[currentBlockId] = {};
     }
     if (!currentPlanProgress[currentBlockId][dayExerciseId]) {
-        currentPlanProgress[currentBlockId][dayExerciseId] = { completed: false };
+        currentPlanProgress[currentBlockId][dayExerciseId] = { completed: false }; // Initialize if not present
     }
+    
     currentPlanProgress[currentBlockId][dayExerciseId].completed = completed;
     if (completed) {
         currentPlanProgress[currentBlockId][dayExerciseId].completedAt = serverTimestamp() as Timestamp;
     } else {
-        delete currentPlanProgress[currentBlockId][dayExerciseId].completedAt; // Or set to null
+        // If unchecking, remove the completedAt timestamp
+        delete currentPlanProgress[currentBlockId][dayExerciseId].completedAt;
     }
-
 
     await updateDoc(horseDocRef, {
         planProgress: currentPlanProgress,
@@ -170,5 +148,64 @@ export async function updateDayCompletionStatus(horseId: string, currentBlockId:
   } catch (e) {
     console.error(`[HorseService] updateDayCompletionStatus: Error updating day completion for horse ${horseId}:`, e);
     throw e;
+  }
+}
+
+export async function advanceHorseToNextBlock(horseId: string): Promise<{ advanced: boolean; newBlockId?: string; planCompleted: boolean }> {
+  console.log(`[HorseService] advanceHorseToNextBlock called for horseId: ${horseId}`);
+  const horseDocRef = doc(db, 'horses', horseId);
+
+  try {
+    const horseSnap = await getDoc(horseDocRef);
+    if (!horseSnap.exists()) {
+      console.error(`[HorseService] advanceHorseToNextBlock: Horse ${horseId} not found.`);
+      throw new Error("Caballo no encontrado.");
+    }
+
+    const horseData = horseSnap.data() as Horse;
+    if (!horseData.activePlanId || !horseData.currentBlockId) {
+      console.warn(`[HorseService] advanceHorseToNextBlock: Horse ${horseId} does not have an active plan or current block.`);
+      return { advanced: false, planCompleted: false };
+    }
+
+    const allBlocksForPlan = await getTrainingBlocks(horseData.activePlanId);
+    if (allBlocksForPlan.length === 0) {
+        console.warn(`[HorseService] advanceHorseToNextBlock: No blocks found for plan ${horseData.activePlanId}.`);
+        return { advanced: false, planCompleted: false };
+    }
+
+    // Ensure blocks are sorted by order - getTrainingBlocks should already do this
+    // const sortedBlocks = allBlocksForPlan.sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity));
+
+    const currentBlockIndex = allBlocksForPlan.findIndex(block => block.id === horseData.currentBlockId);
+
+    if (currentBlockIndex === -1) {
+      console.error(`[HorseService] advanceHorseToNextBlock: Current block ${horseData.currentBlockId} not found in plan ${horseData.activePlanId}.`);
+      // Potentially reset or handle error
+      return { advanced: false, planCompleted: false };
+    }
+
+    if (currentBlockIndex < allBlocksForPlan.length - 1) {
+      const nextBlock = allBlocksForPlan[currentBlockIndex + 1];
+      await updateDoc(horseDocRef, {
+        currentBlockId: nextBlock.id,
+        // Optionally reset planProgress for the new block if it shouldn't carry over
+        // 'planProgress': { ...horseData.planProgress, [nextBlock.id]: {} } 
+        // For now, we'll just update the block ID. Progress for the new block will start fresh.
+        updatedAt: serverTimestamp() as Timestamp,
+      });
+      console.log(`[HorseService] advanceHorseToNextBlock: Horse ${horseId} advanced to block ${nextBlock.id} (${nextBlock.title}).`);
+      return { advanced: true, newBlockId: nextBlock.id, planCompleted: false };
+    } else {
+      // This was the last block
+      console.log(`[HorseService] advanceHorseToNextBlock: Horse ${horseId} has completed the last block of plan ${horseData.activePlanId}.`);
+      // Optionally, you could clear activePlanId here or mark the plan as fully completed on the horse
+      // For now, we just indicate the plan is completed at this stage.
+      // await updateDoc(horseDocRef, { activePlanId: null, currentBlockId: null, updatedAt: serverTimestamp() });
+      return { advanced: false, planCompleted: true };
+    }
+  } catch (error) {
+    console.error(`[HorseService] advanceHorseToNextBlock: Error advancing horse ${horseId} to next block:`, error);
+    throw error;
   }
 }

@@ -20,7 +20,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useRouter } from 'next/navigation';
 
 import { createSession, addExerciseResult } from "@/services/session";
-import { getHorses as fetchHorsesService, getHorseById, addHorse, startPlanForHorse, updateDayCompletionStatus } from "@/services/horse";
+import { getHorses as fetchHorsesService, getHorseById, addHorse, startPlanForHorse, updateDayCompletionStatus, advanceHorseToNextBlock } from "@/services/horse";
 import {
   getTrainingPlans,
   getTrainingBlocks,
@@ -129,7 +129,7 @@ const OBSERVATION_ZONES = [
 ] as const;
 
 
-type SessionDayResultState = Omit<ExerciseResultInput, 'exerciseId' | 'observations'> & { 
+type SessionDayResultState = Omit<ExerciseResultInput, 'exerciseId' | 'observations' | 'doneReps'> & { 
     observations: Omit<ExerciseResultObservations, 'additionalNotes'> & { additionalNotes?: string | null };
 };
 
@@ -286,6 +286,8 @@ const Dashboard = () => {
   const [sessionOverallNote, setSessionOverallNote] = useState("");
   const [sessionDayResult, setSessionDayResult] = useState<SessionDayResultState | null>(null);
   const [isSavingSession, setIsSavingSession] = useState(false);
+  const [isAdvancingBlock, setIsAdvancingBlock] = useState(false);
+
 
   const [selectedPlanForAdmin, setSelectedPlanForAdmin] = useState<TrainingPlan | null>(null);
   const [blocksForAdminPlan, setBlocksForAdminPlan] = useState<TrainingBlock[]>([]);
@@ -565,7 +567,7 @@ const Dashboard = () => {
           setSelectedDayForSession(currentActiveDayDetails);
           setSessionOverallNote(""); 
           setSessionDayResult({
-              plannedReps: currentActiveDayDetails.suggestedReps ?? "1 sesión",
+              plannedReps: currentActiveDayDetails.suggestedReps ?? "1 sesión", 
               rating: 3,
               observations: { nostrils: null, lips: null, ears: null, eyes: null, neck: null, back: null, croup: null, limbs: null, tail: null, additionalNotes: "" }
           });
@@ -576,7 +578,7 @@ const Dashboard = () => {
           setSessionOverallNote("");
           console.log(`%c[Dashboard Effect for Session Form Reset] currentActiveDayDetails is null. Session form cleared.`, "color: skyblue;");
       }
-  }, [currentActiveDayDetails?.id]);
+  }, [currentActiveDayDetails?.id, currentActiveDayIndexInBlock]); // Added currentActiveDayIndexInBlock as dependency
 
 
   const handleHorseAdded = async () => {
@@ -813,7 +815,7 @@ const handleSaveSessionAndNavigate = async () => {
         const dayResultInput: ExerciseResultInput = {
             exerciseId: selectedDayForSession.id, 
             plannedReps: sessionDayResult.plannedReps,
-            doneReps: 1, 
+            doneReps: 1, // Mark this logged instance of the day as done
             rating: sessionDayResult.rating,
             observations: sessionDayResult.observations && Object.values(sessionDayResult.observations).some(v => v !== null && v !== undefined && String(v).trim() !== '')
                             ? sessionDayResult.observations
@@ -976,14 +978,39 @@ const handleSaveSessionAndNavigate = async () => {
     console.log("[Dashboard - Derive allPlansForDropdown] All trainingPlans before filter:", JSON.stringify(trainingPlans.map(p => ({id: p.id, title: p.title, template: p.template})), null, 2));
     const filtered = trainingPlans.filter(p => {
         const isTemplate = p.template;
-        // const shouldInclude = !isTemplate; // Original logic to exclude templates
-        const shouldInclude = true; // Changed logic to include templates
+        const shouldInclude = true; // Show all plans, including templates
         console.log(`[Dashboard - Derive allPlansForDropdown] Plan: "${p.title}" (ID: ${p.id}), template: ${isTemplate}. Will include: ${shouldInclude}`);
         return shouldInclude;
     });
     console.log("[Dashboard - Derive allPlansForDropdown] Filtered plans (showing all including templates):", JSON.stringify(filtered.map(p => ({id: p.id, title: p.title, template: p.template})), null, 2));
     return filtered;
   }, [trainingPlans]);
+
+ const handleAdvanceToNextBlock = async () => {
+    if (!selectedHorse) return;
+    setIsAdvancingBlock(true);
+    try {
+      const result = await advanceHorseToNextBlock(selectedHorse.id);
+      if (result.advanced && result.newBlockId) {
+        toast({ title: "Etapa Avanzada", description: "Has pasado a la siguiente etapa del plan." });
+        // Re-fetch horse data to update UI with new currentBlockId and reset days
+        const updatedHorse = await getHorseById(selectedHorse.id);
+        setSelectedHorse(updatedHorse); // This will trigger useEffects to fetch new block details and days
+      } else if (result.planCompleted) {
+        toast({ title: "¡Plan Completado!", description: "Has completado todas las etapas de este plan." });
+        // Optionally, clear activePlanId on the horse or offer to select a new plan
+         const updatedHorse = await getHorseById(selectedHorse.id); // Re-fetch to reflect any changes (e.g. if service clears planId)
+         setSelectedHorse(updatedHorse);
+      } else {
+        toast({ title: "Fin de Etapas", description: "No hay más etapas en este plan o no se pudo avanzar.", variant: "default" });
+      }
+    } catch (error) {
+      console.error("Error advancing to next block:", error);
+      toast({ title: "Error", description: "No se pudo avanzar a la siguiente etapa.", variant: "destructive" });
+    } finally {
+      setIsAdvancingBlock(false);
+    }
+  };
 
 
   return (
@@ -1105,10 +1132,14 @@ const handleSaveSessionAndNavigate = async () => {
                             ) : allDaysInBlockCompleted ? (
                                 <Card className="mt-4 p-4 text-center">
                                     <Icons.check className="mx-auto h-10 w-10 text-green-500 mb-2" />
-                                    <CardTitle className="text-lg">¡Etapa Completada!</CardTitle>
+                                    <CardTitle className="text-lg">¡Etapa {currentActiveBlock.title} Completada!</CardTitle>
                                     <CardDescription>Todos los días de "{currentActiveBlock.title}" han sido completados.</CardDescription>
+                                     <Button onClick={handleAdvanceToNextBlock} disabled={isAdvancingBlock} className="mt-4">
+                                        {isAdvancingBlock ? <Icons.spinner className="mr-2 h-4 w-4 animate-spin" /> : <Icons.arrowRight className="mr-2 h-4 w-4" />}
+                                        Siguiente Etapa
+                                    </Button>
                                 </Card>
-                            ) : !allDaysInBlockCompleted && currentActiveDayDetails ? ( 
+                            ) : currentActiveDayDetails ? ( 
                                 <Card key={currentActiveDayDetails.id} className="mt-4">
                                     <CardHeader>
                                         <CardTitle className="text-lg">
