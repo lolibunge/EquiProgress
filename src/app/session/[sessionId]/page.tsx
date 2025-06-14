@@ -7,8 +7,8 @@ import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { getSession, getExerciseResults, updateSession, updateExerciseResult, deleteSession } from '@/services/session';
 import { getHorseById } from '@/services/horse';
-import { getBlockById, getMasterExerciseById as getDayCardDetails } from '@/services/firestore'; // Renamed for clarity
-import type { SessionData, ExerciseResult, Horse, TrainingBlock, MasterExercise, ExerciseResultObservations, SessionUpdateData, ExerciseResultUpdateData } from '@/types/firestore';
+import { getBlockById, getMasterExerciseById as getDayCardDetails, getPlanById } from '@/services/firestore'; // Renamed for clarity
+import type { SessionData, ExerciseResult, Horse, TrainingBlock, MasterExercise, ExerciseResultObservations, SessionUpdateData, ExerciseResultUpdateData, TrainingPlan } from '@/types/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Icons } from '@/components/icons';
@@ -91,6 +91,7 @@ function SessionDetailContent() {
 
   const [horse, setHorse] = useState<Horse | null>(null);
   const [block, setBlock] = useState<TrainingBlock | null>(null); // Week
+  const [plan, setPlan] = useState<TrainingPlan | null>(null); // Training Plan
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -128,6 +129,10 @@ function SessionDetailContent() {
         if (sessionData.blockId) { // blockId is Week ID
           const blockData = await getBlockById(sessionData.blockId);
           setBlock(blockData);
+          if (blockData && blockData.planId) {
+            const planData = await getPlanById(blockData.planId);
+            setPlan(planData);
+          }
         }
 
         const resultsData = await getExerciseResults(horseId, sessionId); // Should be one result for the Day Card
@@ -357,9 +362,9 @@ function SessionDetailContent() {
           <CardTitle className="text-2xl md:text-3xl">
             Detalle de la Sesión
           </CardTitle>
-          <div className="text-sm text-muted-foreground">
-            Caballo: {horse?.name || 'Desconocido'} | Semana: {block?.title || 'Desconocida'}
-          </div>
+          <CardDescription className="text-sm text-muted-foreground">
+            Plan: {plan?.title || 'Desconocido'} | Semana: {block?.title || 'Desconocida'} | Caballo: {horse?.name || 'Desconocido'} 
+          </CardDescription>
            {session.selectedDayExerciseTitle && (
              <p className="text-lg font-semibold text-primary mt-1">Día: {session.selectedDayExerciseTitle}</p>
            )}
