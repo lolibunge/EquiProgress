@@ -313,7 +313,7 @@ const Dashboard = () => {
   const initialLoadingComplete = !isLoadingHorses && !isLoadingPlans && !authLoading;
   const [activeTab, setActiveTab] = useState("sesiones");
 
-  console.log(`[Dashboard Render] currentUser UID: ${currentUser?.uid}, userProfile: ${JSON.stringify(userProfile)}, isUserAdmin: ${isUserAdmin}, authLoading: ${authLoading}`);
+  console.log(`%c[Dashboard Render] currentUser UID: ${currentUser?.uid}, userProfile: ${JSON.stringify(userProfile)}, isUserAdmin: ${isUserAdmin}, authLoading: ${authLoading}`, "color: blue; font-weight: bold;");
 
 
   useEffect(() => {
@@ -373,15 +373,19 @@ const Dashboard = () => {
 
 
   const performFetchAllPlans = useCallback(async () => {
+    console.log("[Dashboard - performFetchAllPlans] Attempting to fetch all plans.");
     setIsLoadingPlans(true);
     try {
       const plans = await getTrainingPlans();
+      console.log("[Dashboard - performFetchAllPlans] Fetched plans raw from service:", JSON.stringify(plans, null, 2));
       setTrainingPlans(plans);
     } catch (error) {
       toast({ variant: "destructive", title: "Error al Cargar Planes", description: "No se pudieron cargar los planes." });
+      console.error("[Dashboard - performFetchAllPlans] Error fetching plans:", error);
       setTrainingPlans([]);
     } finally {
       setIsLoadingPlans(false);
+      console.log("[Dashboard - performFetchAllPlans] Finished fetching plans. isLoadingPlans:", false);
     }
   }, [toast]);
 
@@ -690,6 +694,10 @@ const Dashboard = () => {
              // Also update the main horse progress when the detailed session checkbox is toggled
             if (selectedHorse && currentActiveBlock && selectedDayForSession) {
                 updateDayCompletionStatus(selectedHorse.id, currentActiveBlock.id, selectedDayForSession.id, !!value);
+                 // Refresh horse data to get updated planProgress after day completion status change
+                getHorseById(selectedHorse.id).then(horse => {
+                    if (horse) setSelectedHorse(horse);
+                });
             }
         } else if (field === 'rating') {
             (updatedDayData as any)[field] = Number(value);
@@ -910,6 +918,17 @@ const handleSaveSessionAndNavigate = async () => {
     return totalDaysInBlock > 0 ? (completedDays / totalDaysInBlock) * 100 : 0;
   }, [selectedHorse, currentActiveBlock]);
 
+  const nonTemplatePlans = useMemo(() => {
+    console.log("[Dashboard - Derive nonTemplatePlans] All trainingPlans before filter:", JSON.stringify(trainingPlans, null, 2));
+    const filtered = trainingPlans.filter(p => {
+        const isTemplate = p.template;
+        console.log(`[Dashboard - Derive nonTemplatePlans] Plan: "${p.title}" (ID: ${p.id}), template: ${isTemplate}, !template: ${!isTemplate}`);
+        return !isTemplate;
+    });
+    console.log("[Dashboard - Derive nonTemplatePlans] Filtered non-template plans:", JSON.stringify(filtered, null, 2));
+    return filtered;
+  }, [trainingPlans]);
+
 
   return (
     <div className="container mx-auto py-6 sm:py-10">
@@ -984,18 +1003,20 @@ const handleSaveSessionAndNavigate = async () => {
                                     </Button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent className="w-[var(--radix-dropdown-menu-trigger-width)]">
-                                    <DropdownMenuLabel>Planes Disponibles</DropdownMenuLabel>
+                                    <DropdownMenuLabel>Planes Disponibles (No Plantillas)</DropdownMenuLabel>
                                     <DropdownMenuSeparator />
                                     {isLoadingPlans ? (
                                         <DropdownMenuItem disabled>Cargando...</DropdownMenuItem>
-                                    ) : trainingPlans.length > 0 ? (
-                                        trainingPlans.filter(p => !p.template).map((plan) => ( // Show only non-template plans to start
+                                    ) : nonTemplatePlans.length > 0 ? (
+                                        nonTemplatePlans.map((plan) => (
                                         <DropdownMenuItem key={plan.id} onSelect={() => setSelectedPlanForSession(plan)}>
                                             {plan.title}
                                         </DropdownMenuItem>
                                         ))
                                     ) : (
-                                        <DropdownMenuItem disabled>No hay planes</DropdownMenuItem>
+                                        <DropdownMenuItem disabled>
+                                            {trainingPlans.length > 0 ? "No hay planes (no plantillas) para iniciar." : "No hay planes creados."}
+                                        </DropdownMenuItem>
                                     )}
                                     </DropdownMenuContent>
                                 </DropdownMenu>
@@ -1005,10 +1026,10 @@ const handleSaveSessionAndNavigate = async () => {
                                         Comenzar este Plan para {selectedHorse.name}
                                     </Button>
                                 )}
-                                {!selectedPlanForSession && trainingPlans.length > 0 && !isLoadingPlans && (
-                                    <p className="text-sm text-muted-foreground text-center">Selecciona un plan de la lista de arriba para activarlo para {selectedHorse.name}.</p>
+                                {!selectedPlanForSession && nonTemplatePlans.length === 0 && trainingPlans.length > 0 && !isLoadingPlans && (
+                                    <p className="text-sm text-muted-foreground text-center">Todos los planes disponibles son plantillas. Para iniciar un plan, asegúrate que no esté marcado como plantilla.</p>
                                 )}
-                                 {trainingPlans.length === 0 && !isLoadingPlans && (
+                                 {!selectedPlanForSession && trainingPlans.length === 0 && !isLoadingPlans && (
                                     <p className="text-sm text-muted-foreground text-center">No hay planes de entrenamiento creados. Un administrador puede crear planes en la pestaña 'Gestionar Plan'.</p>
                                 )}
                             </>
@@ -1050,7 +1071,7 @@ const handleSaveSessionAndNavigate = async () => {
                                             >
                                                 <span className={`font-semibold block w-full whitespace-normal break-words ${selectedDayForSession?.id === day.id ? 'text-primary' : ''}`}>{day.title}</span>
                                                 {day.objective && (
-                                                <span className={`text-xs block w-full whitespace-normal break-words ${selectedDayForSession?.id === day.id ? 'text-primary/80' : 'text-muted-foreground'}`}>
+                                                <span className={`text-xs block w-full whitespace-normal break-words ${selectedDayForSession?.id === day.id ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
                                                     {day.objective}
                                                 </span>
                                                 )}
@@ -1080,8 +1101,13 @@ const handleSaveSessionAndNavigate = async () => {
 
 
                         {selectedDayForSession && sessionDayResult && currentActiveBlock && (
-                            <Card className="p-4 space-y-3 mt-2 shadow-inner bg-muted/30">
-                                <h3 className="text-lg font-semibold">Detalles de Sesión para: {selectedDayForSession.title}</h3>
+                            <Card className="p-4 space-y-3 mt-2 shadow-inner bg-background">
+                                <h3 className="text-lg font-semibold">Detalles para: {selectedDayForSession.title}</h3>
+                                <div className="my-2">
+                                    <Label htmlFor="day-progress" className="text-xs font-medium text-muted-foreground">Progreso del Día ({sessionDayResult.doneReps === 1 ? 100 : 0}%):</Label>
+                                    <Progress value={sessionDayResult.doneReps === 1 ? 100 : 0} id="day-progress" className="w-full h-2 mt-1" />
+                                    <p className="text-xs text-muted-foreground mt-1">{sessionDayResult.doneReps === 1 ? "Día completado" : "Día pendiente"}</p>
+                                </div>
                                 <div>
                                     <Label htmlFor="session-overall-note">Notas Generales de la Sesión (para este día)</Label>
                                     <Textarea
@@ -1528,3 +1554,4 @@ const handleSaveSessionAndNavigate = async () => {
 };
 
 export default Dashboard;
+
