@@ -37,9 +37,9 @@ import {
   type MasterExercise,
   type BlockExerciseDisplay,
   type ExerciseReference,
-  type TrainingBlock as TrainingBlockType, // Renamed to avoid conflict
+  type TrainingBlock as TrainingBlockType,
 } from "@/services/firestore";
-import type { Horse, TrainingPlan, ExerciseResult, SessionDataInput, ExerciseResultInput, ExerciseResultObservations } from "@/types/firestore"; // Removed TrainingBlock import from here
+import type { Horse, TrainingPlan, ExerciseResult, SessionDataInput, ExerciseResultInput, ExerciseResultObservations } from "@/types/firestore";
 import HorseHistory from "./HorseHistory";
 
  import {
@@ -278,17 +278,17 @@ const Dashboard = () => {
   const [isLoadingPlans, setIsLoadingPlans] = useState(true);
   const [selectedPlanForSessionStart, setSelectedPlanForSessionStart] = useState<TrainingPlan | null>(null);
 
-  const [allBlocksInActivePlan, setAllBlocksInActivePlan] = useState<TrainingBlockType[]>([]); // All Etapas of the horse's active plan
-  const [currentActiveBlock, setCurrentActiveBlock] = useState<TrainingBlockType | null>(null); // The Etapa currently being VIEWED/interacted with
+  const [allBlocksInActivePlan, setAllBlocksInActivePlan] = useState<TrainingBlockType[]>([]);
+  const [currentActiveBlock, setCurrentActiveBlock] = useState<TrainingBlockType | null>(null);
   const [isLoadingCurrentBlock, setIsLoadingCurrentBlock] = useState(false);
   
-  const [suggestedExercisesForBlock, setSuggestedExercisesForBlock] = useState<BlockExerciseDisplay[]>([]); // For the VIEWED currentActiveBlock
+  const [suggestedExercisesForBlock, setSuggestedExercisesForBlock] = useState<BlockExerciseDisplay[]>([]);
   const [isLoadingSuggestedExercises, setIsLoadingSuggestedExercises] = useState(false);
 
-  const [numberedDaysForCurrentBlock, setNumberedDaysForCurrentBlock] = useState<NumberedDay[]>([]); // Generated based on currentActiveBlock.duration
+  const [numberedDaysForCurrentBlock, setNumberedDaysForCurrentBlock] = useState<NumberedDay[]>([]);
   const [isLoadingNumberedDays, setIsLoadingNumberedDays] = useState(false);
 
-  const [displayedDayIndex, setDisplayedDayIndex] = useState<number>(0); // Index within numberedDaysForCurrentBlock array
+  const [displayedDayIndex, setDisplayedDayIndex] = useState<number>(0);
 
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [sessionOverallNote, setSessionOverallNote] = useState("");
@@ -299,7 +299,7 @@ const Dashboard = () => {
   const [selectedPlanForAdmin, setSelectedPlanForAdmin] = useState<TrainingPlan | null>(null);
   const [blocksForAdminPlan, setBlocksForAdminPlan] = useState<TrainingBlockType[]>([]);
   const [isLoadingBlocksForAdmin, setIsLoadingBlocksForAdmin] = useState(false);
-  const [exercisesForAdminPlan, setExercisesForAdminPlan] = useState<BlockExerciseDisplay[]>([]); // All exercises for all blocks of admin plan
+  const [exercisesForAdminPlan, setExercisesForAdminPlan] = useState<BlockExerciseDisplay[]>([]); 
   const [isLoadingExercisesForAdmin, setIsLoadingExercisesForAdmin] = useState(false);
 
   const [isCreatePlanDialogOpen, setIsCreatePlanDialogOpen] = useState(false);
@@ -338,31 +338,34 @@ const Dashboard = () => {
     try {
       const userHorses = await fetchHorsesService(uid);
       setHorses(userHorses);
-      if (userHorses.length > 0 && !selectedHorse) {
-        setSelectedHorse(userHorses[0]);
-      } else if (userHorses.length === 0) {
-        setSelectedHorse(null);
-        setCurrentActiveBlock(null);
-        setSuggestedExercisesForBlock([]);
-        setNumberedDaysForCurrentBlock([]);
-        setAllBlocksInActivePlan([]);
-      }
     } catch (error) {
       toast({ variant: "destructive", title: "Error al Cargar Caballos", description: "No se pudieron cargar los caballos." });
       setHorses([]);
     } finally {
       setIsLoadingHorses(false);
     }
-  }, [toast, selectedHorse]);
+  }, [toast]);
 
   useEffect(() => {
-    if (currentUser?.uid) performFetchHorses(currentUser.uid);
-    else {
+    if (currentUser?.uid) {
+        performFetchHorses(currentUser.uid);
+    } else {
       setHorses([]);
       setSelectedHorse(null);
       setIsLoadingHorses(false);
     }
   }, [currentUser?.uid, performFetchHorses]);
+
+  useEffect(() => {
+    if (!isLoadingHorses) { // Ensure horses are loaded before trying to set selectedHorse
+        if (horses.length > 0 && !selectedHorse) {
+            setSelectedHorse(horses[0]);
+        } else if (horses.length === 0) {
+            setSelectedHorse(null);
+        }
+    }
+  }, [horses, selectedHorse, isLoadingHorses]);
+
 
   const performFetchAllPlans = useCallback(async () => {
     setIsLoadingPlans(true);
@@ -388,7 +391,7 @@ const Dashboard = () => {
     }
   }, [currentUser, performFetchAllPlans]);
 
-  // This fetches the HORSE's active plan and its CURRENT block, setting up the initial view.
+
   const fetchHorseActivePlanDetails = useCallback(async (horse: Horse) => {
     console.log(`%c[Dashboard fetchHorseActivePlanDetails] Called for Horse ID: ${horse.id}, ActivePlanID: ${horse.activePlanId}, Horse's CurrentBlockID (from horse): ${horse.currentBlockId}`, "color: purple; font-weight: bold;");
     if (!horse.activePlanId) {
@@ -425,8 +428,6 @@ const Dashboard = () => {
       }
       console.log(`[Dashboard fetchHorseActivePlanDetails] Setting currentActiveBlock (horse's actual current) to ID: ${blockToDisplayAsCurrent.id}, Title: ${blockToDisplayAsCurrent.title}`);
       setCurrentActiveBlock(blockToDisplayAsCurrent); 
-      // The displayedDayIndex will be set by the useEffect watching currentActiveBlock
-
     } catch (error) {
       toast({ variant: "destructive", title: "Error", description: "No se pudo cargar la etapa activa del caballo." });
       setCurrentActiveBlock(null);
@@ -440,12 +441,15 @@ const Dashboard = () => {
   useEffect(() => {
     console.log(`%c[Dashboard useEffect for selectedHorse] Running. selectedHorse ID: ${selectedHorse?.id}`, "color: #ADFF2F;");
     if (selectedHorse) {
-        if (!currentActiveBlock || (selectedHorse.activePlanId && currentActiveBlock.planId !== selectedHorse.activePlanId)) {
-            console.log(`%c[Dashboard useEffect for selectedHorse] Initial load or plan change for horse ${selectedHorse.id}. Fetching horse's actual current block details. Current viewed block: ${currentActiveBlock?.id}, Horse's active plan: ${selectedHorse.activePlanId}`, "color: #ADFF2F; font-weight:bold;");
+        if (!currentActiveBlock ||
+            (selectedHorse.activePlanId && currentActiveBlock.planId !== selectedHorse.activePlanId) ||
+            (selectedHorse.activePlanId && selectedHorse.currentBlockId && currentActiveBlock.id !== selectedHorse.currentBlockId) // If horse has a currentBlockId, ensure viewed block matches
+        ) {
+            console.log(`%c[Dashboard useEffect for selectedHorse] Initial load or significant change for horse ${selectedHorse.id}. Fetching horse's actual current block details. Current viewed block: ${currentActiveBlock?.id}, Horse's active plan: ${selectedHorse.activePlanId}, Horse's current block: ${selectedHorse.currentBlockId}`, "color: #ADFF2F; font-weight:bold;");
             fetchHorseActivePlanDetails(selectedHorse);
         } else if (selectedHorse.activePlanId) {
-            console.log(`%c[Dashboard useEffect for selectedHorse] Horse data for ${selectedHorse.id} updated (e.g., planProgress). Current viewed block ${currentActiveBlock.id} belongs to horse's active plan ${selectedHorse.activePlanId}. Refreshing allBlocksInActivePlan.`, "color: #ADFF2F;");
-            const refreshAllBlocks = async () => {
+            console.log(`%c[Dashboard useEffect for selectedHorse] Horse data for ${selectedHorse.id} potentially updated. Current viewed block ${currentActiveBlock.id} is still relevant. Refreshing allBlocksInActivePlan and ensuring viewed block is valid.`, "color: #ADFF2F;");
+            const refreshAllBlocksAndValidateView = async () => {
                 setIsLoadingCurrentBlock(true);
                 try {
                     const allPlanBlocks = await getTrainingBlocks(selectedHorse.activePlanId!);
@@ -459,12 +463,12 @@ const Dashboard = () => {
                     }
                 } catch (e) {
                     toast({ variant: "destructive", title: "Error", description: "No se pudo actualizar la lista de etapas del plan." });
-                    fetchHorseActivePlanDetails(selectedHorse); 
+                    fetchHorseActivePlanDetails(selectedHorse);
                 } finally {
                     setIsLoadingCurrentBlock(false);
                 }
             };
-            refreshAllBlocks();
+            refreshAllBlocksAndValidateView();
         }
     } else {
       console.log(`%c[Dashboard useEffect for selectedHorse] No selectedHorse. Resetting active plan states.`, "color: #ADFF2F;");
@@ -473,7 +477,8 @@ const Dashboard = () => {
       setDisplayedDayIndex(0);
       setIsLoadingCurrentBlock(false);
     }
-}, [selectedHorse, fetchHorseActivePlanDetails]); // Note: currentActiveBlock is intentionally NOT in deps here to allow this effect to manage initial/forced view reset based on selectedHorse
+  }, [selectedHorse, fetchHorseActivePlanDetails, currentActiveBlock?.id, currentActiveBlock?.planId]);
+
 
  const fetchDetailsForAdminPlan = useCallback(async (planId: string) => {
     if (!planId) {
@@ -522,12 +527,10 @@ const Dashboard = () => {
   }, [selectedPlanForAdmin, activeTab, fetchDetailsForAdminPlan]);
 
 
-  // This useEffect loads the details (numbered days, suggestions) for the currently VIEWED currentActiveBlock
   useEffect(() => {
     const fetchDetailsForViewedBlock = async () => {
         if (currentActiveBlock && selectedHorse && selectedHorse.activePlanId) {
             console.log(`%c[Dashboard useEffect for currentActiveBlock (VIEWED BLOCK)] Block ID: ${currentActiveBlock.id}, Title: ${currentActiveBlock.title}. Fetching its details. Horse's planProgress available: ${!!selectedHorse.planProgress}`, "color: teal; font-weight: bold;");
-
             setIsLoadingNumberedDays(true);
             setIsLoadingSuggestedExercises(true);
             try {
@@ -557,12 +560,19 @@ const Dashboard = () => {
                         console.log(`[Dashboard useEffect VIEWED] All days in ${currentActiveBlock.title} complete or no days. Setting to last day index: ${initialDisplayIndex} (Day ${initialDisplayIndex + 1})`);
                     }
                 }
-                setDisplayedDayIndex(initialDisplayIndex);
-                console.log(`[Dashboard useEffect VIEWED] FINAL displayedDayIndex for ${currentActiveBlock.title} set to: ${initialDisplayIndex}`);
+                 // Only set displayedDayIndex if it's different or if the block has changed
+                // This prevents resetting the index if only progress updates
+                if (currentActiveBlock.id !== (currentActiveBlock?.id /* previous block id */) || initialDisplayIndex !== displayedDayIndex) {
+                    setDisplayedDayIndex(initialDisplayIndex);
+                    console.log(`[Dashboard useEffect VIEWED] FINAL displayedDayIndex for ${currentActiveBlock.title} set to: ${initialDisplayIndex}`);
+                } else {
+                     console.log(`[Dashboard useEffect VIEWED] displayedDayIndex for ${currentActiveBlock.title} remains: ${displayedDayIndex}`);
+                }
 
-            } catch (error) {
+
+            } catch (error: any) {
                 console.error(`[Dashboard useEffect VIEWED] Error fetching details for block ${currentActiveBlock.title}:`, error);
-                toast({ title: "Error", description: `No se pudieron cargar los detalles de la etapa: ${currentActiveBlock.title}.`, variant: "destructive"});
+                toast({ title: "Error", description: `No se pudieron cargar los detalles de la etapa: ${currentActiveBlock.title}. Message: ${error.message}`, variant: "destructive"});
                 setNumberedDaysForCurrentBlock([]);
                 setSuggestedExercisesForBlock([]);
                  setDisplayedDayIndex(0); 
@@ -580,7 +590,7 @@ const Dashboard = () => {
         }
     };
     fetchDetailsForViewedBlock();
-  }, [currentActiveBlock, selectedHorse?.planProgress, selectedHorse?.activePlanId, toast]); // Only re-run if currentActiveBlock (viewed) or its progress changes
+  }, [currentActiveBlock?.id, currentActiveBlock?.title, currentActiveBlock?.duration, selectedHorse?.planProgress, selectedHorse?.activePlanId, toast]);
 
 
   const currentNumberedDayForDisplay: NumberedDay | null = useMemo(() => {
@@ -596,9 +606,9 @@ const Dashboard = () => {
 
   useEffect(() => {
       const currentDayObj = currentNumberedDayForDisplay;
-      const currentBlockId = currentActiveBlock?.id;
-      console.log(`%c[Dashboard Effect for Session Form Reset] currentNumberedDayForDisplay changed (Day ${currentDayObj?.dayNumber}, Block ${currentBlockId}). Resetting session form.`, "color: skyblue; font-weight: bold;");
-      if (currentDayObj) {
+      const blockIdForForm = currentActiveBlock?.id;
+      console.log(`%c[Dashboard Effect for Session Form Reset] Displayed Day Number: ${currentDayObj?.dayNumber}, Block ID: ${blockIdForForm}. Resetting session form.`, "color: skyblue; font-weight: bold;");
+      if (currentDayObj && blockIdForForm) {
           setDate(new Date());
           setSessionOverallNote("");
           setSessionDayResult({
@@ -610,7 +620,7 @@ const Dashboard = () => {
           setSessionDayResult(null);
           setSessionOverallNote("");
       }
-  }, [currentNumberedDayForDisplay, currentActiveBlock?.id]); // Keyed by the DISPLAYED day and block
+  }, [currentNumberedDayForDisplay?.dayNumber, currentActiveBlock?.id]);
 
 
   const allDaysInBlockCompleted = useMemo(() => {
@@ -618,23 +628,24 @@ const Dashboard = () => {
     console.log('%c[Dashboard Memo allDaysInBlockCompleted] Input selectedHorse.planProgress:', 'color: #FF8C00', JSON.parse(JSON.stringify(selectedHorse?.planProgress || {})));
     console.log('%c[Dashboard Memo allDaysInBlockCompleted] Input currentActiveBlock.id:', 'color: #FF8C00', currentActiveBlock?.id);
 
-    if (!selectedHorse || !currentActiveBlock || !numberedDaysForCurrentBlock.length) {
-        console.log('%c[Dashboard Memo allDaysInBlockCompleted] Pre-condition failed (horse, block, or numberedDays.length missing). Returning false.', 'color: #FF8C00');
+    if (!selectedHorse || !currentActiveBlock || !numberedDaysForCurrentBlock.length || !selectedHorse.planProgress) {
+        console.log('%c[Dashboard Memo allDaysInBlockCompleted] Pre-condition failed (horse, block, daysInBlock.length, or planProgress missing). Returning false.', 'color: #FF8C00');
         return false;
     }
-    const blockProgress = selectedHorse.planProgress?.[currentActiveBlock.id];
-    if (!blockProgress && numberedDaysForCurrentBlock.length > 0) {
-        console.log(`%c[Dashboard Memo allDaysInBlockCompleted] No progress found for block ${currentActiveBlock.id} but block has ${numberedDaysForCurrentBlock.length} days. Returning false.`, 'color: #FF8C00');
+    const blockProgress = selectedHorse.planProgress[currentActiveBlock.id];
+    if (!blockProgress && numberedDaysForCurrentBlock.length > 0) { // If blockProgress object doesn't exist for this blockId
+        console.log(`%c[Dashboard Memo allDaysInBlockCompleted] No progress object found for block ${currentActiveBlock.id} in planProgress but block has ${numberedDaysForCurrentBlock.length} days. Returning false.`, 'color: #FF8C00');
         return false;
     }
-    if (numberedDaysForCurrentBlock.length === 0) { // No days means "complete"
+    if (numberedDaysForCurrentBlock.length === 0) {
         console.log('%c[Dashboard Memo allDaysInBlockCompleted] No numbered days for this block. Returning true (vacuously complete).', 'color: #FF8C00');
         return true;
     }
 
     const result = numberedDaysForCurrentBlock.every(nd => {
-        const dayIsComplete = !!blockProgress?.[String(nd.dayNumber)]?.completed;
-        console.log(`%c[Dashboard Memo allDaysInBlockCompleted check] Day Number ${nd.dayNumber}, For Block: ${currentActiveBlock.title}, Completed in progress: ${dayIsComplete}`, dayIsComplete ? 'color: #90EE90' : 'color: #FFA07A');
+        const dayKey = String(nd.dayNumber);
+        const dayIsComplete = !!blockProgress?.[dayKey]?.completed;
+        console.log(`%c[Dashboard Memo allDaysInBlockCompleted check] For Block: ${currentActiveBlock.title}, DayNumberKey: ${dayKey}, Completed in progress: ${dayIsComplete}`, dayIsComplete ? 'color: #90EE90' : 'color: #FFA07A');
         return dayIsComplete;
     });
     console.log(`%c[Dashboard Memo allDaysInBlockCompleted] for block ${currentActiveBlock.id}: Final result: ${result}`, `color: ${result ? 'green' : 'red'}; font-weight: bold;`);
@@ -760,10 +771,9 @@ const Dashboard = () => {
     try {
         await updateDayCompletionStatus(selectedHorse.id, currentActiveBlock.id, dayNumberValue, completed);
         const updatedHorse = await getHorseById(selectedHorse.id);
-        console.log(`%c[Dashboard handleDayCheckboxChange] Fetched updatedHorse. New planProgress:`, "color: green;", JSON.parse(JSON.stringify(updatedHorse?.planProgress)));
+        console.log(`%c[Dashboard handleDayCheckboxChange] Fetched updatedHorse. New planProgress:`, "color: green;", JSON.parse(JSON.stringify(updatedHorse?.planProgress || {})));
         if (updatedHorse) {
-          setSelectedHorse(updatedHorse); // This re-fetches horse data which might trigger the useEffect for selectedHorse
-                                         // and subsequently the useEffect for currentActiveBlock (if planProgress changes)
+          setSelectedHorse(updatedHorse); 
         }
         toast({title: "Progreso Actualizado", description: `Día ${dayNumberValue} ${completed ? 'completado' : 'marcado como no completado'}.`});
     } catch (error) {
@@ -814,15 +824,15 @@ const handleSaveSessionAndNavigate = async () => {
         date: Timestamp.fromDate(date),
         blockId: currentActiveBlock.id,
         dayNumberInBlock: currentNumberedDayForDisplay.dayNumber,
-        selectedDayExerciseId: currentActiveBlock.id, // Using blockId as context for the day
-        selectedDayExerciseTitle: `Día de Trabajo ${currentNumberedDayForDisplay.dayNumber}`, // Generic title
+        selectedDayExerciseId: currentActiveBlock.id, 
+        selectedDayExerciseTitle: `Día de Trabajo ${currentNumberedDayForDisplay.dayNumber}`, 
         overallNote: sessionOverallNote,
       };
       const sessionId = await createSession(sessionInput);
 
       if (sessionId) {
         const dayResultInput: ExerciseResultInput = {
-            exerciseId: currentActiveBlock.id, // Context for the day's log (MasterExercise ID of the block itself)
+            exerciseId: currentActiveBlock.id, 
             plannedReps: sessionDayResult.plannedReps,
             doneReps: 1,
             rating: sessionDayResult.rating,
@@ -986,9 +996,18 @@ const handleSaveSessionAndNavigate = async () => {
                 variant: "default",
                 duration: 7000
             });
-            return; 
+            return;
         }
+    } else if (currentActiveBlock?.duration && !selectedHorse.currentBlockStartDate) {
+        toast({
+            title: "Fecha de Inicio Faltante",
+            description: `No se puede verificar la duración de la etapa actual porque falta la fecha de inicio. Contacta al administrador.`,
+            variant: "destructive",
+            duration: 7000
+        });
+        return;
     }
+
 
     setIsAdvancingBlock(true);
     try {
@@ -1025,9 +1044,7 @@ const handleSaveSessionAndNavigate = async () => {
         if (currentBlockOrderInPlan > 0) {
             const prevBlock = allBlocksInActivePlan[currentBlockOrderInPlan - 1];
             console.log(`%c[Dashboard handlePreviousDay] Moving to previous block (for viewing): ${prevBlock.id} (${prevBlock.title})`, "color: olive");
-            // setIsLoadingNumberedDays(true); // Loaders will be managed by useEffect for currentActiveBlock
-            // setIsLoadingSuggestedExercises(true);
-            setCurrentActiveBlock(prevBlock); // This will trigger fetchDetailsForViewedBlock, which sets displayedDayIndex to last day
+            setCurrentActiveBlock(prevBlock); // This will trigger useEffect for currentActiveBlock, which will load details and set displayedDayIndex to last day of prevBlock
         } else {
             toast({title: "Inicio del Plan", description: "Ya estás en el primer día de la primera etapa del plan.", duration: 3000});
         }
@@ -1043,9 +1060,7 @@ const handleSaveSessionAndNavigate = async () => {
         if (currentBlockOrderInPlan < allBlocksInActivePlan.length - 1) {
             const nextBlock = allBlocksInActivePlan[currentBlockOrderInPlan + 1];
             console.log(`%c[Dashboard handleNextDay] Moving to next block (for viewing): ${nextBlock.id} (${nextBlock.title})`, "color: darkgoldenrod");
-            // setIsLoadingNumberedDays(true);
-            // setIsLoadingSuggestedExercises(true);
-            setCurrentActiveBlock(nextBlock); // This will trigger fetchDetailsForViewedBlock, which sets displayedDayIndex to 0
+            setCurrentActiveBlock(nextBlock); // This will trigger useEffect for currentActiveBlock, which will load details and set displayedDayIndex to 0
         } else {
              if (allDaysInBlockCompleted && currentActiveBlock.id === selectedHorse?.currentBlockId) {
                 toast({title: "¡Etapa Finalizada!", description: "Este es el último día de la etapa actual. Considera avanzar a la siguiente etapa si la duración se ha cumplido.", duration: 5000});
@@ -1060,7 +1075,7 @@ const handleSaveSessionAndNavigate = async () => {
 
 
    useEffect(() => {
-    console.log(`[Dashboard Render] currentUser UID: ${currentUser?.uid}, userProfile: ${JSON.stringify(userProfile)}, isUserAdmin: ${isUserAdmin}, authLoading: ${authLoading}`);
+    console.log(`[Dashboard Render] currentUser UID: ${currentUser?.uid}, userProfile: ${JSON.stringify(userProfile || {})}, isUserAdmin: ${isUserAdmin}, authLoading: ${authLoading}`);
     if (selectedHorse) {
         console.log(`[Dashboard Render] selectedHorse.activePlanId: ${selectedHorse.activePlanId}. Dropdown to start new plan will show if this is falsy.`);
     }
@@ -1139,6 +1154,9 @@ const handleSaveSessionAndNavigate = async () => {
                                 <h3 className="text-lg font-semibold text-primary">Etapa Actual (Visualizada): {currentActiveBlock.title}</h3>
                                 {currentActiveBlock.goal && <p className="text-sm text-muted-foreground italic mt-1">Meta de la Etapa: {currentActiveBlock.goal}</p>}
                                 {currentActiveBlock.duration && <p className="text-sm text-muted-foreground mt-1">Duración Sugerida: {currentActiveBlock.duration} ({parseDurationToDays(currentActiveBlock.duration)} días)</p>}
+                                {currentActiveBlock.id === selectedHorse.currentBlockId && selectedHorse.currentBlockStartDate && (
+                                  <p className="text-xs text-muted-foreground mt-0.5">Inicio de esta etapa para {selectedHorse.name}: {selectedHorse.currentBlockStartDate.toDate().toLocaleDateString("es-ES")}</p>
+                                )}
                                 <div className="mt-3 mb-1">
                                     <Label htmlFor="etapa-progress" className="text-xs font-medium text-muted-foreground">Progreso de la Etapa ({Math.round(etapaProgressBarValue)}%):</Label>
                                     <Progress value={etapaProgressBarValue} id="etapa-progress" className="w-full h-2 mt-1" />
@@ -1146,11 +1164,11 @@ const handleSaveSessionAndNavigate = async () => {
                             </div>
                             <div className="flex justify-between items-center my-3">
                                 <Button onClick={handlePreviousDay} variant="outline" size="sm" disabled={isLoadingNumberedDays || isLoadingSuggestedExercises || (displayedDayIndex === 0 && allBlocksInActivePlan.findIndex(b => b.id === currentActiveBlock.id) === 0)}><Icons.arrowRight className="h-4 w-4 rotate-180 mr-1" /> Día Anterior</Button>
-                                <Button onClick={handleNextDay} variant="outline" size="sm" disabled={isLoadingNumberedDays || isLoadingSuggestedExercises || (displayedDayIndex === numberedDaysForCurrentBlock.length - 1 && allBlocksInActivePlan.findIndex(b => b.id === currentActiveBlock.id) === allBlocksInActivePlan.length - 1 && currentActiveBlock.id === selectedHorse.currentBlockId && allDaysInBlockCompleted) } >Día Siguiente <Icons.arrowRight className="h-4 w-4 ml-1" /></Button>
+                                <Button onClick={handleNextDay} variant="outline" size="sm" disabled={isLoadingNumberedDays || isLoadingSuggestedExercises || (displayedDayIndex === numberedDaysForCurrentBlock.length - 1 && allBlocksInActivePlan.findIndex(b => b.id === currentActiveBlock.id) === allBlocksInActivePlan.length - 1 )} >Día Siguiente <Icons.arrowRight className="h-4 w-4 ml-1" /></Button>
                             </div>
 
                             {isLoadingNumberedDays || isLoadingSuggestedExercises ? <div className="flex items-center p-2"><Icons.spinner className="h-4 w-4 animate-spin mr-2" /> Cargando datos del día...</div>
-                             : allDaysInBlockCompleted && currentActiveBlock.id === selectedHorse?.currentBlockId ? ( 
+                            : allDaysInBlockCompleted && currentActiveBlock.id === selectedHorse?.currentBlockId ? ( 
                                 <Card className="mt-4 p-4 text-center">
                                     <Icons.check className="mx-auto h-10 w-10 text-green-500 mb-2" />
                                     <CardTitle className="text-lg">¡Etapa {currentActiveBlock.title} Completada!</CardTitle>
@@ -1177,7 +1195,7 @@ const handleSaveSessionAndNavigate = async () => {
                                         </div>
                                         {suggestedExercisesForBlock.length > 0 && (
                                             <div className="pt-4 border-t">
-                                                <h4 className="text-md font-semibold mb-2">Sugerencias para esta Etapa:</h4>
+                                                <h4 className="text-md font-semibold mb-2">Ejercicios Sugeridos para esta Etapa:</h4>
                                                 <ul className="space-y-1 text-sm text-muted-foreground">
                                                     {suggestedExercisesForBlock.map(ex => (
                                                         <li key={ex.id} className="p-2 border rounded-md bg-background shadow-sm">
@@ -1328,7 +1346,3 @@ const handleSaveSessionAndNavigate = async () => {
   );
 };
 export default Dashboard;
-
-
-    
-
