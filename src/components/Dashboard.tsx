@@ -923,12 +923,13 @@ const handleSaveSessionAndNavigate = async () => {
 
   const nonTemplatePlans = useMemo(() => {
     console.log("[Dashboard - Derive nonTemplatePlans] All trainingPlans before filter:", JSON.stringify(trainingPlans, null, 2));
+    // Show all plans in the dropdown, regardless of the template flag.
     const filtered = trainingPlans.filter(p => {
         const isTemplate = p.template;
-        console.log(`[Dashboard - Derive nonTemplatePlans] Plan: "${p.title}" (ID: ${p.id}), template: ${isTemplate}, !template: ${!isTemplate}`);
-        return !isTemplate;
+        console.log(`[Dashboard - Derive nonTemplatePlans] Plan: "${p.title}" (ID: ${p.id}), template: ${isTemplate}. Will be included in dropdown.`);
+        return true; // Include all plans
     });
-    console.log("[Dashboard - Derive nonTemplatePlans] Filtered non-template plans:", JSON.stringify(filtered, null, 2));
+    console.log("[Dashboard - Derive nonTemplatePlans] Filtered plans (now showing all):", JSON.stringify(filtered, null, 2));
     return filtered;
   }, [trainingPlans]);
 
@@ -1006,19 +1007,19 @@ const handleSaveSessionAndNavigate = async () => {
                                     </Button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent className="w-[var(--radix-dropdown-menu-trigger-width)]">
-                                    <DropdownMenuLabel>Planes Disponibles (No Plantillas)</DropdownMenuLabel>
+                                    <DropdownMenuLabel>Planes Disponibles</DropdownMenuLabel>
                                     <DropdownMenuSeparator />
                                     {isLoadingPlans ? (
                                         <DropdownMenuItem disabled>Cargando...</DropdownMenuItem>
                                     ) : nonTemplatePlans.length > 0 ? (
                                         nonTemplatePlans.map((plan) => (
                                         <DropdownMenuItem key={plan.id} onSelect={() => setSelectedPlanForSession(plan)}>
-                                            {plan.title}
+                                            {plan.title} {plan.template && <span className="text-xs text-muted-foreground ml-2">(Plantilla)</span>}
                                         </DropdownMenuItem>
                                         ))
                                     ) : (
                                         <DropdownMenuItem disabled>
-                                            {trainingPlans.length > 0 ? "No hay planes (no plantillas) para iniciar." : "No hay planes creados. Los planes plantilla no aparecen aquí."}
+                                            {trainingPlans.length > 0 ? "Todos los planes son plantillas. Modifica un plan para que no sea plantilla o crea uno nuevo." : "No hay planes creados. Un administrador puede crear planes."}
                                         </DropdownMenuItem>
                                     )}
                                     </DropdownMenuContent>
@@ -1030,8 +1031,10 @@ const handleSaveSessionAndNavigate = async () => {
                                     </Button>
                                 )}
                                 {!selectedPlanForSession && nonTemplatePlans.length === 0 && trainingPlans.length > 0 && !isLoadingPlans && (
-                                    <p className="text-sm text-muted-foreground text-center">Todos los planes disponibles son plantillas. Para iniciar un plan, asegúrate que no esté marcado como plantilla, o crea uno nuevo.</p>
-                                )}
+                                     <p className="text-sm text-muted-foreground text-center">
+                                        No hay planes directamente iniciables (todos son plantillas). Para iniciar un plan, crea uno nuevo o edita uno existente para que no sea plantilla.
+                                    </p>
+                                 )}
                                  {!selectedPlanForSession && trainingPlans.length === 0 && !isLoadingPlans && (
                                     <p className="text-sm text-muted-foreground text-center">No hay planes de entrenamiento creados. Un administrador puede crear planes en la pestaña 'Gestionar Plan'.</p>
                                  )}
@@ -1049,7 +1052,7 @@ const handleSaveSessionAndNavigate = async () => {
                                 </div>
                             </div>
                             
-                            <Label className="mt-2 block">Seleccionar Día de la Etapa &quot;{currentActiveBlock.title}&quot;:</Label>
+                             <Label className="mt-2 block">Seleccionar Día de la Etapa &quot;{currentActiveBlock.title}&quot;:</Label>
                             {isLoadingDaysInBlock ? (
                                 <div className="flex items-center p-2"><Icons.spinner className="h-4 w-4 animate-spin mr-2" /> Cargando días...</div>
                             ): daysInCurrentBlock.length > 0 ? (
@@ -1106,6 +1109,7 @@ const handleSaveSessionAndNavigate = async () => {
                         {selectedDayForSession && sessionDayResult && currentActiveBlock && (
                             <Card className="p-4 space-y-3 mt-2 shadow-inner bg-background">
                                 <h3 className="text-lg font-semibold">Detalles para: {selectedDayForSession.title}</h3>
+                                
                                 <div className="my-2">
                                     <Label htmlFor="day-progress" className="text-xs font-medium text-muted-foreground">Progreso del Día ({sessionDayResult.doneReps === 1 ? 100 : 0}%):</Label>
                                     <Progress value={sessionDayResult.doneReps === 1 ? 100 : 0} id="day-progress" className="w-full h-2 mt-1" />
