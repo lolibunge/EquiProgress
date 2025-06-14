@@ -105,7 +105,7 @@ import {
   sortableKeyboardCoordinates,
   useSortable,
   verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
+} from '@dnd-kit/sortable'; // Corrected import
 import { CSS } from '@dnd-kit/utilities';
 
 
@@ -305,9 +305,6 @@ const Dashboard = () => {
   
   const isUserAdmin = !!userProfile && userProfile.role === 'admin';
   
-  console.log(`%c[Dashboard Render] currentUser UID: ${currentUser?.uid}, userProfile: ${JSON.stringify(userProfile)}, isUserAdmin: ${isUserAdmin}, authLoading: ${authLoading}`, "color: blue; font-weight: bold;");
-
-
   const initialLoadingComplete = !isLoadingHorses && !isLoadingPlans && !isLoadingBlocks && !authLoading;
   const [activeTab, setActiveTab] = useState("sesiones");
 
@@ -974,15 +971,20 @@ const handleSaveSessionAndNavigate = async () => {
                         )}
 
                         {selectedDayForSession && sessionDayResult && (
-                            <Card className="p-4 space-y-3 mt-4 shadow-inner bg-muted/30">
+                            <div className="my-4 space-y-1">
+                                <Label htmlFor="day-session-progress" className="text-sm font-medium text-muted-foreground">
+                                    Progreso del Día Seleccionado: {selectedDayForSession.title}
+                                </Label>
+                                <Progress value={sessionDayResult.doneReps === 1 ? 100 : 0} id="day-session-progress" className="w-full mt-1" />
+                                <p className="text-xs text-muted-foreground text-center mt-1">
+                                  {sessionDayResult.doneReps === 1 ? "Día completado" : "Día pendiente"}
+                                </p>
+                            </div>
+                        )}
+
+                        {selectedDayForSession && sessionDayResult && (
+                            <Card className="p-4 space-y-3 mt-2 shadow-inner bg-muted/30">
                                 <h3 className="text-lg font-semibold">Detalles para: {selectedDayForSession.title}</h3>
-                                <div className="space-y-1">
-                                    <Label htmlFor="day-progress">Progreso del Día</Label>
-                                    <Progress value={sessionDayResult.doneReps === 1 ? 100 : 0} id="day-progress" className="w-full" />
-                                    <p className="text-xs text-muted-foreground text-center">
-                                      {sessionDayResult.doneReps === 1 ? "Día completado" : "Día pendiente"}
-                                    </p>
-                                </div>
                                 <div>
                                     <Label htmlFor="session-overall-note">Notas Generales de la Sesión (para este día)</Label>
                                     <Textarea
@@ -1092,7 +1094,6 @@ const handleSaveSessionAndNavigate = async () => {
 
                   {isUserAdmin && (
                     <TabsContent value="plan">
-                        {console.log(`%c[Dashboard - Admin Tab] Rendering Admin Tab Content. isUserAdmin: ${isUserAdmin}, userProfile: ${JSON.stringify(userProfile)}`, "color: purple; font-weight: bold;")}
                         <Card className="my-4 border-none p-0">
                         <CardHeader className="px-1 pt-1 pb-3">
                             <CardTitle className="text-xl">Gestionar Plan Activo</CardTitle>
@@ -1116,7 +1117,6 @@ const handleSaveSessionAndNavigate = async () => {
                                                 key={plan.id}
                                                 onSelect={() => {
                                                     setSelectedPlan(plan);
-                                                    // performFetchBlocks will auto-select first week
                                                 }}
                                                 disabled={!isUserAdmin}
                                             >
@@ -1170,6 +1170,7 @@ const handleSaveSessionAndNavigate = async () => {
                         </CardHeader>
                         <CardContent className="px-1">
                         {!isUserAdmin && <p className="text-muted-foreground text-center py-4">La gestión de planes es solo para administradores.</p>}
+                        {console.log(`%c[Dashboard - Admin Tab] Rendering Admin Tab Content. isUserAdmin: ${isUserAdmin}, userProfile: ${JSON.stringify(userProfile)}`, "color: purple; font-weight: bold;")}
                         {isUserAdmin && isLoadingPlans ? (
                             <div className="flex items-center justify-center p-4"><Icons.spinner className="h-5 w-5 animate-spin mr-2" /> Cargando información del plan...</div>
                         ) : isUserAdmin && selectedPlan ? (
