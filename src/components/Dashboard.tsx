@@ -104,7 +104,7 @@ import {
   sortableKeyboardCoordinates,
   useSortable,
   verticalListSortingStrategy,
-} from '@dnd-kit/sortable'; // Changed import path
+} from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
 
@@ -167,10 +167,10 @@ function SortableExerciseItem({ exercise, blockId, planId, onRemove, canEdit }: 
       className="flex items-center justify-between group p-2 rounded-md hover:bg-muted/70 active:bg-muted bg-card border mx-2.5"
     >
       <div>
-        <span className="font-medium">{exercise.title}</span> {/* Day Title */}
-        {exercise.suggestedReps && ` (Sugerido: ${exercise.suggestedReps})`}
-        {exercise.description && <p className="text-xs text-muted-foreground pl-2">- Desc: {exercise.description}</p>}
-        {exercise.objective && <p className="text-xs text-muted-foreground pl-2">- Obj: {exercise.objective}</p>}
+        <span className="font-medium block whitespace-normal">{exercise.title}</span> {/* Day Title */}
+        {exercise.suggestedReps && <span className="block whitespace-normal text-xs text-muted-foreground">(Sugerido: {exercise.suggestedReps})</span>}
+        {exercise.description && <p className="text-xs text-muted-foreground pl-2 block whitespace-normal">- Desc: {exercise.description}</p>}
+        {exercise.objective && <p className="text-xs text-muted-foreground pl-2 block whitespace-normal">- Obj: {exercise.objective}</p>}
       </div>
       {canEdit && (
         <Button
@@ -827,10 +827,10 @@ const handleSaveSessionAndNavigate = async () => {
                       key={horse.id}
                       variant={selectedHorse?.id === horse.id ? "default" : "outline"}
                       onClick={() => setSelectedHorse(horse)}
-                      className="h-auto py-3 flex flex-col items-start text-left"
+                      className="h-auto py-3 flex flex-col items-start text-left w-full"
                     >
-                      <span className="font-semibold text-base">{horse.name}</span>
-                      <span className="text-xs opacity-80">{horse.age} años, {horse.sex}, {horse.color}</span>
+                      <span className="font-semibold text-base block whitespace-normal">{horse.name}</span>
+                      <span className="text-xs opacity-80 block whitespace-normal">{horse.age} años, {horse.sex}, {horse.color}</span>
                     </Button>
                   ))}
                 </div>
@@ -939,10 +939,10 @@ const handleSaveSessionAndNavigate = async () => {
                                         observations: { nostrils: null, lips: null, ears: null, eyes: null, neck: null, back: null, croup: null, limbs: null, tail: null, additionalNotes: "" }
                                       });
                                     }}
-                                    className="h-auto py-2 text-left flex flex-col items-start"
+                                    className="h-auto py-2 text-left flex flex-col items-start w-full"
                                   >
-                                    <span className="font-semibold">{day.title}</span>
-                                    {day.objective && <span className="text-xs text-muted-foreground">{day.objective}</span>}
+                                    <span className="font-semibold block whitespace-normal break-words">{day.title}</span>
+                                    {day.objective && <span className="text-xs text-muted-foreground block whitespace-normal break-words">{day.objective}</span>}
                                   </Button>
                                 ))}
                               </div>
