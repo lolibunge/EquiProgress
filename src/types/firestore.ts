@@ -20,6 +20,18 @@ export interface Horse {
     createdAt: Timestamp;
     updatedAt?: Timestamp;
     notes?: string;
+    // Fields for active plan tracking
+    activePlanId?: string | null;
+    activePlanStartDate?: Timestamp | null;
+    currentBlockId?: string | null; // Current Etapa/Week ID
+    planProgress?: { // Tracks completion of each day within each block
+        [blockId: string]: {
+            [dayExerciseId: string]: {
+                completed: boolean;
+                completedAt?: Timestamp;
+            }
+        }
+    };
 }
 
 export interface TrainingPlan {
@@ -41,10 +53,10 @@ export interface TrainingBlock {
     planId: string;
     title: string;
     notes?: string;
-    duration?: string;
+    duration?: string; // e.g., "7 días", "1 week" - for future auto-progression
     goal?: string;
-    order?: number;
-    exerciseReferences?: ExerciseReference[];
+    order?: number; // Crucial for sequencing blocks/etapas
+    exerciseReferences?: ExerciseReference[]; // Represents "Days" within this block
     createdAt?: Timestamp;
     updatedAt?: Timestamp;
 }
@@ -72,7 +84,7 @@ export interface SessionData {
     horseId: string;
     userId: string;
     date: Timestamp;
-    blockId: string; // Represents the "Week" ID
+    blockId: string; // Represents the "Week" ID (currentBlockId of the horse at time of logging)
     selectedDayExerciseId?: string; // ID of the MasterExercise representing the "Day"
     selectedDayExerciseTitle?: string; // Title of the MasterExercise representing the "Day"
     overallNote?: string;
@@ -97,7 +109,7 @@ export interface ExerciseResult {
     id: string;
     exerciseId: string; // Refers to the MasterExercise document id (which could be a "Day Card")
     plannedReps?: string;
-    doneReps: number;
+    doneReps: number; // 0 for No, 1 for Yes (marks the entire day as done for this session log)
     rating: number; // 1-5
     createdAt: Timestamp;
     updatedAt?: Timestamp;
@@ -163,7 +175,7 @@ export type SessionUpdateData = Partial<Pick<SessionData, 'date' | 'overallNote'
 export interface ExerciseResultInput {
     exerciseId: string; // ID of the MasterExercise (Day Card)
     plannedReps?: string;
-    doneReps: number;
+    doneReps: number; // 0 for No, 1 for Yes
     rating: number;
     observations?: ExerciseResultObservations | null;
 }

@@ -13,14 +13,14 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
-import { useState, useEffect, useCallback, ReactNode } from "react";
+import { useState, useEffect, useCallback, ReactNode, useMemo } from "react";
 import type { User } from 'firebase/auth';
 import { useAuth } from "@/context/AuthContext"; // Ensure this is imported
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from 'next/navigation';
 
-import { createSession, addExerciseResult, getSession, getExerciseResults, updateExerciseResult, updateSession, deleteSession } from "@/services/session";
-import { getHorses as fetchHorsesService, getHorseById, addHorse } from "@/services/horse";
+import { createSession, addExerciseResult } from "@/services/session";
+import { getHorses as fetchHorsesService, getHorseById, addHorse, startPlanForHorse, updateDayCompletionStatus } from "@/services/horse";
 import {
   getTrainingPlans,
   getTrainingBlocks,
@@ -269,16 +269,15 @@ const Dashboard = () => {
   const [isLoadingHorses, setIsLoadingHorses] = useState(true);
   const [selectedHorse, setSelectedHorse] = useState<Horse | null>(null);
 
-  const [trainingPlans, setTrainingPlans] = useState<TrainingPlan[]>([]);
+  const [trainingPlans, setTrainingPlans] = useState<TrainingPlan[]>([]); // All available plans
   const [isLoadingPlans, setIsLoadingPlans] = useState(true);
-  const [selectedPlan, setSelectedPlan] = useState<TrainingPlan | null>(null);
-
-  const [blocks, setBlocks] = useState<TrainingBlock[]>([]); // Represents "Weeks"
-  const [isLoadingBlocks, setIsLoadingBlocks] = useState(false);
-  const [selectedBlock, setSelectedBlock] = useState<TrainingBlock | null>(null); // Represents selected "Week"
-
-  const [exercisesInPlan, setExercisesInPlan] = useState<BlockExerciseDisplay[]>([]); // Represents "Days" within the entire plan
-  const [isLoadingExercises, setIsLoadingExercises] = useState(false);
+  const [selectedPlanForSession, setSelectedPlanForSession] = useState<TrainingPlan | null>(null); // Plan selected in dropdown for session logging OR active plan
+  
+  const [currentActiveBlock, setCurrentActiveBlock] = useState<TrainingBlock | null>(null); // The horse's current block (Etapa)
+  const [isLoadingCurrentBlock, setIsLoadingCurrentBlock] = useState(false);
+  
+  const [daysInCurrentBlock, setDaysInCurrentBlock] = useState<BlockExerciseDisplay[]>([]); // Days for the current active block
+  const [isLoadingDaysInBlock, setIsLoadingDaysInBlock] = useState(false);
   const [selectedDayForSession, setSelectedDayForSession] = useState<BlockExerciseDisplay | null>(null); // Selected "Day" for logging
 
   const [date, setDate] = useState<Date | undefined>(new Date());
@@ -287,6 +286,12 @@ const Dashboard = () => {
   const [sessionDayResult, setSessionDayResult] = useState<SessionDayResultState | null>(null);
   const [isSavingSession, setIsSavingSession] = useState(false);
 
+  // Admin "Gestionar Plan" tab states
+  const [selectedPlanForAdmin, setSelectedPlanForAdmin] = useState<TrainingPlan | null>(null);
+  const [blocksForAdminPlan, setBlocksForAdminPlan] = useState<TrainingBlock[]>([]);
+  const [isLoadingBlocksForAdmin, setIsLoadingBlocksForAdmin] = useState(false);
+  const [exercisesForAdminPlan, setExercisesForAdminPlan] = useState<BlockExerciseDisplay[]>([]);
+  const [isLoadingExercisesForAdmin, setIsLoadingExercisesForAdmin] = useState(false);
 
   const [isCreatePlanDialogOpen, setIsCreatePlanDialogOpen] = useState(false);
   const [isAddBlockDialogOpen, setIsAddBlockDialogOpen] = useState(false);
@@ -305,9 +310,8 @@ const Dashboard = () => {
   
   const isUserAdmin = !!userProfile && userProfile.role === 'admin';
   
-  const initialLoadingComplete = !isLoadingHorses && !isLoadingPlans && !isLoadingBlocks && !authLoading;
+  const initialLoadingComplete = !isLoadingHorses && !isLoadingPlans && !authLoading;
   const [activeTab, setActiveTab] = useState("sesiones");
-
 
   console.log(`[Dashboard Render] currentUser UID: ${currentUser?.uid}, userProfile: ${JSON.stringify(userProfile)}, isUserAdmin: ${isUserAdmin}, authLoading: ${authLoading}`);
 
@@ -342,9 +346,12 @@ const Dashboard = () => {
       const userHorses = await fetchHorsesService(uid);
       setHorses(userHorses);
       if (userHorses.length > 0 && !selectedHorse) {
-        setSelectedHorse(userHorses[0]); // Auto-select first horse if none is selected
+        setSelectedHorse(userHorses[0]); 
       } else if (userHorses.length === 0) {
         setSelectedHorse(null);
+        setSelectedPlanForSession(null);
+        setCurrentActiveBlock(null);
+        setDaysInCurrentBlock([]);
       }
     } catch (error) {
       toast({ variant: "destructive", title: "Error al Cargar Caballos", description: "No se pudieron cargar los caballos." });
@@ -365,7 +372,7 @@ const Dashboard = () => {
   }, [currentUser?.uid, performFetchHorses]);
 
 
-  const performFetchPlans = useCallback(async () => {
+  const performFetchAllPlans = useCallback(async () => {
     setIsLoadingPlans(true);
     try {
       const plans = await getTrainingPlans();
@@ -378,124 +385,136 @@ const Dashboard = () => {
     }
   }, [toast]);
 
-  useEffect(() => {
+  useEffect(() => { // Fetch all available plans once
     if (currentUser) {
-      performFetchPlans();
+      performFetchAllPlans();
     } else {
       setTrainingPlans([]);
-      setSelectedPlan(null);
-      setBlocks([]);
-      setExercisesInPlan([]);
+      setSelectedPlanForSession(null);
+      setSelectedPlanForAdmin(null);
       setIsLoadingPlans(false);
     }
-  }, [currentUser, performFetchPlans]);
+  }, [currentUser, performFetchAllPlans]);
 
-  const performFetchExercisesForPlan = useCallback(async (planId: string, currentPlanBlocks: TrainingBlock[]) => {
-    if (!planId || currentPlanBlocks.length === 0) {
-        setExercisesInPlan([]);
-        setIsLoadingExercises(false);
-        return;
+
+  const fetchHorseActivePlanDetails = useCallback(async (horse: Horse) => {
+    if (!horse.activePlanId || !horse.currentBlockId) {
+      setSelectedPlanForSession(null);
+      setCurrentActiveBlock(null);
+      setDaysInCurrentBlock([]);
+      setIsLoadingCurrentBlock(false);
+      setIsLoadingDaysInBlock(false);
+      return;
     }
-    setIsLoadingExercises(true);
+    setIsLoadingCurrentBlock(true);
+    setIsLoadingDaysInBlock(true);
     try {
-      let allExercisesForPlan: BlockExerciseDisplay[] = [];
-      for (const block of currentPlanBlocks) {
-        if (block && block.id) {
-          const blockExercises = await getExercisesForBlock(block.id);
-          const exercisesWithBlockId = blockExercises.map(ex => ({ ...ex, blockId: block.id }));
-          allExercisesForPlan = [...allExercisesForPlan, ...exercisesWithBlockId];
-        }
-      }
-      const sortedExercises = allExercisesForPlan.sort((a, b) => {
-        const blockAOrder = currentPlanBlocks.find(bl => bl.id === a.blockId)?.order ?? Infinity;
-        const blockBOrder = currentPlanBlocks.find(bl => bl.id === b.blockId)?.order ?? Infinity;
-        if (blockAOrder !== blockBOrder) {
-          return blockAOrder - blockBOrder;
-        }
-        return (a.orderInBlock ?? Infinity) - (b.orderInBlock ?? Infinity);
-      });
-      setExercisesInPlan(sortedExercises);
-    } catch (error) {
-      toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar los días del plan." });
-      setExercisesInPlan([]);
-    } finally {
-      setIsLoadingExercises(false);
-    }
-  }, [toast]);
+      const plan = trainingPlans.find(p => p.id === horse.activePlanId) || await getTrainingPlans().then(plans => plans.find(p => p.id === horse.activePlanId));
+      setSelectedPlanForSession(plan || null);
 
- const performFetchBlocks = useCallback(async (planId: string) => {
-    if (!planId) {
-      setBlocks([]);
-      setExercisesInPlan([]);
-      setSelectedBlock(null);
-      setSelectedDayForSession(null);
-      setIsLoadingBlocks(false);
-      return []; // Return empty array if no planId
+      const block = await getBlockById(horse.currentBlockId);
+      setCurrentActiveBlock(block);
+      if (block) {
+        const days = await getExercisesForBlock(block.id);
+        setDaysInCurrentBlock(days);
+      } else {
+        setDaysInCurrentBlock([]);
+      }
+    } catch (error) {
+      toast({ variant: "destructive", title: "Error", description: "No se pudo cargar el plan activo del caballo." });
+      setSelectedPlanForSession(null);
+      setCurrentActiveBlock(null);
+      setDaysInCurrentBlock([]);
+    } finally {
+      setIsLoadingCurrentBlock(false);
+      setIsLoadingDaysInBlock(false);
     }
-    setIsLoadingBlocks(true);
-    setExercisesInPlan([]);
-    setSelectedBlock(null);
-    setSelectedDayForSession(null);
+  }, [toast, trainingPlans]); // Added trainingPlans dependency
+
+  useEffect(() => {
+    if (selectedHorse) {
+        fetchHorseActivePlanDetails(selectedHorse);
+        setSelectedDayForSession(null); // Reset selected day when horse changes
+        setSessionDayResult(null);
+    } else {
+        setSelectedPlanForSession(null);
+        setCurrentActiveBlock(null);
+        setDaysInCurrentBlock([]);
+        setSelectedDayForSession(null);
+        setSessionDayResult(null);
+    }
+  }, [selectedHorse, fetchHorseActivePlanDetails]);
+
+  // For Admin Tab: Fetch blocks and exercises when selectedPlanForAdmin changes
+ const fetchDetailsForAdminPlan = useCallback(async (planId: string) => {
+    if (!planId) {
+      setBlocksForAdminPlan([]);
+      setExercisesForAdminPlan([]);
+      return;
+    }
+    setIsLoadingBlocksForAdmin(true);
+    setIsLoadingExercisesForAdmin(true);
     try {
       const fetchedBlocks = await getTrainingBlocks(planId);
       const sortedBlocks = fetchedBlocks.sort((a,b) => (a.order ?? Infinity) - (b.order ?? Infinity));
-      setBlocks(sortedBlocks);
+      setBlocksForAdminPlan(sortedBlocks);
+      
+      let allExercises: BlockExerciseDisplay[] = [];
       if (sortedBlocks.length > 0) {
-        await performFetchExercisesForPlan(planId, sortedBlocks);
-        // Auto-select the first block for the "Sesiones" tab
-        const firstBlock = sortedBlocks.find(b => b.order === 0) || sortedBlocks[0];
-        if (firstBlock) {
-            setSelectedBlock(firstBlock);
+        for (const block of sortedBlocks) {
+          const blockExercises = await getExercisesForBlock(block.id);
+          allExercises = [...allExercises, ...blockExercises.map(ex => ({...ex, blockId: block.id}))];
         }
+        setExercisesForAdminPlan(allExercises.sort((a,b) => {
+            const blockAOrder = sortedBlocks.find(bl => bl.id === a.blockId)?.order ?? Infinity;
+            const blockBOrder = sortedBlocks.find(bl => bl.id === b.blockId)?.order ?? Infinity;
+            if (blockAOrder !== blockBOrder) return blockAOrder - blockBOrder;
+            return (a.orderInBlock ?? Infinity) - (b.orderInBlock ?? Infinity);
+        }));
       } else {
-         setExercisesInPlan([]);
-         setSelectedBlock(null);
+        setExercisesForAdminPlan([]);
       }
-      return sortedBlocks; // Return fetched blocks
     } catch (error) {
-      toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar las semanas para este plan." });
-      setBlocks([]);
-      setExercisesInPlan([]);
-      return []; // Return empty array on error
+      toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar detalles del plan para admin." });
+      setBlocksForAdminPlan([]);
+      setExercisesForAdminPlan([]);
     } finally {
-      setIsLoadingBlocks(false);
+      setIsLoadingBlocksForAdmin(false);
+      setIsLoadingExercisesForAdmin(false);
     }
-  }, [toast, performFetchExercisesForPlan]);
-
+  }, [toast]);
 
   useEffect(() => {
-    if (selectedPlan?.id) {
-      performFetchBlocks(selectedPlan.id);
+    if (selectedPlanForAdmin?.id && activeTab === 'plan') {
+      fetchDetailsForAdminPlan(selectedPlanForAdmin.id);
     } else {
-      setBlocks([]);
-      setExercisesInPlan([]);
-      setSelectedBlock(null);
-      setSelectedDayForSession(null);
+      setBlocksForAdminPlan([]);
+      setExercisesForAdminPlan([]);
     }
-  }, [selectedPlan, performFetchBlocks]);
-
-  useEffect(() => {
-    setSelectedDayForSession(null);
-    setSessionDayResult(null);
-  }, [selectedBlock]);
+  }, [selectedPlanForAdmin, activeTab, fetchDetailsForAdminPlan]);
 
 
-  const handleHorseAdded = () => {
+  const handleHorseAdded = async () => {
     setIsAddHorseDialogOpen(false);
     if (currentUser?.uid) {
-        performFetchHorses(currentUser.uid);
+        await performFetchHorses(currentUser.uid);
+        // If it was the first horse added, it will be auto-selected by performFetchHorses
     }
   };
   const handleAddHorseCancel = () => setIsAddHorseDialogOpen(false);
 
+  const handleAdminPlanSelected = (plan: TrainingPlan) => {
+    setSelectedPlanForAdmin(plan);
+  };
+
   const handlePlanAdded = (newPlanId: string) => {
     setIsCreatePlanDialogOpen(false);
-    performFetchPlans().then(() => {
-      getTrainingPlans().then(refreshedPlans => {
+    performFetchAllPlans().then(() => {
+      getTrainingPlans().then(refreshedPlans => { // Re-fetch to ensure latest list
         setTrainingPlans(refreshedPlans);
         const newPlan = refreshedPlans.find(p => p.id === newPlanId);
         if (newPlan) {
-          setSelectedPlan(newPlan);
+          setSelectedPlanForAdmin(newPlan); // Select newly added plan in admin tab
         }
       });
     });
@@ -503,18 +522,22 @@ const Dashboard = () => {
 
   const handlePlanDeleted = () => {
     setIsDeletePlanDialogOpen(false);
-    setSelectedPlan(null);
-    performFetchPlans();
+    setSelectedPlanForAdmin(null);
+    performFetchAllPlans(); // Refresh the list of all plans
+    if (selectedHorse && selectedHorse.activePlanId === selectedPlanForAdmin?.id) {
+        // If the deleted plan was active for the current horse, clear its active plan
+        setSelectedHorse(prev => prev ? ({...prev, activePlanId: null, currentBlockId: null, activePlanStartDate: null, planProgress: {}}) : null);
+    }
   };
 
   const handleDeleteSelectedPlan = async () => {
-    if (!selectedPlan || !isUserAdmin) return;
+    if (!selectedPlanForAdmin || !isUserAdmin) return;
     setIsDeletingPlan(true);
     try {
-      await deleteTrainingPlan(selectedPlan.id);
+      await deleteTrainingPlan(selectedPlanForAdmin.id);
       toast({
         title: "Plan Eliminado",
-        description: `El plan "${selectedPlan.title}" y todo su contenido han sido eliminados.`,
+        description: `El plan "${selectedPlanForAdmin.title}" y todo su contenido han sido eliminados.`,
       });
       handlePlanDeleted();
     } catch (error) {
@@ -531,16 +554,16 @@ const Dashboard = () => {
 
   const handleBlockAdded = () => {
     setIsAddBlockDialogOpen(false);
-    if (selectedPlan?.id) {
-      performFetchBlocks(selectedPlan.id);
+    if (selectedPlanForAdmin?.id) {
+      fetchDetailsForAdminPlan(selectedPlanForAdmin.id);
     }
   };
 
   const handleBlockUpdated = () => {
     setIsEditBlockDialogOpen(false);
     setEditingBlock(null);
-    if (selectedPlan?.id) {
-      performFetchBlocks(selectedPlan.id);
+    if (selectedPlanForAdmin?.id) {
+      fetchDetailsForAdminPlan(selectedPlanForAdmin.id);
     }
   };
 
@@ -569,44 +592,73 @@ const Dashboard = () => {
   };
 
   const handleAddSelectedExercisesToBlock = async () => {
-    if (!selectedPlan?.id || !currentBlockIdForNewExercise || selectedMasterExercisesForBlock.size === 0 || !isUserAdmin) {
+    if (!selectedPlanForAdmin?.id || !currentBlockIdForNewExercise || selectedMasterExercisesForBlock.size === 0 || !isUserAdmin) {
       toast({ title: "Nada Seleccionado", description: "Por favor, selecciona al menos un día.", variant: "default" });
       return;
     }
-    setIsLoadingExercises(true);
+    setIsLoadingExercisesForAdmin(true);
     try {
       for (const masterExerciseId of selectedMasterExercisesForBlock) {
-        await addExerciseToBlockReference(selectedPlan.id, currentBlockIdForNewExercise, masterExerciseId);
+        await addExerciseToBlockReference(selectedPlanForAdmin.id, currentBlockIdForNewExercise, masterExerciseId);
       }
       toast({ title: "Día(s) Añadido(s)", description: "Los días seleccionados se han añadido a la semana." });
       setIsSelectExerciseDialogOpen(false);
       setCurrentBlockIdForNewExercise(null);
-      if (selectedPlan?.id && blocks.length > 0) {
-        await performFetchExercisesForPlan(selectedPlan.id, blocks);
+      if (selectedPlanForAdmin?.id) {
+        await fetchDetailsForAdminPlan(selectedPlanForAdmin.id);
       }
     } catch (error) {
       toast({ title: "Error", description: "No se pudieron añadir los días a la semana.", variant: "destructive" });
     } finally {
-      setIsLoadingExercises(false);
+      setIsLoadingExercisesForAdmin(false);
     }
   };
 
   const handleRemoveExerciseFromBlock = async (planId: string, blockId: string, masterExerciseId: string) => {
     if (!isUserAdmin) return;
-    setIsLoadingExercises(true);
+    setIsLoadingExercisesForAdmin(true);
     try {
       await removeExerciseFromBlockReference(planId, blockId, masterExerciseId);
       toast({title: "Día Removido", description: "El día ha sido quitado de esta semana."});
-      if (selectedPlan?.id && blocks.length > 0) {
-        await performFetchExercisesForPlan(selectedPlan.id, blocks);
+      if (selectedPlanForAdmin?.id) {
+        await fetchDetailsForAdminPlan(selectedPlanForAdmin.id);
       }
     } catch (error) {
       toast({title: "Error", description: "No se pudo quitar el día.", variant: "destructive"});
     } finally {
-      setIsLoadingExercises(false);
+      setIsLoadingExercisesForAdmin(false);
     }
   };
 
+
+  const handleDayCheckboxChange = async (dayId: string, completed: boolean) => {
+    if (!selectedHorse || !currentActiveBlock) return;
+    
+    setSelectedDayForSession(prevDay => {
+        if (prevDay?.id === dayId) {
+            setSessionDayResult(prevResult => {
+                if (!prevResult) return null;
+                return {...prevResult, doneReps: completed ? 1 : 0};
+            });
+        }
+        return prevDay;
+    });
+
+    try {
+        await updateDayCompletionStatus(selectedHorse.id, currentActiveBlock.id, dayId, completed);
+        // Refresh horse data to get updated planProgress
+        const updatedHorse = await getHorseById(selectedHorse.id);
+        if (updatedHorse) {
+            setSelectedHorse(updatedHorse); // This will trigger re-calculation of progress bar
+        }
+        toast({title: "Progreso Actualizado", description: `Día ${completed ? 'completado' : 'marcado como no completado'}.`});
+    } catch (error) {
+        toast({variant: "destructive", title: "Error", description: "No se pudo actualizar el estado del día."});
+        // Revert UI change if needed or re-fetch to be sure
+        const previousHorseState = await getHorseById(selectedHorse.id);
+        if (previousHorseState) setSelectedHorse(previousHorseState);
+    }
+  };
 
   const handleSessionDayResultChange = (
     field: keyof Omit<SessionDayResultState, 'observations'> | `observations.${keyof Omit<ExerciseResultObservations, 'additionalNotes'>}` | 'observations.additionalNotes',
@@ -617,7 +669,7 @@ const Dashboard = () => {
     setSessionDayResult(prev => {
         const currentDayData = prev || {
             plannedReps: selectedDayForSession?.suggestedReps ?? "1 sesión",
-            doneReps: 0, // Default to 0 (incomplete)
+            doneReps: selectedHorse?.planProgress?.[currentActiveBlock?.id || '']?.[selectedDayForSession.id]?.completed ? 1 : 0,
             rating: 3,
             observations: { nostrils: null, lips: null, ears: null, eyes: null, neck: null, back: null, croup: null, limbs: null, tail: null, additionalNotes: "" }
         };
@@ -634,8 +686,11 @@ const Dashboard = () => {
                 }
             };
         } else if (field === 'doneReps') {
-             // For checkbox, value is boolean. Convert to number 0 or 1.
             (updatedDayData as any)[field] = value ? 1 : 0;
+             // Also update the main horse progress when the detailed session checkbox is toggled
+            if (selectedHorse && currentActiveBlock && selectedDayForSession) {
+                updateDayCompletionStatus(selectedHorse.id, currentActiveBlock.id, selectedDayForSession.id, !!value);
+            }
         } else if (field === 'rating') {
             (updatedDayData as any)[field] = Number(value);
         } else if (field === 'plannedReps') {
@@ -651,12 +706,12 @@ const handleSaveSessionAndNavigate = async () => {
       toast({ variant: "destructive", title: "Error de Validación", description: "Asegúrate de que la fecha y el caballo estén seleccionados."});
       return;
     }
-     if (!selectedPlan) {
-        toast({ variant: "destructive", title: "Error de Validación", description: "Selecciona un plan de entrenamiento."});
+    if (!selectedHorse.activePlanId || !selectedHorse.currentBlockId) {
+        toast({ variant: "destructive", title: "Error", description: "El caballo no tiene un plan activo o etapa actual."});
         return;
     }
-    if (!selectedBlock || !selectedBlock.id) {
-        toast({ variant: "destructive", title: "Error de Validación", description: "Selecciona una semana para la sesión."});
+    if (!currentActiveBlock) { // Should be set if horse.currentBlockId exists
+        toast({ variant: "destructive", title: "Error", description: "No se pudo cargar la etapa activa."});
         return;
     }
     if (!selectedDayForSession || !selectedDayForSession.id) {
@@ -673,7 +728,7 @@ const handleSaveSessionAndNavigate = async () => {
       const sessionInput: SessionDataInput = {
         horseId: selectedHorse.id,
         date: Timestamp.fromDate(date),
-        blockId: selectedBlock.id,
+        blockId: selectedHorse.currentBlockId, 
         selectedDayExerciseId: selectedDayForSession.id,
         selectedDayExerciseTitle: selectedDayForSession.title,
         overallNote: sessionOverallNote,
@@ -685,7 +740,7 @@ const handleSaveSessionAndNavigate = async () => {
         const dayResultInput: ExerciseResultInput = {
             exerciseId: selectedDayForSession.id,
             plannedReps: sessionDayResult.plannedReps,
-            doneReps: sessionDayResult.doneReps,
+            doneReps: sessionDayResult.doneReps, // This reflects the checkbox in the session details
             rating: sessionDayResult.rating,
             observations: sessionDayResult.observations && Object.values(sessionDayResult.observations).some(v => v !== null && v !== undefined && String(v).trim() !== '')
                             ? sessionDayResult.observations
@@ -693,10 +748,16 @@ const handleSaveSessionAndNavigate = async () => {
         };
         await addExerciseResult(selectedHorse.id, sessionId, dayResultInput);
 
+        // Ensure the main horse progress is also updated based on the session's "doneReps"
+        await updateDayCompletionStatus(selectedHorse.id, selectedHorse.currentBlockId, selectedDayForSession.id, sessionDayResult.doneReps === 1);
+        const updatedHorse = await getHorseById(selectedHorse.id); // Re-fetch horse to update UI
+        if (updatedHorse) setSelectedHorse(updatedHorse);
+
         toast({ title: "Sesión Guardada", description: "La sesión del día ha sido registrada." });
+        // Don't reset selectedDayForSession or sessionDayResult here, allow user to navigate or log another
+        // Resetting overall note might be good
         setSessionOverallNote("");
-        setSelectedDayForSession(null);
-        setSessionDayResult(null);
+
 
         router.push(`/session/${sessionId}?horseId=${selectedHorse.id}`);
       } else {
@@ -714,17 +775,15 @@ const handleSaveSessionAndNavigate = async () => {
   };
 
   const handleDragEndExercises = async (event: DragEndEvent) => {
-    if (!isUserAdmin) return;
+    if (!isUserAdmin || !selectedPlanForAdmin) return;
     const { active, over } = event;
 
     if (active && over && active.id !== over.id) {
       const activeExerciseId = String(active.id);
       const overExerciseId = String(over.id);
 
-      const activeExercise = exercisesInPlan.find(ex => ex.id === activeExerciseId);
-      if (!activeExercise || !selectedPlan?.id) {
-          return;
-      }
+      const activeExercise = exercisesForAdminPlan.find(ex => ex.id === activeExerciseId);
+      if (!activeExercise) return;
 
       const blockIdOfDraggedItem = activeExercise.blockId;
       if (!blockIdOfDraggedItem) {
@@ -732,60 +791,53 @@ const handleSaveSessionAndNavigate = async () => {
         return;
       }
 
-      const targetBlock = blocks.find(b => b.id === blockIdOfDraggedItem);
-      if (!targetBlock || !targetBlock.exerciseReferences) {
-          return;
-      }
+      const targetBlock = blocksForAdminPlan.find(b => b.id === blockIdOfDraggedItem);
+      if (!targetBlock || !targetBlock.exerciseReferences) return;
 
       let currentReferencesForBlock: ExerciseReference[] = [...targetBlock.exerciseReferences];
       const oldIndex = currentReferencesForBlock.findIndex((ref) => ref.exerciseId === activeExerciseId);
       const newIndex = currentReferencesForBlock.findIndex((ref) => ref.exerciseId === overExerciseId);
 
-      if (oldIndex === -1 || newIndex === -1) {
-          return;
-      }
+      if (oldIndex === -1 || newIndex === -1) return;
 
       const reorderedReferencesForBlock = arrayMove(currentReferencesForBlock, oldIndex, newIndex).map((ref, index) => ({
         ...ref,
         order: index,
       }));
 
-      setExercisesInPlan(prevExercises => {
+      setExercisesForAdminPlan(prevExercises => { // Update local state for optimistic UI
         const otherBlocksExercises = prevExercises.filter(ex => ex.blockId !== blockIdOfDraggedItem);
         const reorderedBlockExercises = reorderedReferencesForBlock.map(ref => {
             const masterDetails = prevExercises.find(ex => ex.id === ref.exerciseId);
-            return { ...masterDetails!, blockId: blockIdOfDraggedItem, orderInBlock: ref.order };
+            return { ...masterDetails!, blockId: blockIdOfDraggedItem, orderInBlock: ref.order }; // Ensure orderInBlock is correctly updated
         });
         const allExercises = [...otherBlocksExercises, ...reorderedBlockExercises];
         return allExercises.sort((a,b) => {
-            const blockAOrder = blocks.find(bl => bl.id === a.blockId)?.order ?? Infinity;
-            const blockBOrder = blocks.find(bl => bl.id === b.blockId)?.order ?? Infinity;
+            const blockAOrder = blocksForAdminPlan.find(bl => bl.id === a.blockId)?.order ?? Infinity;
+            const blockBOrder = blocksForAdminPlan.find(bl => bl.id === b.blockId)?.order ?? Infinity;
             if (blockAOrder !== blockBOrder) return blockAOrder - blockBOrder;
             return (a.orderInBlock ?? Infinity) - (b.orderInBlock ?? Infinity);
         });
       });
+      
 
       try {
         await updateExercisesOrderInBlock(blockIdOfDraggedItem, reorderedReferencesForBlock);
         toast({ title: "Orden de días actualizado", description: "El nuevo orden ha sido guardado." });
-        if (selectedPlan?.id && blocks.length > 0) {
-            await performFetchExercisesForPlan(selectedPlan.id, blocks);
-        }
+        await fetchDetailsForAdminPlan(selectedPlanForAdmin.id); // Re-fetch to confirm
       } catch (err) {
         toast({ variant: "destructive", title: "Error", description: "No se pudo guardar el nuevo orden." });
-        if (selectedPlan?.id && blocks.length > 0) {
-           await performFetchExercisesForPlan(selectedPlan.id, blocks);
-        }
+        await fetchDetailsForAdminPlan(selectedPlanForAdmin.id); // Re-fetch to revert optimistic update
       }
     }
   };
 
   const handleDragEndBlocks = async (event: DragEndEvent) => {
-    if (!isUserAdmin) return;
+    if (!isUserAdmin || !selectedPlanForAdmin) return;
     const { active, over } = event;
 
-    if (active && over && active.id !== over.id && selectedPlan) {
-      setBlocks((prevBlocks) => {
+    if (active && over && active.id !== over.id) {
+      setBlocksForAdminPlan((prevBlocks) => {
         const oldIndex = prevBlocks.findIndex(b => b.id === String(active.id));
         const newIndex = prevBlocks.findIndex(b => b.id === String(over.id));
         if (oldIndex === -1 || newIndex === -1) return prevBlocks;
@@ -797,18 +849,16 @@ const handleSaveSessionAndNavigate = async () => {
         }));
         const dbPayload = updatedBlocksForDb.map(b => ({ id: b.id, order: b.order as number }));
 
-        updateBlocksOrder(selectedPlan.id, dbPayload)
+        updateBlocksOrder(selectedPlanForAdmin.id, dbPayload)
           .then(async () => {
             toast({ title: "Orden de semanas actualizado", description: "El nuevo orden de semanas ha sido guardado." });
-            await performFetchBlocks(selectedPlan.id);
+            await fetchDetailsForAdminPlan(selectedPlanForAdmin.id);
           })
           .catch(async err => {
             toast({ variant: "destructive", title: "Error", description: "No se pudo guardar el nuevo orden de semanas." });
-            if (selectedPlan?.id) {
-                await performFetchBlocks(selectedPlan.id);
-            }
+            await fetchDetailsForAdminPlan(selectedPlanForAdmin.id);
           });
-        return updatedBlocksForDb;
+        return updatedBlocksForDb; // Optimistic update
       });
     }
   };
@@ -817,7 +867,48 @@ const handleSaveSessionAndNavigate = async () => {
     exercise.title.toLowerCase().includes(exerciseSearchTerm.toLowerCase())
   );
 
-  const daysInSelectedWeek = selectedBlock ? exercisesInPlan.filter(ex => ex.blockId === selectedBlock.id).sort((a,b) => (a.orderInBlock ?? Infinity) - (b.orderInBlock ?? Infinity)) : [];
+  const handleStartPlan = async () => {
+    if (!selectedHorse || !selectedPlanForSession) {
+        toast({title: "Error", description: "Selecciona un caballo y un plan.", variant: "destructive"});
+        return;
+    }
+    setIsLoadingCurrentBlock(true); // Indicate loading while starting plan
+    try {
+        const planBlocks = await getTrainingBlocks(selectedPlanForSession.id);
+        if (planBlocks.length === 0) {
+            toast({title: "Plan Vacío", description: "Este plan no tiene etapas/semanas definidas.", variant: "destructive"});
+            setIsLoadingCurrentBlock(false);
+            return;
+        }
+        const firstBlock = planBlocks.sort((a,b) => (a.order ?? Infinity) - (b.order ?? Infinity))[0];
+        await startPlanForHorse(selectedHorse.id, selectedPlanForSession.id, firstBlock.id);
+        toast({title: "Plan Iniciado", description: `"${selectedPlanForSession.title}" ha comenzado para ${selectedHorse.name}.`});
+        // Re-fetch horse to get active plan details
+        const updatedHorse = await getHorseById(selectedHorse.id);
+        if (updatedHorse) setSelectedHorse(updatedHorse); // This will trigger useEffect to load active plan details
+    } catch (error) {
+        toast({title: "Error al Iniciar Plan", description: "No se pudo iniciar el plan.", variant: "destructive"});
+    } finally {
+        setIsLoadingCurrentBlock(false);
+    }
+  };
+
+  const etapaProgressBarValue = useMemo(() => {
+    if (!selectedHorse || !selectedHorse.planProgress || !currentActiveBlock || !currentActiveBlock.exerciseReferences || currentActiveBlock.exerciseReferences.length === 0) {
+        return 0;
+    }
+    const blockProgress = selectedHorse.planProgress[currentActiveBlock.id];
+    if (!blockProgress) return 0;
+
+    const totalDaysInBlock = currentActiveBlock.exerciseReferences.length;
+    let completedDays = 0;
+    for (const dayRef of currentActiveBlock.exerciseReferences) {
+        if (blockProgress[dayRef.exerciseId]?.completed) {
+            completedDays++;
+        }
+    }
+    return totalDaysInBlock > 0 ? (completedDays / totalDaysInBlock) * 100 : 0;
+  }, [selectedHorse, currentActiveBlock]);
 
 
   return (
@@ -882,117 +973,115 @@ const handleSaveSessionAndNavigate = async () => {
                         <CardDescription>Para {selectedHorse.name} el {date ? date.toLocaleDateString("es-ES") : 'día no seleccionado'}</CardDescription>
                       </CardHeader>
                       <CardContent className="grid gap-4 px-1">
-                        {/* Plan Selector for Session Logging */}
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                            <Button variant="outline" className="w-full justify-start" disabled={isLoadingPlans || trainingPlans.length === 0}>
-                                {isLoadingPlans ? "Cargando planes..." : selectedPlan ? selectedPlan.title : "Seleccionar Plan de Entrenamiento"}
-                                {!isLoadingPlans && <Icons.chevronDown className="ml-auto h-4 w-4" />}
-                            </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent className="w-[var(--radix-dropdown-menu-trigger-width)]">
-                            <DropdownMenuLabel>Planes Disponibles</DropdownMenuLabel>
-                            <DropdownMenuSeparator />
-                            {isLoadingPlans ? (
-                                <DropdownMenuItem disabled>Cargando...</DropdownMenuItem>
-                            ) : trainingPlans.length > 0 ? (
-                                trainingPlans.map((plan) => (
-                                <DropdownMenuItem
-                                    key={plan.id}
-                                    onSelect={() => {
-                                        setSelectedPlan(plan);
-                                        // performFetchBlocks will auto-select first week
-                                    }}
-                                >
-                                    {plan.title} {plan.template && "(Plantilla)"}
-                                </DropdownMenuItem>
-                                ))
-                            ) : (
-                                <DropdownMenuItem disabled>No hay planes</DropdownMenuItem>
-                            )}
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-
-                        {/* Week Selector */}
-                        {selectedPlan && (
-                            <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button variant="outline" className="w-full justify-start" disabled={!selectedPlan || blocks.length === 0 || isLoadingBlocks}>
-                                {isLoadingBlocks ? "Cargando semanas..." : (selectedBlock && blocks.some(b => b.id === selectedBlock.id)) ? selectedBlock.title : "Seleccionar Semana"}
-                                {!isLoadingBlocks && <Icons.chevronDown className="ml-auto h-4 w-4" />}
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent className="w-[var(--radix-dropdown-menu-trigger-width)]">
-                                <DropdownMenuLabel>Semanas del Plan: {selectedPlan?.title || "N/A"}</DropdownMenuLabel>
-                                <DropdownMenuSeparator />
-                                {isLoadingBlocks ? (
-                                    <DropdownMenuItem disabled>Cargando semanas...</DropdownMenuItem>
-                                ) : blocks.length > 0 ? (
-                                blocks.sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity)).map((block) => (
-                                    <DropdownMenuItem key={block.id} onSelect={() => setSelectedBlock(block)}>
-                                        {block.title}
-                                        {block.notes && <span className="text-xs text-muted-foreground ml-1">({block.notes})</span>}
-                                    </DropdownMenuItem>
-                                ))
-                                ) : (
-                                <DropdownMenuItem disabled>No hay semanas en el plan</DropdownMenuItem>
-                                )}
-                            </DropdownMenuContent>
-                            </DropdownMenu>
-                        )}
-
-                        {/* Day Selector (visible after week is selected) */}
-                        {selectedBlock && (
-                          <>
-                            <Label>Seleccionar Día de la {selectedBlock.title}:</Label>
-                            {isLoadingExercises && daysInSelectedWeek.length === 0 && selectedBlock.exerciseReferences && selectedBlock.exerciseReferences.length > 0 ? (
-                                <div className="flex items-center p-2"><Icons.spinner className="h-4 w-4 animate-spin mr-2" /> Cargando días...</div>
-                            ): daysInSelectedWeek.length > 0 ? (
-                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                                {daysInSelectedWeek.map(day => (
-                                  <Button
-                                    key={day.id}
-                                    variant={selectedDayForSession?.id === day.id ? "default" : "outline"}
-                                    onClick={() => {
-                                      setSelectedDayForSession(day);
-                                      setSessionDayResult({
-                                        plannedReps: day.suggestedReps ?? "1 sesión",
-                                        doneReps: 0,
-                                        rating: 3,
-                                        observations: { nostrils: null, lips: null, ears: null, eyes: null, neck: null, back: null, croup: null, limbs: null, tail: null, additionalNotes: "" }
-                                      });
-                                    }}
-                                    className="h-auto py-2 text-left flex flex-col items-start w-full overflow-hidden"
-                                  >
-                                    <span className="font-semibold block w-full whitespace-normal break-words">{day.title}</span>
-                                    {day.objective && (
-                                      <span className={`text-xs block w-full whitespace-normal break-words ${selectedDayForSession?.id === day.id ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}>
-                                        {day.objective}
-                                      </span>
+                        
+                        {!selectedHorse.activePlanId && (
+                            <>
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                    <Button variant="outline" className="w-full justify-start" disabled={isLoadingPlans || trainingPlans.length === 0}>
+                                        {isLoadingPlans ? "Cargando planes..." : selectedPlanForSession ? selectedPlanForSession.title : "Seleccionar Plan para Comenzar"}
+                                        {!isLoadingPlans && <Icons.chevronDown className="ml-auto h-4 w-4" />}
+                                    </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent className="w-[var(--radix-dropdown-menu-trigger-width)]">
+                                    <DropdownMenuLabel>Planes Disponibles</DropdownMenuLabel>
+                                    <DropdownMenuSeparator />
+                                    {isLoadingPlans ? (
+                                        <DropdownMenuItem disabled>Cargando...</DropdownMenuItem>
+                                    ) : trainingPlans.length > 0 ? (
+                                        trainingPlans.filter(p => !p.template).map((plan) => ( // Show only non-template plans to start
+                                        <DropdownMenuItem key={plan.id} onSelect={() => setSelectedPlanForSession(plan)}>
+                                            {plan.title}
+                                        </DropdownMenuItem>
+                                        ))
+                                    ) : (
+                                        <DropdownMenuItem disabled>No hay planes</DropdownMenuItem>
                                     )}
-                                  </Button>
-                                ))}
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                                {selectedPlanForSession && (
+                                    <Button onClick={handleStartPlan} disabled={isLoadingCurrentBlock}>
+                                        {isLoadingCurrentBlock && <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />}
+                                        Comenzar este Plan para {selectedHorse.name}
+                                    </Button>
+                                )}
+                                {!selectedPlanForSession && trainingPlans.length > 0 && !isLoadingPlans && (
+                                    <p className="text-sm text-muted-foreground text-center">Selecciona un plan de la lista de arriba para activarlo para {selectedHorse.name}.</p>
+                                )}
+                                 {trainingPlans.length === 0 && !isLoadingPlans && (
+                                    <p className="text-sm text-muted-foreground text-center">No hay planes de entrenamiento creados. Un administrador puede crear planes en la pestaña 'Gestionar Plan'.</p>
+                                )}
+                            </>
+                        )}
+                        
+                        {selectedHorse.activePlanId && currentActiveBlock && (
+                           <>
+                            <div className="my-2 p-3 border rounded-lg bg-muted/30 shadow-sm">
+                                <h3 className="text-lg font-semibold text-primary">Etapa Actual: {currentActiveBlock.title}</h3>
+                                {currentActiveBlock.goal && <p className="text-sm text-muted-foreground italic mt-1">Meta: {currentActiveBlock.goal}</p>}
+                                <div className="mt-3 mb-1">
+                                    <Label htmlFor="etapa-progress" className="text-xs font-medium text-muted-foreground">Progreso de la Etapa ({Math.round(etapaProgressBarValue)}%):</Label>
+                                    <Progress value={etapaProgressBarValue} id="etapa-progress" className="w-full h-2 mt-1" />
+                                </div>
+                            </div>
+                            
+                            <Label className="mt-2 block">Seleccionar Día de la Etapa "{currentActiveBlock.title}":</Label>
+                            {isLoadingDaysInBlock ? (
+                                <div className="flex items-center p-2"><Icons.spinner className="h-4 w-4 animate-spin mr-2" /> Cargando días...</div>
+                            ): daysInCurrentBlock.length > 0 ? (
+                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                                {daysInCurrentBlock.map(day => {
+                                  const isDayCompletedInPlan = selectedHorse.planProgress?.[currentActiveBlock.id]?.[day.id]?.completed || false;
+                                  return (
+                                    <div key={day.id} className={`p-2 border rounded-md ${selectedDayForSession?.id === day.id ? 'bg-primary/10 ring-2 ring-primary' : 'hover:bg-muted/50'}`}>
+                                        <div className="flex items-start justify-between gap-2">
+                                            <Button
+                                                variant="ghost"
+                                                onClick={() => {
+                                                setSelectedDayForSession(day);
+                                                setSessionDayResult({
+                                                    plannedReps: day.suggestedReps ?? "1 sesión",
+                                                    doneReps: isDayCompletedInPlan ? 1 : 0,
+                                                    rating: 3,
+                                                    observations: { nostrils: null, lips: null, ears: null, eyes: null, neck: null, back: null, croup: null, limbs: null, tail: null, additionalNotes: "" }
+                                                });
+                                                }}
+                                                className="h-auto py-1 px-2 text-left flex-grow flex flex-col items-start w-full overflow-hidden"
+                                            >
+                                                <span className={`font-semibold block w-full whitespace-normal break-words ${selectedDayForSession?.id === day.id ? 'text-primary' : ''}`}>{day.title}</span>
+                                                {day.objective && (
+                                                <span className={`text-xs block w-full whitespace-normal break-words ${selectedDayForSession?.id === day.id ? 'text-primary/80' : 'text-muted-foreground'}`}>
+                                                    {day.objective}
+                                                </span>
+                                                )}
+                                            </Button>
+                                            <div className="pt-1 flex flex-col items-center">
+                                                <Checkbox
+                                                    id={`day-complete-${day.id}`}
+                                                    checked={isDayCompletedInPlan}
+                                                    onCheckedChange={(checked) => handleDayCheckboxChange(day.id, !!checked)}
+                                                    className="h-5 w-5"
+                                                />
+                                                <Label htmlFor={`day-complete-${day.id}`} className="text-xs mt-1">Hecho</Label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                                })}
                               </div>
                             ) : (
-                              <p className="text-sm text-muted-foreground p-2">Esta semana no tiene días definidos. {isUserAdmin ? "Añade días en la pestaña 'Plan'." : ""}</p>
+                              <p className="text-sm text-muted-foreground p-2">Esta etapa no tiene días definidos. {isUserAdmin ? "Añade días en la pestaña 'Gestionar Plan'." : ""}</p>
                             )}
-                          </>
+                           </>
+                        )}
+                         {selectedHorse.activePlanId && !currentActiveBlock && !isLoadingCurrentBlock && (
+                            <p className="text-sm text-muted-foreground p-2 text-center">Cargando etapa actual del caballo...</p>
                         )}
 
-                        {selectedDayForSession && sessionDayResult && (
-                            <Card className="p-4 space-y-3 mt-2 shadow-inner bg-muted/30">
-                                <h3 className="text-lg font-semibold">Detalles para: {selectedDayForSession.title}</h3>
-                                 {/* Moved Progress Bar Here */}
-                                <div className="my-2 space-y-1">
-                                    <Label htmlFor="day-session-progress" className="text-sm font-medium text-muted-foreground">
-                                        Progreso del Día:
-                                    </Label>
-                                    <Progress value={sessionDayResult.doneReps === 1 ? 100 : 0} id="day-session-progress" className="w-full mt-1" />
-                                    <p className="text-xs text-muted-foreground text-center mt-1">
-                                      {sessionDayResult.doneReps === 1 ? "Día completado" : "Día pendiente"}
-                                    </p>
-                                </div>
 
+                        {selectedDayForSession && sessionDayResult && currentActiveBlock && (
+                            <Card className="p-4 space-y-3 mt-2 shadow-inner bg-muted/30">
+                                <h3 className="text-lg font-semibold">Detalles de Sesión para: {selectedDayForSession.title}</h3>
                                 <div>
                                     <Label htmlFor="session-overall-note">Notas Generales de la Sesión (para este día)</Label>
                                     <Textarea
@@ -1016,12 +1105,12 @@ const handleSaveSessionAndNavigate = async () => {
                                     </div>
                                     <div className="flex items-center space-x-2 pt-6">
                                         <Checkbox
-                                            id={`day-doneReps`}
+                                            id={`session-day-doneReps`}
                                             checked={sessionDayResult.doneReps === 1}
                                             onCheckedChange={(checked) => handleSessionDayResultChange('doneReps', !!checked)}
                                         />
-                                        <Label htmlFor={`day-doneReps`} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                                            Día Completado
+                                        <Label htmlFor={`session-day-doneReps`} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                                            Día Completado (en esta sesión)
                                         </Label>
                                     </div>
                                 </div>
@@ -1076,7 +1165,7 @@ const handleSaveSessionAndNavigate = async () => {
                                 <div className="flex justify-end mt-2">
                                   <Button
                                     onClick={handleSaveSessionAndNavigate}
-                                    disabled={isSavingSession || !date || !selectedHorse || !selectedBlock || !selectedDayForSession || !sessionDayResult}
+                                    disabled={isSavingSession || !date || !selectedHorse || !currentActiveBlock || !selectedDayForSession || !sessionDayResult}
                                   >
                                     {isSavingSession && <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />}
                                     Guardar Sesión del Día
@@ -1084,16 +1173,12 @@ const handleSaveSessionAndNavigate = async () => {
                                 </div>
                             </Card>
                         )}
-                         {!selectedDayForSession && selectedBlock && daysInSelectedWeek.length > 0 && (
+                         {!selectedDayForSession && currentActiveBlock && daysInCurrentBlock.length > 0 && (
                             <p className="text-center text-muted-foreground mt-4">Por favor, selecciona un día de la lista de arriba para registrar sus detalles.</p>
                         )}
-                        {!selectedPlan && (
-                            <p className="text-center text-muted-foreground mt-4">Selecciona un plan de entrenamiento para empezar.</p>
-                        )}
-                         {selectedPlan && !selectedBlock && blocks.length > 0 && (
-                            <p className="text-center text-muted-foreground mt-4">Selecciona una semana para continuar.</p>
-                        )}
-
+                         {!selectedHorse.activePlanId && !isLoadingPlans && trainingPlans.length === 0 && (
+                            <p className="text-center text-muted-foreground mt-4">No hay planes disponibles para iniciar.</p>
+                         )}
 
                       </CardContent>
                     </Card>
@@ -1110,7 +1195,7 @@ const handleSaveSessionAndNavigate = async () => {
                                     <DropdownMenu>
                                         <DropdownMenuTrigger asChild>
                                         <Button variant="outline" className="w-full sm:w-auto justify-between flex-grow" disabled={!isUserAdmin}>
-                                            {isLoadingPlans ? "Cargando planes..." : selectedPlan ? selectedPlan.title : "Seleccionar Plan"}
+                                            {isLoadingPlans ? "Cargando planes..." : selectedPlanForAdmin ? selectedPlanForAdmin.title : "Seleccionar Plan"}
                                             {!isLoadingPlans && <Icons.chevronDown className="ml-2 h-4 w-4" />}
                                         </Button>
                                         </DropdownMenuTrigger>
@@ -1123,9 +1208,7 @@ const handleSaveSessionAndNavigate = async () => {
                                             trainingPlans.map((plan) => (
                                             <DropdownMenuItem
                                                 key={plan.id}
-                                                onSelect={() => {
-                                                    setSelectedPlan(plan);
-                                                }}
+                                                onSelect={() => handleAdminPlanSelected(plan)}
                                                 disabled={!isUserAdmin}
                                             >
                                                 {plan.title} {plan.template && "(Plantilla)"}
@@ -1142,14 +1225,14 @@ const handleSaveSessionAndNavigate = async () => {
                                         </Button>
                                     )}
                                 </div>
-                                {selectedPlan && isUserAdmin && (
+                                {selectedPlanForAdmin && isUserAdmin && (
                                     <AlertDialog open={isDeletePlanDialogOpen} onOpenChange={setIsDeletePlanDialogOpen}>
                                     <AlertDialogTrigger asChild>
                                         <Button
                                         variant="destructive"
                                         size="sm"
                                         className="w-full sm:w-auto mt-2 sm:mt-0"
-                                        disabled={!selectedPlan || isDeletingPlan}
+                                        disabled={!selectedPlanForAdmin || isDeletingPlan}
                                         >
                                         {isDeletingPlan ? <Icons.spinner className="mr-2 h-4 w-4 animate-spin" /> : <Icons.trash className="mr-2 h-4 w-4" />}
                                         Eliminar Plan
@@ -1159,7 +1242,7 @@ const handleSaveSessionAndNavigate = async () => {
                                         <AlertDialogHeader>
                                         <AlertDialogTitle>¿Estás realmente seguro?</AlertDialogTitle>
                                         <AlertDialogDescription>
-                                            Esta acción no se puede deshacer. Esto eliminará permanentemente el plan &quot;{selectedPlan?.title}&quot;
+                                            Esta acción no se puede deshacer. Esto eliminará permanentemente el plan &quot;{selectedPlanForAdmin?.title}&quot;
                                             y todas sus semanas y días asociados.
                                         </AlertDialogDescription>
                                         </AlertDialogHeader>
@@ -1174,23 +1257,23 @@ const handleSaveSessionAndNavigate = async () => {
                                     </AlertDialog>
                                 )}
                             </div>
-                            {selectedPlan && <CardDescription className="mt-2">Plan activo (admin): {selectedPlan.title}</CardDescription>}
+                            {selectedPlanForAdmin && <CardDescription className="mt-2">Plan activo (admin): {selectedPlanForAdmin.title}</CardDescription>}
                         </CardHeader>
                         <CardContent className="px-1">
                         {!isUserAdmin && <p className="text-muted-foreground text-center py-4">La gestión de planes es solo para administradores.</p>}
-                        {isUserAdmin && isLoadingPlans ? (
+                        {isUserAdmin && isLoadingPlans && !selectedPlanForAdmin ? (
                             <div className="flex items-center justify-center p-4"><Icons.spinner className="h-5 w-5 animate-spin mr-2" /> Cargando información del plan...</div>
-                        ) : isUserAdmin && selectedPlan ? (
+                        ) : isUserAdmin && selectedPlanForAdmin ? (
                             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndBlocks}>
-                                <SortableContext items={blocks.map(b => b.id)} strategy={verticalListSortingStrategy} disabled={!isUserAdmin}>
+                                <SortableContext items={blocksForAdminPlan.map(b => b.id)} strategy={verticalListSortingStrategy} disabled={!isUserAdmin}>
                                     <Accordion type="single" collapsible className="w-full space-y-2">
-                                    {(isLoadingBlocks && blocks.length === 0) ? (
+                                    {(isLoadingBlocksForAdmin && blocksForAdminPlan.length === 0) ? (
                                     <div className="flex items-center justify-center p-4"><Icons.spinner className="h-5 w-5 animate-spin mr-2" /> Cargando semanas...</div>
-                                    ) : blocks.length === 0 && !isLoadingBlocks ? (
+                                    ) : blocksForAdminPlan.length === 0 && !isLoadingBlocksForAdmin ? (
                                         <p className="text-sm text-muted-foreground p-2 text-center">Este plan no tiene semanas. ¡Añade la primera!</p>
                                     ) : (
-                                    blocks.map((block) => {
-                                        const daysInThisWeek = exercisesInPlan.filter(ex => ex.blockId === block.id).sort((a,b) => (a.orderInBlock ?? Infinity) - (b.orderInBlock ?? Infinity));
+                                    blocksForAdminPlan.map((block) => {
+                                        const daysInThisWeek = exercisesForAdminPlan.filter(ex => ex.blockId === block.id).sort((a,b) => (a.orderInBlock ?? Infinity) - (b.orderInBlock ?? Infinity));
                                         return (
                                         <SortableBlockAccordionItem
                                             key={block.id}
@@ -1204,7 +1287,7 @@ const handleSaveSessionAndNavigate = async () => {
                                                 Meta de la Semana: <span className="font-normal text-muted-foreground">{block.goal}</span>
                                                 </p>
                                             )}
-                                            {isLoadingExercises && daysInThisWeek.length === 0 && block.exerciseReferences && block.exerciseReferences.length > 0 ? (
+                                            {isLoadingExercisesForAdmin && daysInThisWeek.length === 0 && block.exerciseReferences && block.exerciseReferences.length > 0 ? (
                                                 <div className="flex items-center justify-center p-4">
                                                     <Icons.spinner className="h-5 w-5 animate-spin mr-2" /> Cargando días...
                                                 </div>
@@ -1217,7 +1300,7 @@ const handleSaveSessionAndNavigate = async () => {
                                                             key={exercise.id}
                                                             exercise={exercise}
                                                             blockId={block.id}
-                                                            planId={selectedPlan.id}
+                                                            planId={selectedPlanForAdmin.id}
                                                             onRemove={handleRemoveExerciseFromBlock}
                                                             canEdit={isUserAdmin}
                                                         />
@@ -1243,7 +1326,7 @@ const handleSaveSessionAndNavigate = async () => {
                                 </SortableContext>
                             {isUserAdmin && (
                                 <div className="flex flex-wrap justify-end mt-4 gap-2">
-                                    <Button onClick={() => setIsAddBlockDialogOpen(true)} disabled={!selectedPlan || isLoadingBlocks}>
+                                    <Button onClick={() => setIsAddBlockDialogOpen(true)} disabled={!selectedPlanForAdmin || isLoadingBlocksForAdmin}>
                                         <Icons.plus className="mr-2 h-4 w-4" /> Añadir Semana
                                     </Button>
                                 </div>
@@ -1331,11 +1414,11 @@ const handleSaveSessionAndNavigate = async () => {
                 <DialogContent className="sm:max-w-[480px]">
                 <DialogHeader>
                     <DialogTitle>Añadir Nueva Semana al Plan</DialogTitle>
-                    <DialogDescription>Añade una semana a "{selectedPlan?.title}".</DialogDescription>
+                    <DialogDescription>Añade una semana a "{selectedPlanForAdmin?.title}".</DialogDescription>
                 </DialogHeader>
-                {selectedPlan && (
+                {selectedPlanForAdmin && (
                     <AddBlockForm
-                    planId={selectedPlan.id}
+                    planId={selectedPlanForAdmin.id}
                     onSuccess={handleBlockAdded}
                     onCancel={() => setIsAddBlockDialogOpen(false)}
                     />
@@ -1349,9 +1432,9 @@ const handleSaveSessionAndNavigate = async () => {
                     <DialogTitle>Editar Semana</DialogTitle>
                     <DialogDescription>Modifica los detalles de la semana "{editingBlock?.title}".</DialogDescription>
                 </DialogHeader>
-                {selectedPlan && editingBlock && (
+                {selectedPlanForAdmin && editingBlock && (
                     <EditBlockForm
-                    planId={selectedPlan.id}
+                    planId={selectedPlanForAdmin.id}
                     block={editingBlock}
                     onSuccess={handleBlockUpdated}
                     onCancel={() => setIsEditBlockDialogOpen(false)}
@@ -1371,7 +1454,7 @@ const handleSaveSessionAndNavigate = async () => {
                 <DialogHeader>
                     <DialogTitle>Añadir Días a la Semana</DialogTitle>
                     <DialogDescription>
-                    Selecciona Días (plantillas de MasterExercise) para añadir a la semana: {blocks.find(b => b.id === currentBlockIdForNewExercise)?.title || ""}
+                    Selecciona Días (plantillas de MasterExercise) para añadir a la semana: {blocksForAdminPlan.find(b => b.id === currentBlockIdForNewExercise)?.title || ""}
                     </DialogDescription>
                 </DialogHeader>
                 <div className="my-4">
@@ -1445,4 +1528,3 @@ const handleSaveSessionAndNavigate = async () => {
 };
 
 export default Dashboard;
-
