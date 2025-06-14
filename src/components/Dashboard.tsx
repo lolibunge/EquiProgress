@@ -105,7 +105,7 @@ import {
   sortableKeyboardCoordinates,
   useSortable,
   verticalListSortingStrategy,
-} from '@dnd-kit/sortable'; // Corrected import
+} from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
 
@@ -308,11 +308,16 @@ const Dashboard = () => {
   const initialLoadingComplete = !isLoadingHorses && !isLoadingPlans && !isLoadingBlocks && !authLoading;
   const [activeTab, setActiveTab] = useState("sesiones");
 
+
+  console.log(`[Dashboard Render] currentUser UID: ${currentUser?.uid}, userProfile: ${JSON.stringify(userProfile)}, isUserAdmin: ${isUserAdmin}, authLoading: ${authLoading}`);
+
   useEffect(() => {
     if (initialLoadingComplete) {
       if (isUserAdmin) {
+        console.log("[Dashboard] Defaulting admin to 'plan' tab.");
         setActiveTab("plan");
       } else {
+        console.log("[Dashboard] Defaulting non-admin to 'sesiones' tab.");
         setActiveTab("sesiones");
       }
     }
@@ -604,7 +609,7 @@ const Dashboard = () => {
 
   const handleSessionDayResultChange = (
     field: keyof Omit<SessionDayResultState, 'observations'> | `observations.${keyof Omit<ExerciseResultObservations, 'additionalNotes'>}` | 'observations.additionalNotes',
-    value: string | number | null
+    value: string | number | boolean | null
   ) => {
     if (!selectedDayForSession) return;
 
@@ -627,7 +632,9 @@ const Dashboard = () => {
                     [obsField]: value === '' || value === 'N/A' ? null : String(value)
                 }
             };
-        } else if (field === 'doneReps' || field === 'rating') {
+        } else if (field === 'doneReps') {
+            (updatedDayData as any)[field] = value ? 1 : 0; // Convert boolean from checkbox to number
+        } else if (field === 'rating') {
             (updatedDayData as any)[field] = Number(value);
         } else if (field === 'plannedReps') {
             (updatedDayData as any)[field] = String(value);
@@ -973,7 +980,7 @@ const handleSaveSessionAndNavigate = async () => {
                         {selectedDayForSession && sessionDayResult && (
                             <div className="my-4 space-y-1">
                                 <Label htmlFor="day-session-progress" className="text-sm font-medium text-muted-foreground">
-                                    Progreso del Día Seleccionado: {selectedDayForSession.title}
+                                    Progreso del Día: {selectedDayForSession.title}
                                 </Label>
                                 <Progress value={sessionDayResult.doneReps === 1 ? 100 : 0} id="day-session-progress" className="w-full mt-1" />
                                 <p className="text-xs text-muted-foreground text-center mt-1">
@@ -981,6 +988,7 @@ const handleSaveSessionAndNavigate = async () => {
                                 </p>
                             </div>
                         )}
+
 
                         {selectedDayForSession && sessionDayResult && (
                             <Card className="p-4 space-y-3 mt-2 shadow-inner bg-muted/30">
@@ -1006,16 +1014,15 @@ const handleSaveSessionAndNavigate = async () => {
                                             onChange={(e) => handleSessionDayResultChange('plannedReps', e.target.value)}
                                         />
                                     </div>
-                                    <div>
-                                        <Label htmlFor={`day-doneReps`}>Realizado (0=No, 1=Sí)</Label>
-                                        <Input
+                                    <div className="flex items-center space-x-2 pt-6">
+                                        <Checkbox
                                             id={`day-doneReps`}
-                                            type="number"
-                                            min="0" max="1" step="1"
-                                            placeholder="1"
-                                            value={String(sessionDayResult.doneReps)}
-                                            onChange={(e) => handleSessionDayResultChange('doneReps', e.target.value)}
+                                            checked={sessionDayResult.doneReps === 1}
+                                            onCheckedChange={(checked) => handleSessionDayResultChange('doneReps', !!checked)}
                                         />
+                                        <Label htmlFor={`day-doneReps`} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                                            Día Completado
+                                        </Label>
                                     </div>
                                 </div>
 
@@ -1094,6 +1101,7 @@ const handleSaveSessionAndNavigate = async () => {
 
                   {isUserAdmin && (
                     <TabsContent value="plan">
+                         {console.log(`%c[Dashboard - Admin Tab] Rendering Admin Tab Content. isUserAdmin: ${isUserAdmin}, userProfile: ${JSON.stringify(userProfile)}`, "color: purple; font-weight: bold;")}
                         <Card className="my-4 border-none p-0">
                         <CardHeader className="px-1 pt-1 pb-3">
                             <CardTitle className="text-xl">Gestionar Plan Activo</CardTitle>
@@ -1170,7 +1178,6 @@ const handleSaveSessionAndNavigate = async () => {
                         </CardHeader>
                         <CardContent className="px-1">
                         {!isUserAdmin && <p className="text-muted-foreground text-center py-4">La gestión de planes es solo para administradores.</p>}
-                        {console.log(`%c[Dashboard - Admin Tab] Rendering Admin Tab Content. isUserAdmin: ${isUserAdmin}, userProfile: ${JSON.stringify(userProfile)}`, "color: purple; font-weight: bold;")}
                         {isUserAdmin && isLoadingPlans ? (
                             <div className="flex items-center justify-center p-4"><Icons.spinner className="h-5 w-5 animate-spin mr-2" /> Cargando información del plan...</div>
                         ) : isUserAdmin && selectedPlan ? (
