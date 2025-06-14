@@ -105,7 +105,7 @@ import {
   sortableKeyboardCoordinates,
   useSortable,
   verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
+} from '@dnd-kit/sortable'; // Corrected import
 import { CSS } from '@dnd-kit/utilities';
 
 
@@ -310,6 +310,7 @@ const Dashboard = () => {
 
 
   console.log(`[Dashboard Render] currentUser UID: ${currentUser?.uid}, userProfile: ${JSON.stringify(userProfile)}, isUserAdmin: ${isUserAdmin}, authLoading: ${authLoading}`);
+
 
   useEffect(() => {
     if (initialLoadingComplete) {
@@ -616,7 +617,7 @@ const Dashboard = () => {
     setSessionDayResult(prev => {
         const currentDayData = prev || {
             plannedReps: selectedDayForSession?.suggestedReps ?? "1 sesión",
-            doneReps: 0,
+            doneReps: 0, // Default to 0 (incomplete)
             rating: 3,
             observations: { nostrils: null, lips: null, ears: null, eyes: null, neck: null, back: null, croup: null, limbs: null, tail: null, additionalNotes: "" }
         };
@@ -633,7 +634,8 @@ const Dashboard = () => {
                 }
             };
         } else if (field === 'doneReps') {
-            (updatedDayData as any)[field] = value ? 1 : 0; // Convert boolean from checkbox to number
+             // For checkbox, value is boolean. Convert to number 0 or 1.
+            (updatedDayData as any)[field] = value ? 1 : 0;
         } else if (field === 'rating') {
             (updatedDayData as any)[field] = Number(value);
         } else if (field === 'plannedReps') {
@@ -978,21 +980,19 @@ const handleSaveSessionAndNavigate = async () => {
                         )}
 
                         {selectedDayForSession && sessionDayResult && (
-                            <div className="my-4 space-y-1">
-                                <Label htmlFor="day-session-progress" className="text-sm font-medium text-muted-foreground">
-                                    Progreso del Día: {selectedDayForSession.title}
-                                </Label>
-                                <Progress value={sessionDayResult.doneReps === 1 ? 100 : 0} id="day-session-progress" className="w-full mt-1" />
-                                <p className="text-xs text-muted-foreground text-center mt-1">
-                                  {sessionDayResult.doneReps === 1 ? "Día completado" : "Día pendiente"}
-                                </p>
-                            </div>
-                        )}
-
-
-                        {selectedDayForSession && sessionDayResult && (
                             <Card className="p-4 space-y-3 mt-2 shadow-inner bg-muted/30">
                                 <h3 className="text-lg font-semibold">Detalles para: {selectedDayForSession.title}</h3>
+                                 {/* Moved Progress Bar Here */}
+                                <div className="my-2 space-y-1">
+                                    <Label htmlFor="day-session-progress" className="text-sm font-medium text-muted-foreground">
+                                        Progreso del Día:
+                                    </Label>
+                                    <Progress value={sessionDayResult.doneReps === 1 ? 100 : 0} id="day-session-progress" className="w-full mt-1" />
+                                    <p className="text-xs text-muted-foreground text-center mt-1">
+                                      {sessionDayResult.doneReps === 1 ? "Día completado" : "Día pendiente"}
+                                    </p>
+                                </div>
+
                                 <div>
                                     <Label htmlFor="session-overall-note">Notas Generales de la Sesión (para este día)</Label>
                                     <Textarea
