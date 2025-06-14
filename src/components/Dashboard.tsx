@@ -301,6 +301,7 @@ const Dashboard = () => {
   const [isLoadingMasterExercises, setIsLoadingMasterExercises] = useState(false);
   const [selectedMasterExercisesForBlock, setSelectedMasterExercisesForBlock] = useState<Set<string>>(new Set());
   const [exerciseSearchTerm, setExerciseSearchTerm] = useState("");
+  const [activeTab, setActiveTab] = useState("sesiones");
 
   const isUserAdmin = userProfile?.role === 'admin';
 
@@ -846,7 +847,7 @@ const handleSaveSessionAndNavigate = async () => {
                 <CardDescription>Selecciona un plan y registra tus sesiones.</CardDescription>
               </CardHeader>
               <CardContent>
-                 <Tabs defaultValue="sesiones" className="w-full">
+                 <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                    <TabsList className={`grid w-full ${isUserAdmin ? 'grid-cols-2' : 'grid-cols-1'} mb-4`}>
                     <TabsTrigger value="sesiones">Registrar Sesión</TabsTrigger>
                     {isUserAdmin && <TabsTrigger value="plan">Gestionar Plan (Admin)</TabsTrigger>}
@@ -939,10 +940,14 @@ const handleSaveSessionAndNavigate = async () => {
                                         observations: { nostrils: null, lips: null, ears: null, eyes: null, neck: null, back: null, croup: null, limbs: null, tail: null, additionalNotes: "" }
                                       });
                                     }}
-                                    className="h-auto py-2 text-left flex flex-col items-start w-full overflow-hidden"
+                                    className="h-auto py-2 text-left flex flex-col items-start w-full overflow-hidden whitespace-normal break-words"
                                   >
-                                    <span className="font-semibold block whitespace-normal break-words w-full">{day.title}</span>
-                                    {day.objective && <span className="text-xs text-muted-foreground block whitespace-normal break-words w-full">{day.objective}</span>}
+                                    <span className="font-semibold block w-full">{day.title}</span>
+                                    {day.objective && (
+                                      <span className={`text-xs block w-full ${selectedDayForSession?.id === day.id ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}>
+                                        {day.objective}
+                                      </span>
+                                    )}
                                   </Button>
                                 ))}
                               </div>
