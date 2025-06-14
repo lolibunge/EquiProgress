@@ -18,13 +18,14 @@ const messagingSenderId = process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID;
 const appIdEnv = process.env.NEXT_PUBLIC_FIREBASE_APP_ID; // Renamed to avoid conflict
 const measurementId = process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID;
 
-console.log("Firebase Service: NEXT_PUBLIC_FIREBASE_API_KEY:", apiKey);
-console.log("Firebase Service: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN:", authDomain);
-console.log("Firebase Service: NEXT_PUBLIC_FIREBASE_PROJECT_ID:", projectId);
-console.log("Firebase Service: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET:", storageBucket);
-console.log("Firebase Service: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID:", messagingSenderId);
-console.log("Firebase Service: NEXT_PUBLIC_FIREBASE_APP_ID:", appIdEnv);
-console.log("Firebase Service: NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID:", measurementId);
+console.log("Firebase Service: NEXT_PUBLIC_FIREBASE_API_KEY:", apiKey ? "SET" : "NOT SET");
+console.log("Firebase Service: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN:", authDomain ? "SET" : "NOT SET");
+console.log("Firebase Service: NEXT_PUBLIC_FIREBASE_PROJECT_ID:", projectId ? "SET" : "NOT SET");
+console.log("Firebase Service: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET:", storageBucket ? "SET" : "NOT SET");
+console.log("Firebase Service: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID:", messagingSenderId ? "SET" : "NOT SET");
+console.log("Firebase Service: NEXT_PUBLIC_FIREBASE_APP_ID:", appIdEnv ? "SET" : "NOT SET");
+console.log("Firebase Service: NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID:", measurementId ? "SET" : "NOT SET");
+
 
 const firebaseConfig = {
   apiKey: apiKey,
@@ -36,8 +37,6 @@ const firebaseConfig = {
   measurementId: measurementId,
 };
 
-console.log("Firebase Service: Attempting to initialize Firebase with API Key:", firebaseConfig.apiKey);
-
 let app: FirebaseApp | undefined;
 let db: Firestore | undefined;
 let authService: Auth | undefined;
@@ -46,15 +45,15 @@ let analyticsInstance: Analytics | undefined;
 
 let configError = false;
 if (!firebaseConfig.apiKey) {
-  console.error("Firebase Config Error: NEXT_PUBLIC_FIREBASE_API_KEY is missing or undefined.");
+  console.error("Firebase Service: CRITICAL Firebase Config Error: NEXT_PUBLIC_FIREBASE_API_KEY is missing or undefined.");
   configError = true;
 }
 if (!firebaseConfig.authDomain) {
-  console.error("Firebase Config Error: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN is missing or undefined.");
+  console.error("Firebase Service: CRITICAL Firebase Config Error: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN is missing or undefined.");
   configError = true;
 }
 if (!firebaseConfig.projectId) {
-  console.error("Firebase Config Error: NEXT_PUBLIC_FIREBASE_PROJECT_ID is missing or undefined.");
+  console.error("Firebase Service: CRITICAL Firebase Config Error: NEXT_PUBLIC_FIREBASE_PROJECT_ID is missing or undefined.");
   configError = true;
 }
 
@@ -64,6 +63,7 @@ if (configError) {
     "Firebase will NOT be initialized. Please ensure these are correctly set in your environment variables (e.g., .env.local file or Vercel project settings)."
   );
 } else {
+  console.log("Firebase Service: Firebase config seems present. Attempting to initialize Firebase app...");
   try {
     if (!getApps().length) {
       app = initializeApp(firebaseConfig);
@@ -74,30 +74,32 @@ if (configError) {
     }
   } catch (e: any) {
     console.error("Firebase Service: CRITICAL ERROR during Firebase app initialization (initializeApp or getApp):", e.message, e);
-    // app will remain undefined
+    app = undefined; // Ensure app is undefined if initialization fails
   }
 }
 
-// Only initialize services if app was successfully initialized
-if (app && typeof app.name !== 'undefined') { // A more robust check for a valid FirebaseApp
+if (app && typeof app.name !== 'undefined') {
   console.log("Firebase Service: Firebase app object appears valid. Attempting to initialize services.");
   try {
     db = getFirestore(app);
-    console.log("Firebase Service: Firestore initialized.");
+    console.log("Firebase Service: Firestore initialized successfully. `db` instance should be available.");
   } catch (e: any) {
-    console.error("Firebase Service: Error initializing Firestore:", e.message, e);
+    console.error("Firebase Service: CRITICAL ERROR initializing Firestore:", e.message, e);
+    db = undefined;
   }
   try {
     authService = getAuth(app);
-    console.log("Firebase Service: Auth initialized.");
+    console.log("Firebase Service: Auth initialized successfully.");
   } catch (e: any) {
-    console.error("Firebase Service: Error initializing Auth:", e.message, e);
+    console.error("Firebase Service: CRITICAL ERROR initializing Auth:", e.message, e);
+    authService = undefined;
   }
   try {
     storageService = getStorage(app);
-    console.log("Firebase Service: Storage initialized.");
+    console.log("Firebase Service: Storage initialized successfully.");
   } catch (e: any) {
-    console.error("Firebase Service: Error initializing Storage:", e.message, e);
+    console.error("Firebase Service: CRITICAL ERROR initializing Storage:", e.message, e);
+    storageService = undefined;
   }
 
   if (typeof window !== 'undefined') {
@@ -106,9 +108,10 @@ if (app && typeof app.name !== 'undefined') { // A more robust check for a valid
         if (firebaseConfig.measurementId && app) {
           try {
             analyticsInstance = getAnalytics(app);
-            console.log("Firebase Service: Analytics initialized.");
+            console.log("Firebase Service: Analytics initialized successfully.");
           } catch(e: any) {
-            console.error("Firebase Service: Error initializing Analytics:", e.message, e);
+            console.error("Firebase Service: CRITICAL ERROR initializing Analytics:", e.message, e);
+            analyticsInstance = undefined;
           }
         } else if (!firebaseConfig.measurementId) {
           console.log("Firebase Service: Analytics not initialized: measurementId is missing.");
@@ -124,6 +127,7 @@ if (app && typeof app.name !== 'undefined') { // A more robust check for a valid
   if (!configError) { 
     console.error("Firebase Service: Firebase app object is undefined or invalid after initialization attempt. Services (db, auth, storage, analytics) will be undefined.");
   }
+  console.log("Firebase Service: `db` instance is currently:", db === undefined ? "undefined" : "defined (but may not be functional if app init failed)");
 }
 
 export { app, db, authService as auth, storageService as storage, analyticsInstance as analytics };
