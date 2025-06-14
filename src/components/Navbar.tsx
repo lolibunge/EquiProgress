@@ -49,61 +49,139 @@ export default function Navbar() {
     return name[0].toUpperCase();
   }
 
-  const NavLinks = ({ isMobile = false }: { isMobile?: boolean }) => (
-    <>
-      <Button variant={isMobile ? "outline" : "ghost"} asChild className={isMobile ? "w-full justify-start" : ""}>
-        <Link href="/">
-          <Home className="mr-2 h-4 w-4" />
-          Inicio
-        </Link>
-      </Button>
-      {currentUser && (
-        <>
-          <Button variant={isMobile ? "outline" : "ghost"} asChild className={isMobile ? "w-full justify-start" : ""}>
-            <Link href="/plans">
-              <BookOpen className="mr-2 h-4 w-4" />
-              Planes
-            </Link>
-          </Button>
-          {userProfile?.role === 'admin' && (
+  const NavLinks = ({ isMobile = false }: { isMobile?: boolean }) => {
+    const linksContent = (
+      <>
+        <Button variant={isMobile ? "outline" : "ghost"} asChild className={isMobile ? "w-full justify-start" : ""}>
+          <Link href="/">
+            <Home className="mr-2 h-4 w-4" />
+            Inicio
+          </Link>
+        </Button>
+        {currentUser && (
+          <>
             <Button variant={isMobile ? "outline" : "ghost"} asChild className={isMobile ? "w-full justify-start" : ""}>
-              <Link href="/library/exercises">
-                <Library className="mr-2 h-4 w-4" />
-                Ejercicios
+              <Link href="/plans">
+                <BookOpen className="mr-2 h-4 w-4" />
+                Planes
               </Link>
             </Button>
-          )}
-          <Button variant={isMobile ? "outline" : "ghost"} asChild className={isMobile ? "w-full justify-start" : ""}>
-            <Link href="/horse-history">
-              <History className="mr-2 h-4 w-4" />
-              Historial
-            </Link>
-          </Button>
-        </>
-      )}
-    </>
-  );
+            {userProfile?.role === 'admin' && (
+              <Button variant={isMobile ? "outline" : "ghost"} asChild className={isMobile ? "w-full justify-start" : ""}>
+                <Link href="/library/exercises">
+                  <Library className="mr-2 h-4 w-4" />
+                  Ejercicios
+                </Link>
+              </Button>
+            )}
+            <Button variant={isMobile ? "outline" : "ghost"} asChild className={isMobile ? "w-full justify-start" : ""}>
+              <Link href="/horse-history">
+                <History className="mr-2 h-4 w-4" />
+                Historial
+              </Link>
+            </Button>
+          </>
+        )}
+      </>
+    );
 
-  const AuthButtons = ({ isMobile = false }: { isMobile?: boolean }) => (
-    <>
-      {!currentUser && (
+    if (isMobile) {
+      return (
         <>
-          <Button variant={isMobile ? "outline" : "ghost"} asChild className={isMobile ? "w-full justify-start" : ""}>
-            <Link href="/login">
-              <LogIn className="mr-2 h-4 w-4" />
-              Iniciar Sesión
-            </Link>
-          </Button>
-          <Button variant={isMobile ? "default" : "default"} asChild className={isMobile ? "w-full justify-start" : ""}>
-            <Link href="/signup">
-              <UserPlus className="mr-2 h-4 w-4" />
-              Regístrate
-            </Link>
-          </Button>
+          <SheetClose asChild>
+            <Button variant="outline" asChild className="w-full justify-start">
+              <Link href="/">
+                <Home className="mr-2 h-4 w-4" />
+                Inicio
+              </Link>
+            </Button>
+          </SheetClose>
+          {currentUser && (
+            <>
+              <SheetClose asChild>
+                <Button variant="outline" asChild className="w-full justify-start">
+                  <Link href="/plans">
+                    <BookOpen className="mr-2 h-4 w-4" />
+                    Planes
+                  </Link>
+                </Button>
+              </SheetClose>
+              {userProfile?.role === 'admin' && (
+                <SheetClose asChild>
+                  <Button variant="outline" asChild className="w-full justify-start">
+                    <Link href="/library/exercises">
+                      <Library className="mr-2 h-4 w-4" />
+                      Ejercicios
+                    </Link>
+                  </Button>
+                </SheetClose>
+              )}
+              <SheetClose asChild>
+                <Button variant="outline" asChild className="w-full justify-start">
+                  <Link href="/horse-history">
+                    <History className="mr-2 h-4 w-4" />
+                    Historial
+                  </Link>
+                </Button>
+              </SheetClose>
+            </>
+          )}
         </>
-      )}
-    </>
-  );
+      );
+    }
+    return linksContent;
+  };
+
+  const AuthButtons = ({ isMobile = false }: { isMobile?: boolean }) => {
+    const buttonsContent = (
+       <>
+        {!currentUser && (
+          <>
+            <Button variant={isMobile ? "outline" : "ghost"} asChild className={isMobile ? "w-full justify-start" : ""}>
+              <Link href="/login">
+                <LogIn className="mr-2 h-4 w-4" />
+                Iniciar Sesión
+              </Link>
+            </Button>
+            <Button variant={isMobile ? "default" : "default"} asChild className={isMobile ? "w-full justify-start" : ""}>
+              <Link href="/signup">
+                <UserPlus className="mr-2 h-4 w-4" />
+                Regístrate
+              </Link>
+            </Button>
+          </>
+        )}
+      </>
+    );
+
+    if (isMobile) {
+        return (
+            <>
+                {!currentUser && (
+                    <>
+                        <SheetClose asChild>
+                            <Button variant="outline" asChild className="w-full justify-start">
+                                <Link href="/login">
+                                <LogIn className="mr-2 h-4 w-4" />
+                                Iniciar Sesión
+                                </Link>
+                            </Button>
+                        </SheetClose>
+                        <SheetClose asChild>
+                            <Button variant="default" asChild className="w-full justify-start">
+                                <Link href="/signup">
+                                <UserPlus className="mr-2 h-4 w-4" />
+                                Regístrate
+                                </Link>
+                            </Button>
+                        </SheetClose>
+                    </>
+                )}
+            </>
+        );
+    }
+    return buttonsContent;
+  };
 
   const UserProfileSection = ({ isMobile = false }: { isMobile?: boolean }) => (
     <>
@@ -122,10 +200,12 @@ export default function Navbar() {
                     </p>
                 </div>
             </div>
-            <Button variant="outline" onClick={handleLogout} className="w-full justify-start text-destructive hover:text-destructive">
-              <LogOut className="mr-2 h-4 w-4" />
-              <span>Cerrar Sesión</span>
-            </Button>
+            <SheetClose asChild>
+                <Button variant="outline" onClick={handleLogout} className="w-full justify-start text-destructive hover:text-destructive">
+                <LogOut className="mr-2 h-4 w-4" />
+                <span>Cerrar Sesión</span>
+                </Button>
+            </SheetClose>
           </div>
         ) : (
           <DropdownMenu>
@@ -156,10 +236,19 @@ export default function Navbar() {
         )
       )}
       {currentUser && !userProfile && !loading && ( 
-        <Button variant={isMobile ? "outline" : "ghost"} onClick={handleLogout} className={isMobile ? "w-full justify-start text-destructive hover:text-destructive" : ""}>
-          <LogOut className="mr-2 h-4 w-4" />
-          Cerrar Sesión
-        </Button>
+        isMobile ? (
+            <SheetClose asChild>
+                <Button variant="outline" onClick={handleLogout} className="w-full justify-start text-destructive hover:text-destructive">
+                <LogOut className="mr-2 h-4 w-4" />
+                Cerrar Sesión
+                </Button>
+            </SheetClose>
+        ) : (
+            <Button variant="ghost" onClick={handleLogout}>
+                <LogOut className="mr-2 h-4 w-4" />
+                Cerrar Sesión
+            </Button>
+        )
       )}
     </>
   );
@@ -206,20 +295,14 @@ export default function Navbar() {
                 <SheetTitle>
                     <Link href="/" className="flex items-center gap-2 font-bold text-lg">
                         <SheetClose asChild><Icons.logo className="h-6 w-6 text-primary"/></SheetClose>
-                        <SheetClose asChild>EquiProgress</SheetClose>
+                        <SheetClose asChild><div className="hover:no-underline">EquiProgress</div></SheetClose>
                     </Link>
                 </SheetTitle>
               </SheetHeader>
               <div className="flex flex-col space-y-2 p-4">
-                <SheetClose asChild>
-                    <NavLinks isMobile />
-                </SheetClose>
-                <SheetClose asChild>
-                    <AuthButtons isMobile />
-                </SheetClose>
-                <SheetClose asChild>
-                    <UserProfileSection isMobile />
-                </SheetClose>
+                <NavLinks isMobile />
+                <AuthButtons isMobile />
+                <UserProfileSection isMobile />
               </div>
             </SheetContent>
           </Sheet>
