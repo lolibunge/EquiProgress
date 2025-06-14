@@ -86,6 +86,7 @@ import EditBlockForm from "./EditBlockForm";
 import { Icons } from "./icons";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Progress } from "@/components/ui/progress";
 
 
 import {
@@ -104,7 +105,7 @@ import {
   sortableKeyboardCoordinates,
   useSortable,
   verticalListSortingStrategy,
-} from '@dnd-kit/sortable'; // Corrected import
+} from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
 
@@ -303,7 +304,7 @@ const Dashboard = () => {
   const [exerciseSearchTerm, setExerciseSearchTerm] = useState("");
   
   const isUserAdmin = !!userProfile && userProfile.role === 'admin';
-  // CRITICAL LOG: This will show what the Dashboard sees from AuthContext regarding the user's admin status.
+  
   console.log(`%c[Dashboard Render] currentUser UID: ${currentUser?.uid}, userProfile: ${JSON.stringify(userProfile)}, isUserAdmin: ${isUserAdmin}, authLoading: ${authLoading}`, "color: blue; font-weight: bold;");
 
 
@@ -975,6 +976,13 @@ const handleSaveSessionAndNavigate = async () => {
                         {selectedDayForSession && sessionDayResult && (
                             <Card className="p-4 space-y-3 mt-4 shadow-inner bg-muted/30">
                                 <h3 className="text-lg font-semibold">Detalles para: {selectedDayForSession.title}</h3>
+                                <div className="space-y-1">
+                                    <Label htmlFor="day-progress">Progreso del Día</Label>
+                                    <Progress value={sessionDayResult.doneReps === 1 ? 100 : 0} id="day-progress" className="w-full" />
+                                    <p className="text-xs text-muted-foreground text-center">
+                                      {sessionDayResult.doneReps === 1 ? "Día completado" : "Día pendiente"}
+                                    </p>
+                                </div>
                                 <div>
                                     <Label htmlFor="session-overall-note">Notas Generales de la Sesión (para este día)</Label>
                                     <Textarea
