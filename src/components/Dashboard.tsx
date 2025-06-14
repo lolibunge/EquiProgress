@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { useState, useEffect, useCallback, ReactNode } from "react";
 import type { User } from 'firebase/auth';
-import { useAuth } from "@/context/AuthContext";
+import { useAuth } from "@/context/AuthContext"; // Ensure this is imported
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from 'next/navigation';
 
@@ -260,7 +260,7 @@ function SortableBlockAccordionItem({ block, children, onEditBlock, canEdit }: S
 
 
 const Dashboard = () => {
-  const { currentUser, userProfile } = useAuth();
+  const { currentUser, userProfile, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
   const [isAddHorseDialogOpen, setIsAddHorseDialogOpen] = useState(false);
@@ -303,10 +303,12 @@ const Dashboard = () => {
   const [exerciseSearchTerm, setExerciseSearchTerm] = useState("");
   
   const isUserAdmin = userProfile?.role === 'admin';
-  console.log('[Dashboard] Rendering. userProfile:', userProfile, 'isUserAdmin:', isUserAdmin);
+  // CRITICAL LOG: This will show what the Dashboard sees from AuthContext regarding the user's admin status.
+  console.log(`%c[Dashboard Render] currentUser UID: ${currentUser?.uid}, userProfile: ${JSON.stringify(userProfile)}, isUserAdmin: ${isUserAdmin}, authLoading: ${authLoading}`, "color: blue; font-weight: bold;");
 
-  const initialLoadingComplete = !isLoadingHorses && !isLoadingPlans && !isLoadingBlocks;
-  const [activeTab, setActiveTab] = useState(isUserAdmin && initialLoadingComplete ? "plan" : "sesiones");
+
+  const initialLoadingComplete = !isLoadingHorses && !isLoadingPlans && !isLoadingBlocks && !authLoading;
+  const [activeTab, setActiveTab] = useState("sesiones");
 
 
   const sensors = useSensors(
@@ -446,16 +448,16 @@ const Dashboard = () => {
     }
   }, [toast, performFetchExercisesForPlan]);
 
+
   useEffect(() => {
-    const allLoadingComplete = !isLoadingHorses && !isLoadingPlans && !isLoadingBlocks;
-    if (allLoadingComplete) {
-      if (isUserAdmin && activeTab !== "plan") {
+    if (initialLoadingComplete) { // Check after all relevant data loading is complete
+      if (isUserAdmin) {
         setActiveTab("plan");
-      } else if (!isUserAdmin && activeTab === "plan") {
+      } else {
         setActiveTab("sesiones");
       }
     }
-  }, [isUserAdmin, isLoadingHorses, isLoadingPlans, isLoadingBlocks, activeTab]);
+  }, [isUserAdmin, initialLoadingComplete]);
 
 
   useEffect(() => {
@@ -1086,7 +1088,6 @@ const handleSaveSessionAndNavigate = async () => {
                         <Card className="my-4 border-none p-0">
                         <CardHeader className="px-1 pt-1 pb-3">
                             <CardTitle className="text-xl">Gestionar Plan Activo</CardTitle>
-                            {console.log("[Dashboard - Admin Tab] userProfile for admin checks:", userProfile, "isUserAdmin:", isUserAdmin)}
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mt-2">
                             <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full">
                                     <DropdownMenu>
