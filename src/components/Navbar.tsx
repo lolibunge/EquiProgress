@@ -25,7 +25,7 @@ import {
   SheetClose,
 } from "@/components/ui/sheet"
 import { Icons } from './icons';
-import { Menu, LogOut, UserCircle, Library, History, LogIn, UserPlus } from 'lucide-react'; // Refined icons
+import { Menu, LogOut, UserCircle, Library, History, LogIn, UserPlus, Home } from 'lucide-react'; // Added Home icon
 
 export default function Navbar() {
   const { currentUser, userProfile, loading } = useAuth();
@@ -51,6 +51,12 @@ export default function Navbar() {
 
   const NavLinks = ({ isMobile = false }: { isMobile?: boolean }) => (
     <>
+      <Button variant={isMobile ? "outline" : "ghost"} asChild className={isMobile ? "w-full justify-start" : ""}>
+        <Link href="/">
+          <Home className="mr-2 h-4 w-4" />
+          Inicio
+        </Link>
+      </Button>
       {currentUser && (
         <>
           {userProfile?.role === 'admin' && (
