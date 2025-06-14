@@ -20,7 +20,7 @@ const measurementId = process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID;
 
 console.log("Firebase Service: NEXT_PUBLIC_FIREBASE_API_KEY:", apiKey ? "SET" : "NOT SET");
 console.log("Firebase Service: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN:", authDomain ? "SET" : "NOT SET");
-console.log("Firebase Service: NEXT_PUBLIC_FIREBASE_PROJECT_ID:", projectId ? "SET" : "NOT SET");
+console.log("Firebase Service: NEXT_PUBLIC_FIREBASE_PROJECT_ID:", projectId ? `SET (Value: ${projectId})` : "NOT SET");
 console.log("Firebase Service: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET:", storageBucket ? "SET" : "NOT SET");
 console.log("Firebase Service: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID:", messagingSenderId ? "SET" : "NOT SET");
 console.log("Firebase Service: NEXT_PUBLIC_FIREBASE_APP_ID:", appIdEnv ? "SET" : "NOT SET");
@@ -72,6 +72,13 @@ if (configError) {
       app = getApp();
       console.log("Firebase Service: getApp() called as app already exists. App Name:", app.name);
     }
+    // **** VERY IMPORTANT LOG ****
+    console.log(`%cFirebase Service: APP INITIALIZED FOR PROJECT ID: ${app.options.projectId}`, "color: green; font-weight: bold; font-size: 1.2em;");
+    if (app.options.projectId !== firebaseConfig.projectId) {
+      console.warn(`%cFirebase Service: WARNING! App Project ID (${app.options.projectId}) differs from firebaseConfig.projectId (${firebaseConfig.projectId}). This might indicate an issue if multiple initializations or configurations are present.`, "color: orange; font-weight: bold;");
+    }
+    // ***************************
+
   } catch (e: any) {
     console.error("Firebase Service: CRITICAL ERROR during Firebase app initialization (initializeApp or getApp):", e.message, e);
     app = undefined; // Ensure app is undefined if initialization fails
@@ -124,7 +131,7 @@ if (app && typeof app.name !== 'undefined') {
     });
   }
 } else {
-  if (!configError) { 
+  if (!configError) {
     console.error("Firebase Service: Firebase app object is undefined or invalid after initialization attempt. Services (db, auth, storage, analytics) will be undefined.");
   }
   console.log("Firebase Service: `db` instance is currently:", db === undefined ? "undefined" : "defined (but may not be functional if app init failed)");
