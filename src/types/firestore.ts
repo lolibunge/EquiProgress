@@ -20,14 +20,14 @@ export interface Horse {
     createdAt: Timestamp;
     updatedAt?: Timestamp;
     notes?: string;
-    // Fields for active plan tracking
     activePlanId?: string | null;
-    activePlanStartDate?: Timestamp | null; // When the overall plan was started
-    currentBlockId?: string | null; // Current Etapa/Week ID
-    currentBlockStartDate?: Timestamp | null; // When this specific currentBlockId was started
-    planProgress?: { // Tracks completion of each day within each block
+    activePlanStartDate?: Timestamp | null;
+    currentBlockId?: string | null;
+    currentBlockStartDate?: Timestamp | null;
+    planProgress?: {
         [blockId: string]: {
-            [dayExerciseId: string]: {
+            // Key is now dayNumber (e.g., "1", "2")
+            [dayNumber: string]: {
                 completed: boolean;
                 completedAt?: Timestamp;
             }
@@ -45,8 +45,8 @@ export interface TrainingPlan {
 }
 
 export interface ExerciseReference {
-  exerciseId: string;
-  order: number;
+  exerciseId: string; // ID of a MasterExercise
+  order: number; // Order of this suggested exercise within the block's list
 }
 
 export interface TrainingBlock {
@@ -54,10 +54,10 @@ export interface TrainingBlock {
     planId: string;
     title: string;
     notes?: string;
-    duration?: string; // e.g., "7 días", "1 week" - for future auto-progression
+    duration?: string; // e.g., "7 días", "1 week"
     goal?: string;
-    order?: number; // Crucial for sequencing blocks/etapas
-    exerciseReferences?: ExerciseReference[]; // Represents "Days" within this block
+    order?: number;
+    exerciseReferences?: ExerciseReference[]; // Suggested exercises for this block
     createdAt?: Timestamp;
     updatedAt?: Timestamp;
 }
@@ -74,8 +74,9 @@ export interface MasterExercise {
     updatedAt?: Timestamp;
 }
 
+// This type might be less directly used if days are just numbers + suggestions
 export interface BlockExerciseDisplay extends MasterExercise {
-  orderInBlock: number;
+  orderInBlock: number; // order of the suggestion in the list
   blockId: string;
 }
 
@@ -85,9 +86,12 @@ export interface SessionData {
     horseId: string;
     userId: string;
     date: Timestamp;
-    blockId: string; // Represents the "Week" ID (currentBlockId of the horse at time of logging)
-    selectedDayExerciseId?: string; // ID of the MasterExercise representing the "Day"
-    selectedDayExerciseTitle?: string; // Title of the MasterExercise representing the "Day"
+    blockId: string; 
+    // For numbered days, selectedDayExerciseId might store the blockId or a generic "day_X" identifier
+    // and selectedDayExerciseTitle stores "Día de Trabajo X"
+    selectedDayExerciseId?: string; 
+    selectedDayExerciseTitle?: string; 
+    dayNumberInBlock?: number; // The specific numbered day (1, 2, etc.) this session refers to
     overallNote?: string;
     createdAt: Timestamp;
     updatedAt?: Timestamp;
@@ -106,12 +110,17 @@ export interface ExerciseResultObservations {
     additionalNotes?: string | null;
 }
 
+// ExerciseResult is now more of a "SessionLogDetail" for a specific *numbered day*
+// It might not be directly tied to one MasterExercise if user can pick from suggestions.
+// For simplicity, we'll keep the structure but its meaning might shift slightly.
 export interface ExerciseResult {
     id: string;
-    exerciseId: string; // Refers to the MasterExercise document id (which could be a "Day Card")
-    plannedReps?: string;
-    doneReps: number; // 0 for No, 1 for Yes (marks the entire day as done for this session log)
-    rating: number; // 1-5
+    // exerciseId might store the MasterExercise ID if one was specifically chosen for logging,
+    // or could be null/blockId if it's a general log for the numbered day.
+    exerciseId: string; 
+    plannedReps?: string; // What was planned for the day
+    doneReps: number; // Kept for consistency, may always be 1 if session is logged for a day
+    rating: number; // 1-5, overall rating for the day's work
     createdAt: Timestamp;
     updatedAt?: Timestamp;
     observations?: ExerciseResultObservations | null;
@@ -145,15 +154,15 @@ export interface TrainingPlanInput {
 }
 
 export interface TrainingBlockInput {
-  title: string; // e.g., "Semana 1"
+  title: string; 
   notes?: string;
   duration?: string;
   goal?: string;
   order?: number;
-  exerciseReferences?: ExerciseReference[]; // References to MasterExercises (which are "Days")
+  exerciseReferences?: ExerciseReference[];
 }
 
-export interface MasterExerciseInput { // Represents a "Day Template" or a specific exercise
+export interface MasterExerciseInput {
   title: string;
   description?: string;
   suggestedReps?: string | null;
@@ -165,18 +174,20 @@ export interface MasterExerciseInput { // Represents a "Day Template" or a speci
 export interface SessionDataInput {
     horseId: string;
     date: Timestamp;
-    blockId: string; // ID of the "Week" (TrainingBlock)
-    selectedDayExerciseId: string; // ID of the MasterExercise representing the "Day"
-    selectedDayExerciseTitle: string; // Title of the MasterExercise representing the "Day"
+    blockId: string; 
+    dayNumberInBlock: number; // The numbered day (1, 2, etc.)
+    // selectedDayExerciseId will be blockId, title will be "Día de Trabajo X"
+    selectedDayExerciseId: string; 
+    selectedDayExerciseTitle: string;
     overallNote?: string;
 }
 
-export type SessionUpdateData = Partial<Pick<SessionData, 'date' | 'overallNote' | 'selectedDayExerciseId' | 'selectedDayExerciseTitle'>>;
+export type SessionUpdateData = Partial<Pick<SessionData, 'date' | 'overallNote' | 'dayNumberInBlock'>>;
 
 export interface ExerciseResultInput {
-    exerciseId: string; // ID of the MasterExercise (Day Card)
+    exerciseId: string; // Can be blockId or a specific MasterExercise ID if applicable
     plannedReps?: string;
-    doneReps: number; // 0 for No, 1 for Yes
+    doneReps: number; 
     rating: number;
     observations?: ExerciseResultObservations | null;
 }
