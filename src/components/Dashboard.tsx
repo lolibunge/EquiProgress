@@ -104,7 +104,7 @@ import {
   sortableKeyboardCoordinates,
   useSortable,
   verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
+} from '@dnd-kit/sortable'; // Corrected import
 import { CSS } from '@dnd-kit/utilities';
 
 
@@ -302,13 +302,23 @@ const Dashboard = () => {
   const [selectedMasterExercisesForBlock, setSelectedMasterExercisesForBlock] = useState<Set<string>>(new Set());
   const [exerciseSearchTerm, setExerciseSearchTerm] = useState("");
   
-  const isUserAdmin = userProfile?.role === 'admin';
+  const isUserAdmin = !!userProfile && userProfile.role === 'admin';
   // CRITICAL LOG: This will show what the Dashboard sees from AuthContext regarding the user's admin status.
   console.log(`%c[Dashboard Render] currentUser UID: ${currentUser?.uid}, userProfile: ${JSON.stringify(userProfile)}, isUserAdmin: ${isUserAdmin}, authLoading: ${authLoading}`, "color: blue; font-weight: bold;");
 
 
   const initialLoadingComplete = !isLoadingHorses && !isLoadingPlans && !isLoadingBlocks && !authLoading;
   const [activeTab, setActiveTab] = useState("sesiones");
+
+  useEffect(() => {
+    if (initialLoadingComplete) {
+      if (isUserAdmin) {
+        setActiveTab("plan");
+      } else {
+        setActiveTab("sesiones");
+      }
+    }
+  }, [isUserAdmin, initialLoadingComplete]);
 
 
   const sensors = useSensors(
@@ -447,17 +457,6 @@ const Dashboard = () => {
       setIsLoadingBlocks(false);
     }
   }, [toast, performFetchExercisesForPlan]);
-
-
-  useEffect(() => {
-    if (initialLoadingComplete) { // Check after all relevant data loading is complete
-      if (isUserAdmin) {
-        setActiveTab("plan");
-      } else {
-        setActiveTab("sesiones");
-      }
-    }
-  }, [isUserAdmin, initialLoadingComplete]);
 
 
   useEffect(() => {
@@ -1085,6 +1084,7 @@ const handleSaveSessionAndNavigate = async () => {
 
                   {isUserAdmin && (
                     <TabsContent value="plan">
+                        {console.log(`%c[Dashboard - Admin Tab] Rendering Admin Tab Content. isUserAdmin: ${isUserAdmin}, userProfile: ${JSON.stringify(userProfile)}`, "color: purple; font-weight: bold;")}
                         <Card className="my-4 border-none p-0">
                         <CardHeader className="px-1 pt-1 pb-3">
                             <CardTitle className="text-xl">Gestionar Plan Activo</CardTitle>
