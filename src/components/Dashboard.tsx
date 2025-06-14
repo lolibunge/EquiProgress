@@ -222,11 +222,11 @@ function SortableBlockAccordionItem({ block, children, onEditBlock, canEdit }: S
       className="bg-card border mx-2.5 rounded-md shadow-sm"
     >
        <div className="flex items-center justify-between w-full group text-left">
-        <AccordionTrigger 
+        <AccordionTrigger
           {...(canEdit ? attributes : {})}
           {...(canEdit ? listeners : {})}
           className="flex-grow p-4 hover:no-underline"
-          disabled={!canEdit && !children} 
+          disabled={!canEdit && !children}
         >
             <span className="flex-grow">
               {block.title} {/* Week Title */}
@@ -288,8 +288,8 @@ const Dashboard = () => {
 
 
   const [isCreatePlanDialogOpen, setIsCreatePlanDialogOpen] = useState(false);
-  const [isAddBlockDialogOpen, setIsAddBlockDialogOpen] = useState(false); 
-  const [currentBlockIdForNewExercise, setCurrentBlockIdForNewExercise] = useState<string | null>(null); 
+  const [isAddBlockDialogOpen, setIsAddBlockDialogOpen] = useState(false);
+  const [currentBlockIdForNewExercise, setCurrentBlockIdForNewExercise] = useState<string | null>(null);
 
   const [isEditBlockDialogOpen, setIsEditBlockDialogOpen] = useState(false);
   const [editingBlock, setEditingBlock] = useState<TrainingBlock | null>(null);
@@ -381,7 +381,7 @@ const Dashboard = () => {
       let allExercisesForPlan: BlockExerciseDisplay[] = [];
       for (const block of currentPlanBlocks) {
         if (block && block.id) {
-          const blockExercises = await getExercisesForBlock(block.id); 
+          const blockExercises = await getExercisesForBlock(block.id);
           const exercisesWithBlockId = blockExercises.map(ex => ({ ...ex, blockId: block.id }));
           allExercisesForPlan = [...allExercisesForPlan, ...exercisesWithBlockId];
         }
@@ -425,7 +425,7 @@ const Dashboard = () => {
         // Auto-select the first block for the "Sesiones" tab
         const firstBlock = sortedBlocks.find(b => b.order === 0) || sortedBlocks[0];
         if (firstBlock) {
-            setSelectedBlock(firstBlock); 
+            setSelectedBlock(firstBlock);
         }
       } else {
          setExercisesInPlan([]);
@@ -509,14 +509,14 @@ const Dashboard = () => {
   };
 
 
-  const handleBlockAdded = () => { 
+  const handleBlockAdded = () => {
     setIsAddBlockDialogOpen(false);
     if (selectedPlan?.id) {
       performFetchBlocks(selectedPlan.id);
     }
   };
 
-  const handleBlockUpdated = () => { 
+  const handleBlockUpdated = () => {
     setIsEditBlockDialogOpen(false);
     setEditingBlock(null);
     if (selectedPlan?.id) {
@@ -524,13 +524,13 @@ const Dashboard = () => {
     }
   };
 
-  const openEditBlockDialog = (block: TrainingBlock) => { 
+  const openEditBlockDialog = (block: TrainingBlock) => {
     if (!isUserAdmin) return;
     setEditingBlock(block);
     setIsEditBlockDialogOpen(true);
   };
 
-  const openSelectExerciseDialog = async (blockId: string) => { 
+  const openSelectExerciseDialog = async (blockId: string) => {
     if (!isUserAdmin) return;
     setCurrentBlockIdForNewExercise(blockId);
     setExerciseSearchTerm("");
@@ -548,7 +548,7 @@ const Dashboard = () => {
     }
   };
 
-  const handleAddSelectedExercisesToBlock = async () => { 
+  const handleAddSelectedExercisesToBlock = async () => {
     if (!selectedPlan?.id || !currentBlockIdForNewExercise || selectedMasterExercisesForBlock.size === 0 || !isUserAdmin) {
       toast({ title: "Nada Seleccionado", description: "Por favor, selecciona al menos un día.", variant: "default" });
       return;
@@ -571,7 +571,7 @@ const Dashboard = () => {
     }
   };
 
-  const handleRemoveExerciseFromBlock = async (planId: string, blockId: string, masterExerciseId: string) => { 
+  const handleRemoveExerciseFromBlock = async (planId: string, blockId: string, masterExerciseId: string) => {
     if (!isUserAdmin) return;
     setIsLoadingExercises(true);
     try {
@@ -632,11 +632,11 @@ const handleSaveSessionAndNavigate = async () => {
         toast({ variant: "destructive", title: "Error de Validación", description: "Selecciona un plan de entrenamiento."});
         return;
     }
-    if (!selectedBlock || !selectedBlock.id) { 
+    if (!selectedBlock || !selectedBlock.id) {
         toast({ variant: "destructive", title: "Error de Validación", description: "Selecciona una semana para la sesión."});
         return;
     }
-    if (!selectedDayForSession || !selectedDayForSession.id) { 
+    if (!selectedDayForSession || !selectedDayForSession.id) {
         toast({ variant: "destructive", title: "Error de Validación", description: "Selecciona un día para la sesión."});
         return;
     }
@@ -650,9 +650,9 @@ const handleSaveSessionAndNavigate = async () => {
       const sessionInput: SessionDataInput = {
         horseId: selectedHorse.id,
         date: Timestamp.fromDate(date),
-        blockId: selectedBlock.id, 
-        selectedDayExerciseId: selectedDayForSession.id, 
-        selectedDayExerciseTitle: selectedDayForSession.title, 
+        blockId: selectedBlock.id,
+        selectedDayExerciseId: selectedDayForSession.id,
+        selectedDayExerciseTitle: selectedDayForSession.title,
         overallNote: sessionOverallNote,
       };
 
@@ -660,7 +660,7 @@ const handleSaveSessionAndNavigate = async () => {
 
       if (sessionId) {
         const dayResultInput: ExerciseResultInput = {
-            exerciseId: selectedDayForSession.id, 
+            exerciseId: selectedDayForSession.id,
             plannedReps: sessionDayResult.plannedReps,
             doneReps: sessionDayResult.doneReps,
             rating: sessionDayResult.rating,
@@ -672,8 +672,8 @@ const handleSaveSessionAndNavigate = async () => {
 
         toast({ title: "Sesión Guardada", description: "La sesión del día ha sido registrada." });
         setSessionOverallNote("");
-        setSelectedDayForSession(null); 
-        setSessionDayResult(null); 
+        setSelectedDayForSession(null);
+        setSessionDayResult(null);
 
         router.push(`/session/${sessionId}?horseId=${selectedHorse.id}`);
       } else {
@@ -690,26 +690,26 @@ const handleSaveSessionAndNavigate = async () => {
     }
   };
 
-  const handleDragEndExercises = async (event: DragEndEvent) => { 
+  const handleDragEndExercises = async (event: DragEndEvent) => {
     if (!isUserAdmin) return;
     const { active, over } = event;
 
     if (active && over && active.id !== over.id) {
-      const activeExerciseId = String(active.id); 
-      const overExerciseId = String(over.id); 
+      const activeExerciseId = String(active.id);
+      const overExerciseId = String(over.id);
 
       const activeExercise = exercisesInPlan.find(ex => ex.id === activeExerciseId);
       if (!activeExercise || !selectedPlan?.id) {
           return;
       }
 
-      const blockIdOfDraggedItem = activeExercise.blockId; 
+      const blockIdOfDraggedItem = activeExercise.blockId;
       if (!blockIdOfDraggedItem) {
         toast({variant: "destructive", title: "Error", description: "No se pudo determinar la semana del día."});
         return;
       }
 
-      const targetBlock = blocks.find(b => b.id === blockIdOfDraggedItem); 
+      const targetBlock = blocks.find(b => b.id === blockIdOfDraggedItem);
       if (!targetBlock || !targetBlock.exerciseReferences) {
           return;
       }
@@ -757,7 +757,7 @@ const handleSaveSessionAndNavigate = async () => {
     }
   };
 
-  const handleDragEndBlocks = async (event: DragEndEvent) => { 
+  const handleDragEndBlocks = async (event: DragEndEvent) => {
     if (!isUserAdmin) return;
     const { active, over } = event;
 
@@ -847,11 +847,11 @@ const handleSaveSessionAndNavigate = async () => {
               </CardHeader>
               <CardContent>
                  <Tabs defaultValue="sesiones" className="w-full">
-                   <TabsList className="grid w-full grid-cols-2 mb-4">
+                   <TabsList className={`grid w-full ${isUserAdmin ? 'grid-cols-2' : 'grid-cols-1'} mb-4`}>
                     <TabsTrigger value="sesiones">Registrar Sesión</TabsTrigger>
-                    <TabsTrigger value="plan">Gestionar Plan (Admin)</TabsTrigger>
+                    {isUserAdmin && <TabsTrigger value="plan">Gestionar Plan (Admin)</TabsTrigger>}
                   </TabsList>
-                  
+
                   <TabsContent value="sesiones">
                      <Card className="border-none p-0">
                       <CardHeader className="px-1 pt-1 pb-3">
@@ -939,10 +939,10 @@ const handleSaveSessionAndNavigate = async () => {
                                         observations: { nostrils: null, lips: null, ears: null, eyes: null, neck: null, back: null, croup: null, limbs: null, tail: null, additionalNotes: "" }
                                       });
                                     }}
-                                    className="h-auto py-2 text-left flex flex-col items-start w-full"
+                                    className="h-auto py-2 text-left flex flex-col items-start w-full overflow-hidden"
                                   >
-                                    <span className="font-semibold block whitespace-normal break-words">{day.title}</span>
-                                    {day.objective && <span className="text-xs text-muted-foreground block whitespace-normal break-words">{day.objective}</span>}
+                                    <span className="font-semibold block whitespace-normal break-words w-full">{day.title}</span>
+                                    {day.objective && <span className="text-xs text-muted-foreground block whitespace-normal break-words w-full">{day.objective}</span>}
                                   </Button>
                                 ))}
                               </div>
@@ -1062,162 +1062,164 @@ const handleSaveSessionAndNavigate = async () => {
                     </Card>
                   </TabsContent>
 
-                  <TabsContent value="plan">
-                    <Card className="my-4 border-none p-0">
-                      <CardHeader className="px-1 pt-1 pb-3">
-                        <CardTitle className="text-xl">Gestionar Plan Activo</CardTitle>
-                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mt-2">
-                           <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full">
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                    <Button variant="outline" className="w-full sm:w-auto justify-between flex-grow" disabled={!isUserAdmin}>
-                                        {isLoadingPlans ? "Cargando planes..." : selectedPlan ? selectedPlan.title : "Seleccionar Plan"}
-                                        {!isLoadingPlans && <Icons.chevronDown className="ml-2 h-4 w-4" />}
-                                    </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent className="w-[var(--radix-dropdown-menu-trigger-width)]">
-                                    <DropdownMenuLabel>Planes Disponibles</DropdownMenuLabel>
-                                    <DropdownMenuSeparator />
-                                    {isLoadingPlans ? (
-                                        <DropdownMenuItem disabled>Cargando planes...</DropdownMenuItem>
-                                    ) : trainingPlans.length > 0 ? (
-                                        trainingPlans.map((plan) => (
-                                        <DropdownMenuItem
-                                            key={plan.id}
-                                            onSelect={() => {
-                                                setSelectedPlan(plan);
-                                                // performFetchBlocks will auto-select first week
-                                            }}
-                                            disabled={!isUserAdmin}
-                                        >
-                                            {plan.title} {plan.template && "(Plantilla)"}
-                                        </DropdownMenuItem>
-                                        ))
-                                    ) : (
-                                        <DropdownMenuItem disabled>No hay planes disponibles</DropdownMenuItem>
+                  {isUserAdmin && (
+                    <TabsContent value="plan">
+                        <Card className="my-4 border-none p-0">
+                        <CardHeader className="px-1 pt-1 pb-3">
+                            <CardTitle className="text-xl">Gestionar Plan Activo</CardTitle>
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mt-2">
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full">
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                        <Button variant="outline" className="w-full sm:w-auto justify-between flex-grow" disabled={!isUserAdmin}>
+                                            {isLoadingPlans ? "Cargando planes..." : selectedPlan ? selectedPlan.title : "Seleccionar Plan"}
+                                            {!isLoadingPlans && <Icons.chevronDown className="ml-2 h-4 w-4" />}
+                                        </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent className="w-[var(--radix-dropdown-menu-trigger-width)]">
+                                        <DropdownMenuLabel>Planes Disponibles</DropdownMenuLabel>
+                                        <DropdownMenuSeparator />
+                                        {isLoadingPlans ? (
+                                            <DropdownMenuItem disabled>Cargando planes...</DropdownMenuItem>
+                                        ) : trainingPlans.length > 0 ? (
+                                            trainingPlans.map((plan) => (
+                                            <DropdownMenuItem
+                                                key={plan.id}
+                                                onSelect={() => {
+                                                    setSelectedPlan(plan);
+                                                    // performFetchBlocks will auto-select first week
+                                                }}
+                                                disabled={!isUserAdmin}
+                                            >
+                                                {plan.title} {plan.template && "(Plantilla)"}
+                                            </DropdownMenuItem>
+                                            ))
+                                        ) : (
+                                            <DropdownMenuItem disabled>No hay planes disponibles</DropdownMenuItem>
+                                        )}
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                    {isUserAdmin && (
+                                        <Button onClick={() => setIsCreatePlanDialogOpen(true)} className="w-full sm:w-auto flex-shrink-0">
+                                            <Icons.plus className="mr-2 h-4 w-4" /> Crear Plan
+                                        </Button>
                                     )}
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
-                                {isUserAdmin && (
-                                    <Button onClick={() => setIsCreatePlanDialogOpen(true)} className="w-full sm:w-auto flex-shrink-0">
-                                        <Icons.plus className="mr-2 h-4 w-4" /> Crear Plan
-                                    </Button>
+                                </div>
+                                {selectedPlan && isUserAdmin && (
+                                    <AlertDialog open={isDeletePlanDialogOpen} onOpenChange={setIsDeletePlanDialogOpen}>
+                                    <AlertDialogTrigger asChild>
+                                        <Button
+                                        variant="destructive"
+                                        size="sm"
+                                        onClick={() => setIsDeletePlanDialogOpen(true)}
+                                        className="w-full sm:w-auto mt-2 sm:mt-0"
+                                        disabled={!selectedPlan || isDeletingPlan}
+                                        >
+                                        {isDeletingPlan ? <Icons.spinner className="mr-2 h-4 w-4 animate-spin" /> : <Icons.trash className="mr-2 h-4 w-4" />}
+                                        Eliminar Plan
+                                        </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                        <AlertDialogTitle>¿Estás realmente seguro?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                            Esta acción no se puede deshacer. Esto eliminará permanentemente el plan &quot;{selectedPlan?.title}&quot;
+                                            y todas sus semanas y días asociados.
+                                        </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                        <AlertDialogCancel disabled={isDeletingPlan}>Cancelar</AlertDialogCancel>
+                                        <AlertDialogAction onClick={handleDeleteSelectedPlan} disabled={isDeletingPlan} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
+                                            {isDeletingPlan && <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />}
+                                            Sí, eliminar plan
+                                        </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                    </AlertDialog>
                                 )}
                             </div>
-                            {selectedPlan && isUserAdmin && (
-                                <AlertDialog open={isDeletePlanDialogOpen} onOpenChange={setIsDeletePlanDialogOpen}>
-                                <AlertDialogTrigger asChild>
-                                    <Button
-                                    variant="destructive"
-                                    size="sm"
-                                    onClick={() => setIsDeletePlanDialogOpen(true)}
-                                    className="w-full sm:w-auto mt-2 sm:mt-0"
-                                    disabled={!selectedPlan || isDeletingPlan}
-                                    >
-                                    {isDeletingPlan ? <Icons.spinner className="mr-2 h-4 w-4 animate-spin" /> : <Icons.trash className="mr-2 h-4 w-4" />}
-                                    Eliminar Plan
+                            {selectedPlan && <CardDescription className="mt-2">Plan activo (admin): {selectedPlan.title}</CardDescription>}
+                        </CardHeader>
+                        <CardContent className="px-1">
+                        {!isUserAdmin && <p className="text-muted-foreground text-center py-4">La gestión de planes es solo para administradores.</p>}
+                        {isUserAdmin && isLoadingPlans ? (
+                            <div className="flex items-center justify-center p-4"><Icons.spinner className="h-5 w-5 animate-spin mr-2" /> Cargando información del plan...</div>
+                        ) : isUserAdmin && selectedPlan ? (
+                            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndBlocks}>
+                                <SortableContext items={blocks.map(b => b.id)} strategy={verticalListSortingStrategy} disabled={!isUserAdmin}>
+                                    <Accordion type="single" collapsible className="w-full space-y-2">
+                                    {(isLoadingBlocks && blocks.length === 0) ? (
+                                    <div className="flex items-center justify-center p-4"><Icons.spinner className="h-5 w-5 animate-spin mr-2" /> Cargando semanas...</div>
+                                    ) : blocks.length === 0 && !isLoadingBlocks ? (
+                                        <p className="text-sm text-muted-foreground p-2 text-center">Este plan no tiene semanas. ¡Añade la primera!</p>
+                                    ) : (
+                                    blocks.map((block) => {
+                                        const daysInThisWeek = exercisesInPlan.filter(ex => ex.blockId === block.id).sort((a,b) => (a.orderInBlock ?? Infinity) - (b.orderInBlock ?? Infinity));
+                                        return (
+                                        <SortableBlockAccordionItem
+                                            key={block.id}
+                                            block={block}
+                                            onEditBlock={openEditBlockDialog}
+                                            canEdit={isUserAdmin}
+                                        >
+                                            <AccordionContent className="px-1 sm:px-2.5">
+                                            {block.goal && (
+                                                <p className="text-sm text-primary font-semibold mb-2">
+                                                Meta de la Semana: <span className="font-normal text-muted-foreground">{block.goal}</span>
+                                                </p>
+                                            )}
+                                            {isLoadingExercises && daysInThisWeek.length === 0 && block.exerciseReferences && block.exerciseReferences.length > 0 ? (
+                                                <div className="flex items-center justify-center p-4">
+                                                    <Icons.spinner className="h-5 w-5 animate-spin mr-2" /> Cargando días...
+                                                </div>
+                                            ) : daysInThisWeek.length > 0 ? (
+                                            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndExercises}>
+                                                <SortableContext items={daysInThisWeek.map(e => e.id)} strategy={verticalListSortingStrategy} disabled={!isUserAdmin}>
+                                                    <ul className="list-none pl-0 space-y-1 text-sm">
+                                                    {daysInThisWeek.map((exercise) => (
+                                                        <SortableExerciseItem
+                                                            key={exercise.id}
+                                                            exercise={exercise}
+                                                            blockId={block.id}
+                                                            planId={selectedPlan.id}
+                                                            onRemove={handleRemoveExerciseFromBlock}
+                                                            canEdit={isUserAdmin}
+                                                        />
+                                                    ))}
+                                                    </ul>
+                                                </SortableContext>
+                                            </DndContext>
+                                            ) : (
+                                            <p className="text-sm text-muted-foreground p-2">
+                                                Esta semana no tiene días definidos.
+                                            </p>
+                                            )}
+                                            {isUserAdmin && (
+                                                <Button size="sm" variant="outline" className="mt-2" onClick={() => openSelectExerciseDialog(block.id)}>
+                                                    <Icons.plus className="mr-2 h-4 w-4" /> Añadir Día
+                                                </Button>
+                                            )}
+                                        </AccordionContent>
+                                        </SortableBlockAccordionItem>
+                                    )})
+                                    )}
+                                    </Accordion>
+                                </SortableContext>
+                            {isUserAdmin && (
+                                <div className="flex flex-wrap justify-end mt-4 gap-2">
+                                    <Button onClick={() => setIsAddBlockDialogOpen(true)} disabled={!selectedPlan || isLoadingBlocks}>
+                                        <Icons.plus className="mr-2 h-4 w-4" /> Añadir Semana
                                     </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                    <AlertDialogTitle>¿Estás realmente seguro?</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                        Esta acción no se puede deshacer. Esto eliminará permanentemente el plan &quot;{selectedPlan?.title}&quot;
-                                        y todas sus semanas y días asociados.
-                                    </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                    <AlertDialogCancel disabled={isDeletingPlan}>Cancelar</AlertDialogCancel>
-                                    <AlertDialogAction onClick={handleDeleteSelectedPlan} disabled={isDeletingPlan} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
-                                        {isDeletingPlan && <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />}
-                                        Sí, eliminar plan
-                                    </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                </AlertDialogContent>
-                                </AlertDialog>
+                                </div>
                             )}
-                        </div>
-                        {selectedPlan && <CardDescription className="mt-2">Plan activo (admin): {selectedPlan.title}</CardDescription>}
-                      </CardHeader>
-                      <CardContent className="px-1">
-                      {!isUserAdmin && <p className="text-muted-foreground text-center py-4">La gestión de planes es solo para administradores.</p>}
-                      {isUserAdmin && isLoadingPlans ? (
-                        <div className="flex items-center justify-center p-4"><Icons.spinner className="h-5 w-5 animate-spin mr-2" /> Cargando información del plan...</div>
-                      ) : isUserAdmin && selectedPlan ? (
-                        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndBlocks}>
-                            <SortableContext items={blocks.map(b => b.id)} strategy={verticalListSortingStrategy} disabled={!isUserAdmin}>
-                                <Accordion type="single" collapsible className="w-full space-y-2">
-                                {(isLoadingBlocks && blocks.length === 0) ? (
-                                  <div className="flex items-center justify-center p-4"><Icons.spinner className="h-5 w-5 animate-spin mr-2" /> Cargando semanas...</div>
-                                ) : blocks.length === 0 && !isLoadingBlocks ? (
-                                    <p className="text-sm text-muted-foreground p-2 text-center">Este plan no tiene semanas. ¡Añade la primera!</p>
-                                ) : (
-                                  blocks.map((block) => { 
-                                      const daysInThisWeek = exercisesInPlan.filter(ex => ex.blockId === block.id).sort((a,b) => (a.orderInBlock ?? Infinity) - (b.orderInBlock ?? Infinity));
-                                      return (
-                                      <SortableBlockAccordionItem
-                                          key={block.id}
-                                          block={block}
-                                          onEditBlock={openEditBlockDialog}
-                                          canEdit={isUserAdmin}
-                                      >
-                                          <AccordionContent className="px-1 sm:px-2.5">
-                                          {block.goal && (
-                                              <p className="text-sm text-primary font-semibold mb-2">
-                                              Meta de la Semana: <span className="font-normal text-muted-foreground">{block.goal}</span>
-                                              </p>
-                                          )}
-                                          {isLoadingExercises && daysInThisWeek.length === 0 && block.exerciseReferences && block.exerciseReferences.length > 0 ? (
-                                              <div className="flex items-center justify-center p-4">
-                                                  <Icons.spinner className="h-5 w-5 animate-spin mr-2" /> Cargando días...
-                                              </div>
-                                          ) : daysInThisWeek.length > 0 ? (
-                                          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndExercises}>
-                                              <SortableContext items={daysInThisWeek.map(e => e.id)} strategy={verticalListSortingStrategy} disabled={!isUserAdmin}>
-                                                  <ul className="list-none pl-0 space-y-1 text-sm">
-                                                  {daysInThisWeek.map((exercise) => ( 
-                                                      <SortableExerciseItem
-                                                        key={exercise.id}
-                                                        exercise={exercise}
-                                                        blockId={block.id} 
-                                                        planId={selectedPlan.id}
-                                                        onRemove={handleRemoveExerciseFromBlock}
-                                                        canEdit={isUserAdmin}
-                                                      />
-                                                  ))}
-                                                  </ul>
-                                              </SortableContext>
-                                          </DndContext>
-                                          ) : (
-                                          <p className="text-sm text-muted-foreground p-2">
-                                            Esta semana no tiene días definidos.
-                                          </p>
-                                          )}
-                                          {isUserAdmin && (
-                                            <Button size="sm" variant="outline" className="mt-2" onClick={() => openSelectExerciseDialog(block.id)}>
-                                                <Icons.plus className="mr-2 h-4 w-4" /> Añadir Día
-                                            </Button>
-                                          )}
-                                      </AccordionContent>
-                                      </SortableBlockAccordionItem>
-                                  )})
-                                )}
-                                </Accordion>
-                            </SortableContext>
-                          {isUserAdmin && (
-                            <div className="flex flex-wrap justify-end mt-4 gap-2">
-                                <Button onClick={() => setIsAddBlockDialogOpen(true)} disabled={!selectedPlan || isLoadingBlocks}>
-                                    <Icons.plus className="mr-2 h-4 w-4" /> Añadir Semana
-                                </Button>
-                            </div>
-                          )}
-                         </DndContext>
-                        ) : isUserAdmin && (
-                          <p className="text-sm text-muted-foreground p-2 text-center">Selecciona o crea un plan de entrenamiento para gestionarlo.</p>
-                        )}
-                      </CardContent>
-                    </Card>
-                  </TabsContent>
+                            </DndContext>
+                            ) : isUserAdmin && (
+                            <p className="text-sm text-muted-foreground p-2 text-center">Selecciona o crea un plan de entrenamiento para gestionarlo.</p>
+                            )}
+                        </CardContent>
+                        </Card>
+                    </TabsContent>
+                  )}
                 </Tabs>
               </CardContent>
             </Card>
@@ -1325,7 +1327,7 @@ const handleSaveSessionAndNavigate = async () => {
             <Dialog open={isSelectExerciseDialogOpen} onOpenChange={(open) => {
                 if (!open) {
                 setCurrentBlockIdForNewExercise(null);
-                setExerciseSearchTerm(""); 
+                setExerciseSearchTerm("");
                 }
                 setIsSelectExerciseDialogOpen(open);
             }}>
