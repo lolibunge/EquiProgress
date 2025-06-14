@@ -129,7 +129,7 @@ const OBSERVATION_ZONES = [
 ] as const;
 
 
-type SessionDayResultState = Omit<ExerciseResultInput, 'exerciseId' | 'observations' | 'doneReps'> & { // doneReps removed from here
+type SessionDayResultState = Omit<ExerciseResultInput, 'exerciseId' | 'observations' | 'doneReps'> & { 
     observations: Omit<ExerciseResultObservations, 'additionalNotes'> & { additionalNotes?: string | null };
 };
 
@@ -271,7 +271,7 @@ const Dashboard = () => {
 
   const [trainingPlans, setTrainingPlans] = useState<TrainingPlan[]>([]); 
   const [isLoadingPlans, setIsLoadingPlans] = useState(true);
-  const [selectedPlanForSession, setSelectedPlanForSession] = useState<TrainingPlan | null>(null); 
+  const [selectedPlanForSessionStart, setSelectedPlanForSessionStart] = useState<TrainingPlan | null>(null); 
   
   const [currentActiveBlock, setCurrentActiveBlock] = useState<TrainingBlock | null>(null); 
   const [isLoadingCurrentBlock, setIsLoadingCurrentBlock] = useState(false);
@@ -279,7 +279,6 @@ const Dashboard = () => {
   const [daysInCurrentBlock, setDaysInCurrentBlock] = useState<BlockExerciseDisplay[]>([]); 
   const [isLoadingDaysInBlock, setIsLoadingDaysInBlock] = useState(false);
   
-  // This state holds the details of the day that is currently active for logging or interaction
   const [selectedDayForSession, setSelectedDayForSession] = useState<BlockExerciseDisplay | null>(null); 
 
   const [date, setDate] = useState<Date | undefined>(new Date());
@@ -291,7 +290,7 @@ const Dashboard = () => {
   const [selectedPlanForAdmin, setSelectedPlanForAdmin] = useState<TrainingPlan | null>(null);
   const [blocksForAdminPlan, setBlocksForAdminPlan] = useState<TrainingBlock[]>([]);
   const [isLoadingBlocksForAdmin, setIsLoadingBlocksForAdmin] = useState(false);
-  const [exercisesForAdminPlan, setExercisesForAdminPlan] = useState<BlockExerciseDisplay[]>([]); // Contains all exercises for ALL blocks in the admin-selected plan
+  const [exercisesForAdminPlan, setExercisesForAdminPlan] = useState<BlockExerciseDisplay[]>([]); 
   const [isLoadingExercisesForAdmin, setIsLoadingExercisesForAdmin] = useState(false);
 
   const [isCreatePlanDialogOpen, setIsCreatePlanDialogOpen] = useState(false);
@@ -316,7 +315,7 @@ const Dashboard = () => {
 
   console.log(`%c[Dashboard Render] currentUser UID: ${currentUser?.uid}, userProfile: ${JSON.stringify(userProfile)}, isUserAdmin: ${isUserAdmin}, authLoading: ${authLoading}`, "color: blue; font-weight: bold;");
   if (selectedHorse) {
-    console.log(`%c[Dashboard Render] selectedHorse.activePlanId: ${selectedHorse.activePlanId}. Dropdown to start new plan will show if this is falsy (null, undefined, or empty string).`, "color: teal; font-weight: bold;");
+    console.log(`%c[Dashboard Render] selectedHorse.activePlanId: ${selectedHorse.activePlanId}. Dropdown to start new plan will show if this is falsy.`, "color: teal;");
   }
 
 
@@ -351,7 +350,7 @@ const Dashboard = () => {
         setSelectedHorse(userHorses[0]); 
       } else if (userHorses.length === 0) {
         setSelectedHorse(null);
-        setSelectedPlanForSession(null);
+        setSelectedPlanForSessionStart(null);
         setCurrentActiveBlock(null);
         setDaysInCurrentBlock([]);
       }
@@ -396,7 +395,7 @@ const Dashboard = () => {
       performFetchAllPlans();
     } else {
       setTrainingPlans([]);
-      setSelectedPlanForSession(null);
+      setSelectedPlanForSessionStart(null);
       setSelectedPlanForAdmin(null);
       setIsLoadingPlans(false);
     }
@@ -405,7 +404,6 @@ const Dashboard = () => {
 
   const fetchHorseActivePlanDetails = useCallback(async (horse: Horse) => {
     if (!horse.activePlanId || !horse.currentBlockId) {
-      setSelectedPlanForSession(null);
       setCurrentActiveBlock(null);
       setDaysInCurrentBlock([]);
       setIsLoadingCurrentBlock(false);
@@ -415,33 +413,28 @@ const Dashboard = () => {
     setIsLoadingCurrentBlock(true);
     setIsLoadingDaysInBlock(true);
     try {
-      const plan = trainingPlans.find(p => p.id === horse.activePlanId) || await getTrainingPlans().then(plans => plans.find(p => p.id === horse.activePlanId));
-      setSelectedPlanForSession(plan || null);
-
       const block = await getBlockById(horse.currentBlockId);
       setCurrentActiveBlock(block);
       if (block) {
         const days = await getExercisesForBlock(block.id);
-        setDaysInCurrentBlock(days); // These are the 'templates' of days for the block
+        setDaysInCurrentBlock(days.sort((a,b) => (a.orderInBlock ?? Infinity) - (b.orderInBlock ?? Infinity)));
       } else {
         setDaysInCurrentBlock([]);
       }
     } catch (error) {
-      toast({ variant: "destructive", title: "Error", description: "No se pudo cargar el plan activo del caballo." });
-      setSelectedPlanForSession(null);
+      toast({ variant: "destructive", title: "Error", description: "No se pudo cargar la etapa activa del caballo." });
       setCurrentActiveBlock(null);
       setDaysInCurrentBlock([]);
     } finally {
       setIsLoadingCurrentBlock(false);
       setIsLoadingDaysInBlock(false);
     }
-  }, [toast, trainingPlans]); 
+  }, [toast]); 
 
   useEffect(() => {
     if (selectedHorse) {
         fetchHorseActivePlanDetails(selectedHorse);
     } else {
-        setSelectedPlanForSession(null);
         setCurrentActiveBlock(null);
         setDaysInCurrentBlock([]);
     }
@@ -495,33 +488,62 @@ const Dashboard = () => {
     }
   }, [selectedPlanForAdmin, activeTab, fetchDetailsForAdminPlan]);
 
-  // Determines the index of the first uncompleted day in the current active block
+  
   const currentActiveDayIndexInBlock = useMemo(() => {
     if (!selectedHorse || !currentActiveBlock || !daysInCurrentBlock.length || !selectedHorse.planProgress) {
+        console.log(`%c[Dashboard Memo] currentActiveDayIndexInBlock: Condition not met (selectedHorse, currentActiveBlock, daysInCurrentBlock, planProgress). Returning 0.`, "color: orange;");
         return 0; 
     }
     const blockProgress = selectedHorse.planProgress[currentActiveBlock.id];
     if (!blockProgress) {
-        return 0; // If no progress for this block, start with the first day
+        console.log(`%c[Dashboard Memo] currentActiveDayIndexInBlock: No blockProgress for block ${currentActiveBlock.id}. Returning 0.`, "color: orange;");
+        return 0; 
     }
 
     for (let i = 0; i < daysInCurrentBlock.length; i++) {
         const day = daysInCurrentBlock[i];
         if (!blockProgress[day.id]?.completed) {
-            return i; // Return index of the first uncompleted day
+            console.log(`%c[Dashboard Memo] currentActiveDayIndexInBlock: Day ${i} (ID: ${day.id}) is NOT completed. Returning index ${i}.`, "color: orange;");
+            return i;
         }
+        console.log(`%c[Dashboard Memo] currentActiveDayIndexInBlock: Day ${i} (ID: ${day.id}) IS completed. Checking next.`, "color: orange;");
     }
-    return daysInCurrentBlock.length > 0 ? daysInCurrentBlock.length -1 : 0; // If all completed, point to last day (or 0 if empty)
+    
+    const lastIndex = daysInCurrentBlock.length > 0 ? daysInCurrentBlock.length -1 : 0;
+    console.log(`%c[Dashboard Memo] currentActiveDayIndexInBlock: All days completed or no days. Returning index ${lastIndex}.`, "color: orange;");
+    return lastIndex;
   }, [selectedHorse, currentActiveBlock, daysInCurrentBlock]);
 
 
-  // Details of the day that should currently be focused on by the user
   const currentActiveDayDetails = useMemo(() => {
-      if (!daysInCurrentBlock || daysInCurrentBlock.length === 0) return null;
+      if (!daysInCurrentBlock || daysInCurrentBlock.length === 0) {
+          console.log(`%c[Dashboard Memo] Recalculated currentActiveDayDetails. No daysInCurrentBlock or empty. Returning null.`, "color: orangered;");
+          return null;
+      }
       const activeDay = daysInCurrentBlock[currentActiveDayIndexInBlock];
-      console.log(`%c[Dashboard] currentActiveDayDetails derived. Index: ${currentActiveDayIndexInBlock}, Day: ${activeDay?.title}`, "color: purple;");
+      console.log(`%c[Dashboard Memo] Recalculated currentActiveDayDetails. Index: ${currentActiveDayIndexInBlock}, Day ID: ${activeDay?.id}, Day Title: ${activeDay?.title}`, "color: orangered;");
       return activeDay || null;
   }, [daysInCurrentBlock, currentActiveDayIndexInBlock]);
+
+
+  useEffect(() => {
+      if (currentActiveDayDetails) {
+          console.log(`%c[Dashboard Effect] currentActiveDayDetails.id changed to: "${currentActiveDayDetails.id}" (${currentActiveDayDetails.title}). Resetting session form.`, "color: skyblue; font-weight: bold;");
+          setSelectedDayForSession(currentActiveDayDetails);
+          setSessionOverallNote(""); 
+          setSessionDayResult({
+              plannedReps: currentActiveDayDetails.suggestedReps ?? "1 sesión",
+              rating: 3,
+              observations: { nostrils: null, lips: null, ears: null, eyes: null, neck: null, back: null, croup: null, limbs: null, tail: null, additionalNotes: "" }
+          });
+      } else {
+          console.log(`%c[Dashboard Effect] currentActiveDayDetails is null. Clearing session form.`, "color: skyblue; font-weight: bold;");
+          setSelectedDayForSession(null);
+          setSessionDayResult(null);
+          setSessionOverallNote("");
+      }
+  }, [currentActiveDayDetails?.id]); // More precise dependency
+
 
   const allDaysInBlockCompleted = useMemo(() => {
       if (!selectedHorse || !currentActiveBlock || !daysInCurrentBlock.length || !selectedHorse.planProgress) {
@@ -532,31 +554,6 @@ const Dashboard = () => {
       if (daysInCurrentBlock.length === 0) return false; 
       return daysInCurrentBlock.every(day => blockProgress[day.id]?.completed);
   }, [selectedHorse, currentActiveBlock, daysInCurrentBlock]);
-
-
-  // This useEffect is crucial for resetting the session logging form when the active day changes.
-  useEffect(() => {
-      if (currentActiveDayDetails) {
-          console.log(`%c[Dashboard] Active day changed to: "${currentActiveDayDetails.title}". Resetting session form.`, "color: skyblue; font-weight: bold;");
-          setSelectedDayForSession(currentActiveDayDetails); // This is crucial for handleSaveSessionAndNavigate
-          
-          // Reset the form fields for the NEW active day
-          setSessionOverallNote(""); 
-          setSessionDayResult({
-              plannedReps: currentActiveDayDetails.suggestedReps ?? "1 sesión",
-              // doneReps is removed from SessionDayResultState, so no need to set it here.
-              // It will be hardcoded to 1 when saving the session log.
-              rating: 3,
-              observations: { nostrils: null, lips: null, ears: null, eyes: null, neck: null, back: null, croup: null, limbs: null, tail: null, additionalNotes: "" }
-          });
-      } else {
-          setSelectedDayForSession(null);
-          setSessionDayResult(null);
-          setSessionOverallNote("");
-      }
-  // We only want this effect to run when currentActiveDayDetails changes,
-  // signifying that the system has determined a new day is "active" for logging.
-  }, [currentActiveDayDetails]);
 
 
   const handleHorseAdded = async () => {
@@ -697,18 +694,20 @@ const Dashboard = () => {
   const handleDayCheckboxChange = async (dayId: string, completed: boolean) => {
     if (!selectedHorse || !currentActiveBlock) return;
     
+    console.log(`%c[Dashboard] handleDayCheckboxChange: Day ID: ${dayId}, Completed: ${completed}`, "color: green; font-weight:bold;");
     try {
         await updateDayCompletionStatus(selectedHorse.id, currentActiveBlock.id, dayId, completed);
         
-        // Refetch horse data to update UI and trigger re-evaluation of currentActiveDayDetails
         const updatedHorse = await getHorseById(selectedHorse.id);
         if (updatedHorse) {
+            console.log('%c[Dashboard] handleDayCheckboxChange: Fetched updatedHorse. New planProgress:', 'color: green; font-weight:bold;', JSON.stringify(updatedHorse.planProgress));
+            console.log('%c[Dashboard] handleDayCheckboxChange: Current selectedHorse.id before update:', 'color: green', selectedHorse?.id, 'updatedHorse.id:', updatedHorse.id);
+            console.log('%c[Dashboard] handleDayCheckboxChange: Current selectedHorse.planProgress before update:', 'color: green', JSON.stringify(selectedHorse?.planProgress));
             setSelectedHorse(updatedHorse); 
         }
         toast({title: "Progreso Actualizado", description: `Día ${completed ? 'completado' : 'marcado como no completado'}.`});
     } catch (error) {
         toast({variant: "destructive", title: "Error", description: "No se pudo actualizar el estado del día."});
-        // Optionally re-fetch previous state on error to revert optimistic UI
         const previousHorseState = await getHorseById(selectedHorse.id);
         if (previousHorseState) setSelectedHorse(previousHorseState);
     }
@@ -718,7 +717,7 @@ const Dashboard = () => {
     field: keyof Omit<SessionDayResultState, 'observations'> | `observations.${keyof Omit<ExerciseResultObservations, 'additionalNotes'>}` | 'observations.additionalNotes',
     value: string | number | boolean | null
   ) => {
-    if (!currentActiveDayDetails) return; // Use currentActiveDayDetails as the source of truth for the form context
+    if (!currentActiveDayDetails) return; 
 
     setSessionDayResult(prev => {
         const currentDayData = prev || {
@@ -761,7 +760,7 @@ const handleSaveSessionAndNavigate = async () => {
         toast({ variant: "destructive", title: "Error", description: "No se pudo cargar la etapa activa."});
         return;
     }
-    if (!selectedDayForSession || !selectedDayForSession.id) { // selectedDayForSession is the day the form is for (which is currentActiveDayDetails)
+    if (!selectedDayForSession || !selectedDayForSession.id) { 
         toast({ variant: "destructive", title: "Error de Validación", description: "No hay un día activo para registrar la sesión."});
         return;
     }
@@ -776,8 +775,8 @@ const handleSaveSessionAndNavigate = async () => {
         horseId: selectedHorse.id,
         date: Timestamp.fromDate(date),
         blockId: selectedHorse.currentBlockId, 
-        selectedDayExerciseId: selectedDayForSession.id, // ID of the day being logged
-        selectedDayExerciseTitle: selectedDayForSession.title, // Title of the day being logged
+        selectedDayExerciseId: selectedDayForSession.id, 
+        selectedDayExerciseTitle: selectedDayForSession.title, 
         overallNote: sessionOverallNote,
       };
 
@@ -785,9 +784,9 @@ const handleSaveSessionAndNavigate = async () => {
 
       if (sessionId) {
         const dayResultInput: ExerciseResultInput = {
-            exerciseId: selectedDayForSession.id, // ID of the MasterExercise (Day Card)
+            exerciseId: selectedDayForSession.id, 
             plannedReps: sessionDayResult.plannedReps,
-            doneReps: 1, // If a session is logged for a day, it's considered "done" for this log entry
+            doneReps: 1, 
             rating: sessionDayResult.rating,
             observations: sessionDayResult.observations && Object.values(sessionDayResult.observations).some(v => v !== null && v !== undefined && String(v).trim() !== '')
                             ? sessionDayResult.observations
@@ -795,13 +794,7 @@ const handleSaveSessionAndNavigate = async () => {
         };
         await addExerciseResult(selectedHorse.id, sessionId, dayResultInput);
         
-        // It's important that marking day complete in planProgress if done via checkbox,
-        // or if saving session implies completion, that needs to be handled by handleDayCheckboxChange
-        // or explicitly here if desired. Current setup: checkbox handles planProgress.
-
         toast({ title: "Sesión Guardada", description: "La sesión del día ha sido registrada." });
-        
-        // Navigate to the detailed session page
         router.push(`/session/${sessionId}?horseId=${selectedHorse.id}`);
       } else {
         toast({ variant: "destructive", title: "Error", description: "No se pudo crear la sesión." });
@@ -911,21 +904,21 @@ const handleSaveSessionAndNavigate = async () => {
   );
 
   const handleStartPlan = async () => {
-    if (!selectedHorse || !selectedPlanForSession) {
+    if (!selectedHorse || !selectedPlanForSessionStart) {
         toast({title: "Error", description: "Selecciona un caballo y un plan.", variant: "destructive"});
         return;
     }
     setIsLoadingCurrentBlock(true); 
     try {
-        const planBlocks = await getTrainingBlocks(selectedPlanForSession.id);
+        const planBlocks = await getTrainingBlocks(selectedPlanForSessionStart.id);
         if (planBlocks.length === 0) {
             toast({title: "Plan Vacío", description: "Este plan no tiene etapas/semanas definidas.", variant: "destructive"});
             setIsLoadingCurrentBlock(false);
             return;
         }
         const firstBlock = planBlocks.sort((a,b) => (a.order ?? Infinity) - (b.order ?? Infinity))[0];
-        await startPlanForHorse(selectedHorse.id, selectedPlanForSession.id, firstBlock.id);
-        toast({title: "Plan Iniciado", description: `"${selectedPlanForSession.title}" ha comenzado para ${selectedHorse.name}.`});
+        await startPlanForHorse(selectedHorse.id, selectedPlanForSessionStart.id, firstBlock.id);
+        toast({title: "Plan Iniciado", description: `"${selectedPlanForSessionStart.title}" ha comenzado para ${selectedHorse.name}.`});
         const updatedHorse = await getHorseById(selectedHorse.id);
         if (updatedHorse) setSelectedHorse(updatedHorse); 
     } catch (error) {
@@ -944,7 +937,7 @@ const handleSaveSessionAndNavigate = async () => {
 
     const totalDaysInBlock = daysInCurrentBlock.length;
     let completedDays = 0;
-    for (const day of daysInCurrentBlock) { // Iterate over the day templates for the block
+    for (const day of daysInCurrentBlock) { 
         if (blockProgress[day.id]?.completed) {
             completedDays++;
         }
@@ -954,14 +947,12 @@ const handleSaveSessionAndNavigate = async () => {
 
   const allPlansForDropdown = useMemo(() => {
     console.log("[Dashboard - Derive allPlansForDropdown] All trainingPlans before filter:", JSON.stringify(trainingPlans, null, 2));
-    // Show ALL plans in the dropdown to start, including templates.
-    // The user can decide if they want to start a template directly or if they should duplicate it first (manual process for now).
     const filtered = trainingPlans.filter(p => {
         const isTemplate = p.template;
         console.log(`[Dashboard - Derive allPlansForDropdown] Plan: "${p.title}" (ID: ${p.id}), template: ${isTemplate}. Will include ALL plans.`);
         return true; 
     });
-    console.log("[Dashboard - Derive nonTemplatePlans] Filtered non-template plans (showing all):", JSON.stringify(filtered, null, 2));
+    console.log("[Dashboard - Derive allPlansForDropdown] Filtered plans (showing all):", JSON.stringify(filtered, null, 2));
     return filtered;
   }, [trainingPlans]);
 
@@ -1033,7 +1024,7 @@ const handleSaveSessionAndNavigate = async () => {
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
                                     <Button variant="outline" className="w-full justify-start" disabled={isLoadingPlans || allPlansForDropdown.length === 0}>
-                                        {isLoadingPlans ? "Cargando planes..." : selectedPlanForSession ? selectedPlanForSession.title : "Seleccionar Plan para Comenzar"}
+                                        {isLoadingPlans ? "Cargando planes..." : selectedPlanForSessionStart ? selectedPlanForSessionStart.title : "Seleccionar Plan para Comenzar"}
                                         {!isLoadingPlans && <Icons.chevronDown className="ml-auto h-4 w-4" />}
                                     </Button>
                                     </DropdownMenuTrigger>
@@ -1044,7 +1035,7 @@ const handleSaveSessionAndNavigate = async () => {
                                         <DropdownMenuItem disabled>Cargando...</DropdownMenuItem>
                                     ) : allPlansForDropdown.length > 0 ? (
                                         allPlansForDropdown.map((plan) => (
-                                        <DropdownMenuItem key={plan.id} onSelect={() => setSelectedPlanForSession(plan)}>
+                                        <DropdownMenuItem key={plan.id} onSelect={() => setSelectedPlanForSessionStart(plan)}>
                                             {plan.title} {plan.template && <span className="text-xs text-muted-foreground ml-2">(Plantilla)</span>}
                                         </DropdownMenuItem>
                                         ))
@@ -1055,13 +1046,13 @@ const handleSaveSessionAndNavigate = async () => {
                                     )}
                                     </DropdownMenuContent>
                                 </DropdownMenu>
-                                {selectedPlanForSession && (
+                                {selectedPlanForSessionStart && (
                                     <Button onClick={handleStartPlan} disabled={isLoadingCurrentBlock}>
                                         {isLoadingCurrentBlock && <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />}
                                         Comenzar este Plan para {selectedHorse.name}
                                     </Button>
                                 )}
-                                 {!selectedPlanForSession && allPlansForDropdown.length === 0 && !isLoadingPlans && (
+                                 {!selectedPlanForSessionStart && allPlansForDropdown.length === 0 && !isLoadingPlans && (
                                     <p className="text-sm text-muted-foreground text-center">No hay planes de entrenamiento creados. {isUserAdmin ? "Un administrador puede crear planes en la pestaña 'Gestionar Plan'." : "Por favor, contacta a un administrador."}</p>
                                  )}
                             </>
@@ -1071,7 +1062,7 @@ const handleSaveSessionAndNavigate = async () => {
                            <>
                             <div className="my-2 p-3 border rounded-lg bg-muted/30 shadow-sm">
                                 <h3 className="text-lg font-semibold text-primary">Etapa Actual: {currentActiveBlock.title}</h3>
-                                {currentActiveBlock.goal && <p className="text-sm text-muted-foreground italic mt-1">Meta: {currentActiveBlock.goal}</p>}
+                                {currentActiveBlock.goal && <p className="text-sm text-muted-foreground italic mt-1">Meta de la Etapa: {currentActiveBlock.goal}</p>}
                                 <div className="mt-3 mb-1">
                                     <Label htmlFor="etapa-progress" className="text-xs font-medium text-muted-foreground">Progreso de la Etapa ({Math.round(etapaProgressBarValue)}%):</Label>
                                     <Progress value={etapaProgressBarValue} id="etapa-progress" className="w-full h-2 mt-1" />
@@ -1079,35 +1070,33 @@ const handleSaveSessionAndNavigate = async () => {
                             </div>
                             
                             {isLoadingDaysInBlock ? (
-                                <div className="flex items-center p-2"><Icons.spinner className="h-4 w-4 animate-spin mr-2" /> Cargando días...</div>
+                                <div className="flex items-center p-2"><Icons.spinner className="h-4 w-4 animate-spin mr-2" /> Cargando días de la etapa...</div>
                             ): allDaysInBlockCompleted ? (
                                 <Card className="mt-4 p-4 text-center">
                                     <Icons.check className="mx-auto h-10 w-10 text-green-500 mb-2" />
                                     <CardTitle className="text-lg">¡Etapa Completada!</CardTitle>
                                     <CardDescription>Todos los días de "{currentActiveBlock.title}" han sido completados.</CardDescription>
-                                    {/* Future: Button to advance to next stage or message if it's the last stage */}
                                 </Card>
-                            ) : currentActiveDayDetails ? ( // Display only the current active day
-                                <Card className="mt-4">
+                            ) : currentActiveDayDetails ? ( 
+                                <Card key={currentActiveDayDetails.id} className="mt-4">
                                     <CardHeader>
                                         <CardTitle className="text-lg">Día de Trabajo {currentActiveDayIndexInBlock + 1}: {currentActiveDayDetails.title}</CardTitle>
-                                        {currentActiveDayDetails.objective && <CardDescription>Objetivo: {currentActiveDayDetails.objective}</CardDescription>}
+                                        {currentActiveDayDetails.objective && <CardDescription>Objetivo del Día: {currentActiveDayDetails.objective}</CardDescription>}
                                     </CardHeader>
                                     <CardContent className="space-y-3">
                                         {currentActiveDayDetails.description && <p className="text-sm text-muted-foreground mb-3 whitespace-pre-wrap">{currentActiveDayDetails.description}</p>}
                                         {currentActiveDayDetails.suggestedReps && <p className="text-sm text-muted-foreground mb-3">Sugerido: {currentActiveDayDetails.suggestedReps}</p>}
 
-                                        <div className="flex items-center space-x-2 pt-2 border-t">
+                                        <div className="flex items-center space-x-2 pt-3 pb-1 border-t">
                                             <Checkbox
                                                 id={`active-day-complete-${currentActiveDayDetails.id}`}
                                                 checked={selectedHorse?.planProgress?.[currentActiveBlock.id]?.[currentActiveDayDetails.id]?.completed || false}
                                                 onCheckedChange={(checked) => handleDayCheckboxChange(currentActiveDayDetails.id, !!checked)}
                                                 className="h-5 w-5"
                                             />
-                                            <Label htmlFor={`active-day-complete-${currentActiveDayDetails.id}`} className="text-sm font-medium">Marcar Día como Hecho (Progreso del Plan)</Label>
+                                            <Label htmlFor={`active-day-complete-${currentActiveDayDetails.id}`} className="text-base font-medium">Marcar Día como Hecho (Progreso del Plan)</Label>
                                         </div>
                                     
-                                        {/* Session Logging form for the currentActiveDayDetails */}
                                         {sessionDayResult && (
                                           <Card className="p-4 space-y-3 mt-3 shadow-inner bg-background/70">
                                               <h3 className="text-md font-semibold">Registrar Detalles de la Sesión de Hoy:</h3>
@@ -1125,7 +1114,7 @@ const handleSaveSessionAndNavigate = async () => {
 
                                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                                   <div>
-                                                      <Label htmlFor={`day-plannedReps`}>Planificado/Realizado</Label>
+                                                      <Label htmlFor={`day-plannedReps`}>Planificado/Realizado Hoy</Label>
                                                       <Input
                                                           id={`day-plannedReps`}
                                                           type="text"
