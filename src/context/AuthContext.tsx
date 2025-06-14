@@ -46,14 +46,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const unsubscribe = onAuthStateChanged(firebaseAuthService, async (user) => {
       setCurrentUser(user);
       if (user) {
+        console.log(`%c[AuthContext] User authenticated: ${user.uid}. Fetching profile...`, "color: blue;");
         try {
             const profile = await getUserProfile(user.uid);
+            console.log(`%c[AuthContext] Fetched user profile for UID ${user.uid}:`, "color: green; font-weight: bold;", JSON.stringify(profile, null, 2));
             setUserProfile(profile);
         } catch (error) {
-            console.error("AuthContext: Error fetching user profile:", error);
+            console.error("[AuthContext] Error fetching user profile:", error);
             setUserProfile(null);
         }
       } else {
+        console.log("%c[AuthContext] No user authenticated, setting userProfile to null.", "color: orange;");
         setUserProfile(null);
       }
       setLoading(false);
@@ -78,3 +81,4 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
+
