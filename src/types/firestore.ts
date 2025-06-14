@@ -22,8 +22,9 @@ export interface Horse {
     notes?: string;
     // Fields for active plan tracking
     activePlanId?: string | null;
-    activePlanStartDate?: Timestamp | null;
+    activePlanStartDate?: Timestamp | null; // When the overall plan was started
     currentBlockId?: string | null; // Current Etapa/Week ID
+    currentBlockStartDate?: Timestamp | null; // When this specific currentBlockId was started
     planProgress?: { // Tracks completion of each day within each block
         [blockId: string]: {
             [dayExerciseId: string]: {
