@@ -921,15 +921,15 @@ const handleSaveSessionAndNavigate = async () => {
     return totalDaysInBlock > 0 ? (completedDays / totalDaysInBlock) * 100 : 0;
   }, [selectedHorse, currentActiveBlock]);
 
-  const nonTemplatePlans = useMemo(() => {
-    console.log("[Dashboard - Derive nonTemplatePlans] All trainingPlans before filter:", JSON.stringify(trainingPlans, null, 2));
-    // Show all plans in the dropdown, regardless of the template flag.
+  const allPlansForDropdown = useMemo(() => {
+    console.log("[Dashboard - Derive allPlansForDropdown] All trainingPlans before filter:", JSON.stringify(trainingPlans, null, 2));
+    // Show all plans in the dropdown.
     const filtered = trainingPlans.filter(p => {
         const isTemplate = p.template;
-        console.log(`[Dashboard - Derive nonTemplatePlans] Plan: "${p.title}" (ID: ${p.id}), template: ${isTemplate}. Will be included in dropdown.`);
+        console.log(`[Dashboard - Derive allPlansForDropdown] Plan: "${p.title}" (ID: ${p.id}), template: ${isTemplate}. Will be included in dropdown.`);
         return true; // Include all plans
     });
-    console.log("[Dashboard - Derive nonTemplatePlans] Filtered plans (now showing all):", JSON.stringify(filtered, null, 2));
+    console.log("[Dashboard - Derive allPlansForDropdown] Filtered plans (showing all):", JSON.stringify(filtered, null, 2));
     return filtered;
   }, [trainingPlans]);
 
@@ -1001,7 +1001,7 @@ const handleSaveSessionAndNavigate = async () => {
                             <>
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
-                                    <Button variant="outline" className="w-full justify-start" disabled={isLoadingPlans || trainingPlans.length === 0}>
+                                    <Button variant="outline" className="w-full justify-start" disabled={isLoadingPlans || allPlansForDropdown.length === 0}>
                                         {isLoadingPlans ? "Cargando planes..." : selectedPlanForSession ? selectedPlanForSession.title : "Seleccionar Plan para Comenzar"}
                                         {!isLoadingPlans && <Icons.chevronDown className="ml-auto h-4 w-4" />}
                                     </Button>
@@ -1011,15 +1011,15 @@ const handleSaveSessionAndNavigate = async () => {
                                     <DropdownMenuSeparator />
                                     {isLoadingPlans ? (
                                         <DropdownMenuItem disabled>Cargando...</DropdownMenuItem>
-                                    ) : nonTemplatePlans.length > 0 ? (
-                                        nonTemplatePlans.map((plan) => (
+                                    ) : allPlansForDropdown.length > 0 ? (
+                                        allPlansForDropdown.map((plan) => (
                                         <DropdownMenuItem key={plan.id} onSelect={() => setSelectedPlanForSession(plan)}>
                                             {plan.title} {plan.template && <span className="text-xs text-muted-foreground ml-2">(Plantilla)</span>}
                                         </DropdownMenuItem>
                                         ))
                                     ) : (
                                         <DropdownMenuItem disabled>
-                                            {trainingPlans.length > 0 ? "Todos los planes son plantillas. Modifica un plan para que no sea plantilla o crea uno nuevo." : "No hay planes creados. Un administrador puede crear planes."}
+                                           No hay planes creados. {isUserAdmin ? "Un administrador puede crear planes en la pestaña 'Gestionar Plan'." : "Contacta a un administrador."}
                                         </DropdownMenuItem>
                                     )}
                                     </DropdownMenuContent>
@@ -1030,13 +1030,8 @@ const handleSaveSessionAndNavigate = async () => {
                                         Comenzar este Plan para {selectedHorse.name}
                                     </Button>
                                 )}
-                                {!selectedPlanForSession && nonTemplatePlans.length === 0 && trainingPlans.length > 0 && !isLoadingPlans && (
-                                     <p className="text-sm text-muted-foreground text-center">
-                                        No hay planes directamente iniciables (todos son plantillas). Para iniciar un plan, crea uno nuevo o edita uno existente para que no sea plantilla.
-                                    </p>
-                                 )}
-                                 {!selectedPlanForSession && trainingPlans.length === 0 && !isLoadingPlans && (
-                                    <p className="text-sm text-muted-foreground text-center">No hay planes de entrenamiento creados. Un administrador puede crear planes en la pestaña 'Gestionar Plan'.</p>
+                                 {!selectedPlanForSession && allPlansForDropdown.length === 0 && !isLoadingPlans && (
+                                    <p className="text-sm text-muted-foreground text-center">No hay planes de entrenamiento creados. {isUserAdmin ? "Un administrador puede crear planes en la pestaña 'Gestionar Plan'." : "Por favor, contacta a un administrador."}</p>
                                  )}
                             </>
                         )}
@@ -1052,12 +1047,12 @@ const handleSaveSessionAndNavigate = async () => {
                                 </div>
                             </div>
                             
-                             <Label className="mt-2 block">Seleccionar Día de la Etapa &quot;{currentActiveBlock.title}&quot;:</Label>
+                             <Label className="mt-2 block font-semibold">Días de Trabajo para la Etapa &quot;{currentActiveBlock.title}&quot;:</Label>
                             {isLoadingDaysInBlock ? (
                                 <div className="flex items-center p-2"><Icons.spinner className="h-4 w-4 animate-spin mr-2" /> Cargando días...</div>
                             ): daysInCurrentBlock.length > 0 ? (
                               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                                {daysInCurrentBlock.map(day => {
+                                {daysInCurrentBlock.map((day, index) => {
                                   const isDayCompletedInPlan = selectedHorse.planProgress?.[currentActiveBlock.id]?.[day.id]?.completed || false;
                                   return (
                                     <div key={day.id} className={`p-2 border rounded-md ${selectedDayForSession?.id === day.id ? 'bg-primary/10 ring-2 ring-primary' : 'hover:bg-muted/50'}`}>
@@ -1068,14 +1063,14 @@ const handleSaveSessionAndNavigate = async () => {
                                                 setSelectedDayForSession(day);
                                                 setSessionDayResult({
                                                     plannedReps: day.suggestedReps ?? "1 sesión",
-                                                    doneReps: isDayCompletedInPlan ? 1 : 0,
+                                                    doneReps: isDayCompletedInPlan ? 1 : 0, // Reflect overall completion in initial logging state
                                                     rating: 3,
                                                     observations: { nostrils: null, lips: null, ears: null, eyes: null, neck: null, back: null, croup: null, limbs: null, tail: null, additionalNotes: "" }
                                                 });
                                                 }}
                                                 className="h-auto py-1 px-2 text-left flex-grow flex flex-col items-start w-full overflow-hidden"
                                             >
-                                                <span className={`font-semibold block w-full whitespace-normal break-words ${selectedDayForSession?.id === day.id ? 'text-primary' : ''}`}>{day.title}</span>
+                                                <span className={`font-semibold block w-full whitespace-normal break-words ${selectedDayForSession?.id === day.id ? 'text-primary' : ''}`}>Día {index + 1}: {day.title}</span>
                                                 {day.objective && (
                                                 <span className={`text-xs block w-full whitespace-normal break-words ${selectedDayForSession?.id === day.id ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}>
                                                     {day.objective}
@@ -1108,14 +1103,8 @@ const handleSaveSessionAndNavigate = async () => {
 
                         {selectedDayForSession && sessionDayResult && currentActiveBlock && (
                             <Card className="p-4 space-y-3 mt-2 shadow-inner bg-background">
-                                <h3 className="text-lg font-semibold">Detalles para: {selectedDayForSession.title}</h3>
+                                <h3 className="text-lg font-semibold">Detalles para: Día {daysInCurrentBlock.findIndex(d => d.id === selectedDayForSession.id) + 1} - {selectedDayForSession.title}</h3>
                                 
-                                <div className="my-2">
-                                    <Label htmlFor="day-progress" className="text-xs font-medium text-muted-foreground">Progreso del Día ({sessionDayResult.doneReps === 1 ? 100 : 0}%):</Label>
-                                    <Progress value={sessionDayResult.doneReps === 1 ? 100 : 0} id="day-progress" className="w-full h-2 mt-1" />
-                                    <p className="text-xs text-muted-foreground mt-1">{sessionDayResult.doneReps === 1 ? "Día completado" : "Día pendiente"}</p>
-                                </div>
-
                                 <div>
                                     <Label htmlFor="session-overall-note">Notas Generales de la Sesión (para este día)</Label>
                                     <Textarea
@@ -1210,7 +1199,7 @@ const handleSaveSessionAndNavigate = async () => {
                          {!selectedDayForSession && currentActiveBlock && daysInCurrentBlock.length > 0 && (
                             <p className="text-center text-muted-foreground mt-4">Por favor, selecciona un día de la lista de arriba para registrar sus detalles.</p>
                         )}
-                         {!selectedHorse.activePlanId && !isLoadingPlans && trainingPlans.length === 0 && (
+                         {!selectedHorse.activePlanId && !isLoadingPlans && allPlansForDropdown.length === 0 && (
                             <p className="text-center text-muted-foreground mt-4">No hay planes disponibles para iniciar.</p>
                          )}
 
