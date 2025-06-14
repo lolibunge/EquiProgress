@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { useState, useEffect, useCallback, ReactNode, useMemo } from "react";
 import type { User } from 'firebase/auth';
-import { useAuth } from "@/context/AuthContext"; // Ensure this is imported
+import { useAuth } from "@/context/AuthContext"; 
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from 'next/navigation';
 
@@ -105,7 +105,7 @@ import {
   sortableKeyboardCoordinates,
   useSortable,
   verticalListSortingStrategy,
-} from '@dnd-kit/sortable'; // Corrected import
+} from '@dnd-kit/sortable'; 
 import { CSS } from '@dnd-kit/utilities';
 
 
@@ -135,8 +135,8 @@ type SessionDayResultState = Omit<ExerciseResultInput, 'exerciseId' | 'observati
 
 
 interface SortableExerciseItemProps {
-  exercise: BlockExerciseDisplay; // Represents a "Day"
-  blockId: string; // Represents a "Week ID"
+  exercise: BlockExerciseDisplay; 
+  blockId: string; 
   planId: string;
   onRemove: (planId: string, blockId: string, masterExerciseId: string) => void;
   canEdit: boolean;
@@ -168,7 +168,7 @@ function SortableExerciseItem({ exercise, blockId, planId, onRemove, canEdit }: 
       className="flex items-center justify-between group p-2 rounded-md hover:bg-muted/70 active:bg-muted bg-card border mx-2.5"
     >
       <div>
-        <span className="font-medium block whitespace-normal">{exercise.title}</span> {/* Day Title */}
+        <span className="font-medium block whitespace-normal">{exercise.title}</span> 
         {exercise.suggestedReps && <span className="block whitespace-normal text-xs text-muted-foreground">(Sugerido: {exercise.suggestedReps})</span>}
         {exercise.description && <p className="text-xs text-muted-foreground pl-2 block whitespace-normal">- Desc: {exercise.description}</p>}
         {exercise.objective && <p className="text-xs text-muted-foreground pl-2 block whitespace-normal">- Obj: {exercise.objective}</p>}
@@ -192,7 +192,7 @@ function SortableExerciseItem({ exercise, blockId, planId, onRemove, canEdit }: 
 }
 
 interface SortableBlockAccordionItemProps {
-  block: TrainingBlock; // Represents a "Week"
+  block: TrainingBlock; 
   children: ReactNode;
   onEditBlock: (block: TrainingBlock) => void;
   canEdit: boolean;
@@ -230,7 +230,7 @@ function SortableBlockAccordionItem({ block, children, onEditBlock, canEdit }: S
           disabled={!canEdit && (!block.exerciseReferences || block.exerciseReferences.length === 0)}
         >
             <span className="flex-grow">
-              {block.title} {/* Week Title */}
+              {block.title} 
               {block.notes && <span className="block sm:inline text-xs text-muted-foreground ml-0 sm:ml-2">- {block.notes}</span>}
               {block.duration && <span className="block sm:inline text-xs text-muted-foreground ml-0 sm:ml-2">- Duración: {block.duration}</span>}
               {block.goal && <span className="block sm:inline text-xs text-muted-foreground ml-0 sm:ml-2">- Meta: {block.goal}</span>}
@@ -269,16 +269,17 @@ const Dashboard = () => {
   const [isLoadingHorses, setIsLoadingHorses] = useState(true);
   const [selectedHorse, setSelectedHorse] = useState<Horse | null>(null);
 
-  const [trainingPlans, setTrainingPlans] = useState<TrainingPlan[]>([]); // All available plans
+  const [trainingPlans, setTrainingPlans] = useState<TrainingPlan[]>([]); 
   const [isLoadingPlans, setIsLoadingPlans] = useState(true);
-  const [selectedPlanForSession, setSelectedPlanForSession] = useState<TrainingPlan | null>(null); // Plan selected in dropdown for session logging OR active plan
+  const [selectedPlanForSession, setSelectedPlanForSession] = useState<TrainingPlan | null>(null); 
   
-  const [currentActiveBlock, setCurrentActiveBlock] = useState<TrainingBlock | null>(null); // The horse's current block (Etapa)
+  const [currentActiveBlock, setCurrentActiveBlock] = useState<TrainingBlock | null>(null); 
   const [isLoadingCurrentBlock, setIsLoadingCurrentBlock] = useState(false);
   
-  const [daysInCurrentBlock, setDaysInCurrentBlock] = useState<BlockExerciseDisplay[]>([]); // Days for the current active block
+  const [daysInCurrentBlock, setDaysInCurrentBlock] = useState<BlockExerciseDisplay[]>([]); 
   const [isLoadingDaysInBlock, setIsLoadingDaysInBlock] = useState(false);
-  const [selectedDayForSession, setSelectedDayForSession] = useState<BlockExerciseDisplay | null>(null); // Selected "Day" for logging
+  
+  const [selectedDayForSession, setSelectedDayForSession] = useState<BlockExerciseDisplay | null>(null); 
 
   const [date, setDate] = useState<Date | undefined>(new Date());
 
@@ -286,7 +287,6 @@ const Dashboard = () => {
   const [sessionDayResult, setSessionDayResult] = useState<SessionDayResultState | null>(null);
   const [isSavingSession, setIsSavingSession] = useState(false);
 
-  // Admin "Gestionar Plan" tab states
   const [selectedPlanForAdmin, setSelectedPlanForAdmin] = useState<TrainingPlan | null>(null);
   const [blocksForAdminPlan, setBlocksForAdminPlan] = useState<TrainingBlock[]>([]);
   const [isLoadingBlocksForAdmin, setIsLoadingBlocksForAdmin] = useState(false);
@@ -322,10 +322,8 @@ const Dashboard = () => {
   useEffect(() => {
     if (initialLoadingComplete) {
       if (isUserAdmin) {
-        console.log("[Dashboard] Defaulting admin to 'plan' tab.");
         setActiveTab("plan");
       } else {
-        console.log("[Dashboard] Defaulting non-admin to 'sesiones' tab.");
         setActiveTab("sesiones");
       }
     }
@@ -392,7 +390,7 @@ const Dashboard = () => {
     }
   }, [toast]);
 
-  useEffect(() => { // Fetch all available plans once
+  useEffect(() => { 
     if (currentUser) {
       performFetchAllPlans();
     } else {
@@ -436,23 +434,19 @@ const Dashboard = () => {
       setIsLoadingCurrentBlock(false);
       setIsLoadingDaysInBlock(false);
     }
-  }, [toast, trainingPlans]); // Added trainingPlans dependency
+  }, [toast, trainingPlans]); 
 
   useEffect(() => {
     if (selectedHorse) {
         fetchHorseActivePlanDetails(selectedHorse);
-        setSelectedDayForSession(null); // Reset selected day when horse changes
-        setSessionDayResult(null);
     } else {
         setSelectedPlanForSession(null);
         setCurrentActiveBlock(null);
         setDaysInCurrentBlock([]);
-        setSelectedDayForSession(null);
-        setSessionDayResult(null);
     }
   }, [selectedHorse, fetchHorseActivePlanDetails]);
 
-  // For Admin Tab: Fetch blocks and exercises when selectedPlanForAdmin changes
+
  const fetchDetailsForAdminPlan = useCallback(async (planId: string) => {
     if (!planId) {
       setBlocksForAdminPlan([]);
@@ -500,12 +494,62 @@ const Dashboard = () => {
     }
   }, [selectedPlanForAdmin, activeTab, fetchDetailsForAdminPlan]);
 
+  const currentActiveDayIndexInBlock = useMemo(() => {
+    if (!selectedHorse || !currentActiveBlock || !daysInCurrentBlock.length ) {
+        return 0; 
+    }
+    const blockProgress = selectedHorse.planProgress?.[currentActiveBlock.id];
+    if (!blockProgress) {
+        return 0; 
+    }
+
+    for (let i = 0; i < daysInCurrentBlock.length; i++) {
+        const day = daysInCurrentBlock[i];
+        if (!blockProgress[day.id]?.completed) {
+            return i; 
+        }
+    }
+    return daysInCurrentBlock.length > 0 ? daysInCurrentBlock.length -1 : 0; 
+  }, [selectedHorse, currentActiveBlock, daysInCurrentBlock]);
+
+  const currentActiveDayDetails = useMemo(() => {
+      if (!daysInCurrentBlock || daysInCurrentBlock.length === 0) return null;
+      const activeDay = daysInCurrentBlock[currentActiveDayIndexInBlock];
+      return activeDay || null;
+  }, [daysInCurrentBlock, currentActiveDayIndexInBlock]);
+
+  const allDaysInBlockCompleted = useMemo(() => {
+      if (!selectedHorse || !currentActiveBlock || !daysInCurrentBlock.length || !selectedHorse.planProgress) {
+          return false;
+      }
+      const blockProgress = selectedHorse.planProgress[currentActiveBlock.id];
+      if (!blockProgress) return false;
+      if (daysInCurrentBlock.length === 0) return false; 
+      return daysInCurrentBlock.every(day => blockProgress[day.id]?.completed);
+  }, [selectedHorse, currentActiveBlock, daysInCurrentBlock]);
+
+
+  useEffect(() => {
+      if (currentActiveDayDetails) {
+          setSelectedDayForSession(currentActiveDayDetails);
+          const isDayCompletedInPlan = selectedHorse?.planProgress?.[currentActiveBlock?.id || '']?.[currentActiveDayDetails.id]?.completed || false;
+          setSessionDayResult({
+              plannedReps: currentActiveDayDetails.suggestedReps ?? "1 sesión",
+              doneReps: isDayCompletedInPlan ? 1 : 0, 
+              rating: 3,
+              observations: { nostrils: null, lips: null, ears: null, eyes: null, neck: null, back: null, croup: null, limbs: null, tail: null, additionalNotes: "" }
+          });
+      } else {
+          setSelectedDayForSession(null);
+          setSessionDayResult(null);
+      }
+  }, [currentActiveDayDetails, selectedHorse, currentActiveBlock]);
+
 
   const handleHorseAdded = async () => {
     setIsAddHorseDialogOpen(false);
     if (currentUser?.uid) {
         await performFetchHorses(currentUser.uid);
-        // If it was the first horse added, it will be auto-selected by performFetchHorses
     }
   };
   const handleAddHorseCancel = () => setIsAddHorseDialogOpen(false);
@@ -517,11 +561,11 @@ const Dashboard = () => {
   const handlePlanAdded = (newPlanId: string) => {
     setIsCreatePlanDialogOpen(false);
     performFetchAllPlans().then(() => {
-      getTrainingPlans().then(refreshedPlans => { // Re-fetch to ensure latest list
+      getTrainingPlans().then(refreshedPlans => { 
         setTrainingPlans(refreshedPlans);
         const newPlan = refreshedPlans.find(p => p.id === newPlanId);
         if (newPlan) {
-          setSelectedPlanForAdmin(newPlan); // Select newly added plan in admin tab
+          setSelectedPlanForAdmin(newPlan); 
         }
       });
     });
@@ -530,9 +574,8 @@ const Dashboard = () => {
   const handlePlanDeleted = () => {
     setIsDeletePlanDialogOpen(false);
     setSelectedPlanForAdmin(null);
-    performFetchAllPlans(); // Refresh the list of all plans
+    performFetchAllPlans(); 
     if (selectedHorse && selectedHorse.activePlanId === selectedPlanForAdmin?.id) {
-        // If the deleted plan was active for the current horse, clear its active plan
         setSelectedHorse(prev => prev ? ({...prev, activePlanId: null, currentBlockId: null, activePlanStartDate: null, planProgress: {}}) : null);
     }
   };
@@ -641,27 +684,16 @@ const Dashboard = () => {
   const handleDayCheckboxChange = async (dayId: string, completed: boolean) => {
     if (!selectedHorse || !currentActiveBlock) return;
     
-    setSelectedDayForSession(prevDay => {
-        if (prevDay?.id === dayId) {
-            setSessionDayResult(prevResult => {
-                if (!prevResult) return null;
-                return {...prevResult, doneReps: completed ? 1 : 0};
-            });
-        }
-        return prevDay;
-    });
-
     try {
         await updateDayCompletionStatus(selectedHorse.id, currentActiveBlock.id, dayId, completed);
-        // Refresh horse data to get updated planProgress
+        
         const updatedHorse = await getHorseById(selectedHorse.id);
         if (updatedHorse) {
-            setSelectedHorse(updatedHorse); // This will trigger re-calculation of progress bar
+            setSelectedHorse(updatedHorse); 
         }
         toast({title: "Progreso Actualizado", description: `Día ${completed ? 'completado' : 'marcado como no completado'}.`});
     } catch (error) {
         toast({variant: "destructive", title: "Error", description: "No se pudo actualizar el estado del día."});
-        // Revert UI change if needed or re-fetch to be sure
         const previousHorseState = await getHorseById(selectedHorse.id);
         if (previousHorseState) setSelectedHorse(previousHorseState);
     }
@@ -688,19 +720,18 @@ const Dashboard = () => {
             updatedDayData = {
                 ...updatedDayData,
                 observations: {
-                    ...(updatedDayData.observations || { /* Default structure */ }),
+                    ...(updatedDayData.observations || { }),
                     [obsField]: value === '' || value === 'N/A' ? null : String(value)
                 }
             };
         } else if (field === 'doneReps') {
-            (updatedDayData as any)[field] = value ? 1 : 0;
-             // Also update the main horse progress when the detailed session checkbox is toggled
-            if (selectedHorse && currentActiveBlock && selectedDayForSession) {
-                updateDayCompletionStatus(selectedHorse.id, currentActiveBlock.id, selectedDayForSession.id, !!value);
-                 // Refresh horse data to get updated planProgress after day completion status change
-                getHorseById(selectedHorse.id).then(horse => {
-                    if (horse) setSelectedHorse(horse);
-                });
+            updatedDayData.doneReps = value ? 1 : 0;
+            // Note: The main "Marcar como Hecho" checkbox for the active day is the source of truth for planProgress.
+            // This 'doneReps' in sessionDayResult is for the *session log itself*.
+            // We can keep them in sync, or decide if they can diverge.
+            // For now, assume they should reflect each other if the session log is for the active day.
+            if (currentActiveDayDetails && currentActiveDayDetails.id === selectedDayForSession.id) {
+                // If this causes issues, direct update to planProgress might be better handled by main checkbox only.
             }
         } else if (field === 'rating') {
             (updatedDayData as any)[field] = Number(value);
@@ -721,7 +752,7 @@ const handleSaveSessionAndNavigate = async () => {
         toast({ variant: "destructive", title: "Error", description: "El caballo no tiene un plan activo o etapa actual."});
         return;
     }
-    if (!currentActiveBlock) { // Should be set if horse.currentBlockId exists
+    if (!currentActiveBlock) { 
         toast({ variant: "destructive", title: "Error", description: "No se pudo cargar la etapa activa."});
         return;
     }
@@ -748,10 +779,15 @@ const handleSaveSessionAndNavigate = async () => {
       const sessionId = await createSession(sessionInput);
 
       if (sessionId) {
+        // Ensure doneReps in the session log matches the overall completion status if it's the active day
+        const finalDoneReps = (currentActiveDayDetails && selectedDayForSession.id === currentActiveDayDetails.id)
+                                ? (selectedHorse.planProgress?.[currentActiveBlock.id]?.[currentActiveDayDetails.id]?.completed ? 1 : 0)
+                                : sessionDayResult.doneReps;
+
         const dayResultInput: ExerciseResultInput = {
             exerciseId: selectedDayForSession.id,
             plannedReps: sessionDayResult.plannedReps,
-            doneReps: sessionDayResult.doneReps, // This reflects the checkbox in the session details
+            doneReps: finalDoneReps, 
             rating: sessionDayResult.rating,
             observations: sessionDayResult.observations && Object.values(sessionDayResult.observations).some(v => v !== null && v !== undefined && String(v).trim() !== '')
                             ? sessionDayResult.observations
@@ -759,14 +795,10 @@ const handleSaveSessionAndNavigate = async () => {
         };
         await addExerciseResult(selectedHorse.id, sessionId, dayResultInput);
 
-        // Ensure the main horse progress is also updated based on the session's "doneReps"
-        await updateDayCompletionStatus(selectedHorse.id, selectedHorse.currentBlockId, selectedDayForSession.id, sessionDayResult.doneReps === 1);
-        const updatedHorse = await getHorseById(selectedHorse.id); // Re-fetch horse to update UI
+        const updatedHorse = await getHorseById(selectedHorse.id); 
         if (updatedHorse) setSelectedHorse(updatedHorse);
 
         toast({ title: "Sesión Guardada", description: "La sesión del día ha sido registrada." });
-        // Don't reset selectedDayForSession or sessionDayResult here, allow user to navigate or log another
-        // Resetting overall note might be good
         setSessionOverallNote("");
 
 
@@ -816,11 +848,11 @@ const handleSaveSessionAndNavigate = async () => {
         order: index,
       }));
 
-      setExercisesForAdminPlan(prevExercises => { // Update local state for optimistic UI
+      setExercisesForAdminPlan(prevExercises => { 
         const otherBlocksExercises = prevExercises.filter(ex => ex.blockId !== blockIdOfDraggedItem);
         const reorderedBlockExercises = reorderedReferencesForBlock.map(ref => {
             const masterDetails = prevExercises.find(ex => ex.id === ref.exerciseId);
-            return { ...masterDetails!, blockId: blockIdOfDraggedItem, orderInBlock: ref.order }; // Ensure orderInBlock is correctly updated
+            return { ...masterDetails!, blockId: blockIdOfDraggedItem, orderInBlock: ref.order }; 
         });
         const allExercises = [...otherBlocksExercises, ...reorderedBlockExercises];
         return allExercises.sort((a,b) => {
@@ -835,10 +867,10 @@ const handleSaveSessionAndNavigate = async () => {
       try {
         await updateExercisesOrderInBlock(blockIdOfDraggedItem, reorderedReferencesForBlock);
         toast({ title: "Orden de días actualizado", description: "El nuevo orden ha sido guardado." });
-        await fetchDetailsForAdminPlan(selectedPlanForAdmin.id); // Re-fetch to confirm
+        await fetchDetailsForAdminPlan(selectedPlanForAdmin.id); 
       } catch (err) {
         toast({ variant: "destructive", title: "Error", description: "No se pudo guardar el nuevo orden." });
-        await fetchDetailsForAdminPlan(selectedPlanForAdmin.id); // Re-fetch to revert optimistic update
+        await fetchDetailsForAdminPlan(selectedPlanForAdmin.id); 
       }
     }
   };
@@ -869,7 +901,7 @@ const handleSaveSessionAndNavigate = async () => {
             toast({ variant: "destructive", title: "Error", description: "No se pudo guardar el nuevo orden de semanas." });
             await fetchDetailsForAdminPlan(selectedPlanForAdmin.id);
           });
-        return updatedBlocksForDb; // Optimistic update
+        return updatedBlocksForDb; 
       });
     }
   };
@@ -883,7 +915,7 @@ const handleSaveSessionAndNavigate = async () => {
         toast({title: "Error", description: "Selecciona un caballo y un plan.", variant: "destructive"});
         return;
     }
-    setIsLoadingCurrentBlock(true); // Indicate loading while starting plan
+    setIsLoadingCurrentBlock(true); 
     try {
         const planBlocks = await getTrainingBlocks(selectedPlanForSession.id);
         if (planBlocks.length === 0) {
@@ -894,9 +926,8 @@ const handleSaveSessionAndNavigate = async () => {
         const firstBlock = planBlocks.sort((a,b) => (a.order ?? Infinity) - (b.order ?? Infinity))[0];
         await startPlanForHorse(selectedHorse.id, selectedPlanForSession.id, firstBlock.id);
         toast({title: "Plan Iniciado", description: `"${selectedPlanForSession.title}" ha comenzado para ${selectedHorse.name}.`});
-        // Re-fetch horse to get active plan details
         const updatedHorse = await getHorseById(selectedHorse.id);
-        if (updatedHorse) setSelectedHorse(updatedHorse); // This will trigger useEffect to load active plan details
+        if (updatedHorse) setSelectedHorse(updatedHorse); 
     } catch (error) {
         toast({title: "Error al Iniciar Plan", description: "No se pudo iniciar el plan.", variant: "destructive"});
     } finally {
@@ -923,11 +954,10 @@ const handleSaveSessionAndNavigate = async () => {
 
   const allPlansForDropdown = useMemo(() => {
     console.log("[Dashboard - Derive allPlansForDropdown] All trainingPlans before filter:", JSON.stringify(trainingPlans, null, 2));
-    // Show all plans in the dropdown.
     const filtered = trainingPlans.filter(p => {
         const isTemplate = p.template;
-        console.log(`[Dashboard - Derive allPlansForDropdown] Plan: "${p.title}" (ID: ${p.id}), template: ${isTemplate}. Will be included in dropdown.`);
-        return true; // Include all plans
+        console.log(`[Dashboard - Derive allPlansForDropdown] Plan: "${p.title}" (ID: ${p.id}), template: ${isTemplate}. Will include ALL plans.`);
+        return true; 
     });
     console.log("[Dashboard - Derive allPlansForDropdown] Filtered plans (showing all):", JSON.stringify(filtered, null, 2));
     return filtered;
@@ -939,7 +969,6 @@ const handleSaveSessionAndNavigate = async () => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
 
         <div className="md:col-span-2 space-y-6">
-          {/* Horse Management Section */}
           <Card>
             <CardHeader>
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
@@ -1047,157 +1076,132 @@ const handleSaveSessionAndNavigate = async () => {
                                 </div>
                             </div>
                             
-                             <Label className="mt-2 block font-semibold">Días de Trabajo para la Etapa &quot;{currentActiveBlock.title}&quot;:</Label>
                             {isLoadingDaysInBlock ? (
                                 <div className="flex items-center p-2"><Icons.spinner className="h-4 w-4 animate-spin mr-2" /> Cargando días...</div>
-                            ): daysInCurrentBlock.length > 0 ? (
-                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                                {daysInCurrentBlock.map((day, index) => {
-                                  const isDayCompletedInPlan = selectedHorse.planProgress?.[currentActiveBlock.id]?.[day.id]?.completed || false;
-                                  return (
-                                    <div key={day.id} className={`p-2 border rounded-md ${selectedDayForSession?.id === day.id ? 'bg-primary/10 ring-2 ring-primary' : 'hover:bg-muted/50'}`}>
-                                        <div className="flex items-start justify-between gap-2">
-                                            <Button
-                                                variant="ghost"
-                                                onClick={() => {
-                                                setSelectedDayForSession(day);
-                                                setSessionDayResult({
-                                                    plannedReps: day.suggestedReps ?? "1 sesión",
-                                                    doneReps: isDayCompletedInPlan ? 1 : 0, // Reflect overall completion in initial logging state
-                                                    rating: 3,
-                                                    observations: { nostrils: null, lips: null, ears: null, eyes: null, neck: null, back: null, croup: null, limbs: null, tail: null, additionalNotes: "" }
-                                                });
-                                                }}
-                                                className="h-auto py-1 px-2 text-left flex-grow flex flex-col items-start w-full overflow-hidden"
-                                            >
-                                                <span className={`font-semibold block w-full whitespace-normal break-words ${selectedDayForSession?.id === day.id ? 'text-primary' : ''}`}>Día {index + 1}: {day.title}</span>
-                                                {day.objective && (
-                                                <span className={`text-xs block w-full whitespace-normal break-words ${selectedDayForSession?.id === day.id ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}>
-                                                    {day.objective}
-                                                </span>
-                                                )}
-                                            </Button>
-                                            <div className="pt-1 flex flex-col items-center">
-                                                <Checkbox
-                                                    id={`day-complete-${day.id}`}
-                                                    checked={isDayCompletedInPlan}
-                                                    onCheckedChange={(checked) => handleDayCheckboxChange(day.id, !!checked)}
-                                                    className="h-5 w-5"
-                                                />
-                                                <Label htmlFor={`day-complete-${day.id}`} className="text-xs mt-1">Hecho</Label>
-                                            </div>
+                            ): allDaysInBlockCompleted ? (
+                                <Card className="mt-4 p-4 text-center">
+                                    <Icons.check className="mx-auto h-10 w-10 text-green-500 mb-2" />
+                                    <CardTitle className="text-lg">¡Etapa Completada!</CardTitle>
+                                    <CardDescription>Todos los días de "{currentActiveBlock.title}" han sido completados.</CardDescription>
+                                    {/* Future: Button to advance to next stage or message if it's the last stage */}
+                                </Card>
+                            ) : currentActiveDayDetails ? (
+                                <Card className="mt-4">
+                                    <CardHeader>
+                                        <CardTitle>Día de Trabajo {currentActiveDayIndexInBlock + 1}: {currentActiveDayDetails.title}</CardTitle>
+                                        {currentActiveDayDetails.objective && <CardDescription>Objetivo: {currentActiveDayDetails.objective}</CardDescription>}
+                                    </CardHeader>
+                                    <CardContent className="space-y-3">
+                                        {currentActiveDayDetails.description && <p className="text-sm text-muted-foreground mb-3 whitespace-pre-wrap">{currentActiveDayDetails.description}</p>}
+                                        {currentActiveDayDetails.suggestedReps && <p className="text-sm text-muted-foreground mb-3">Sugerido: {currentActiveDayDetails.suggestedReps}</p>}
+
+                                        <div className="flex items-center space-x-2 pt-2 border-t">
+                                            <Checkbox
+                                                id={`active-day-complete-${currentActiveDayDetails.id}`}
+                                                checked={selectedHorse?.planProgress?.[currentActiveBlock.id]?.[currentActiveDayDetails.id]?.completed || false}
+                                                onCheckedChange={(checked) => handleDayCheckboxChange(currentActiveDayDetails.id, !!checked)}
+                                                className="h-5 w-5"
+                                            />
+                                            <Label htmlFor={`active-day-complete-${currentActiveDayDetails.id}`} className="text-sm font-medium">Marcar Día como Hecho</Label>
                                         </div>
-                                    </div>
-                                );
-                                })}
-                              </div>
+                                    
+                                        {selectedDayForSession?.id === currentActiveDayDetails.id && sessionDayResult && (
+                                          <Card className="p-4 space-y-3 mt-3 shadow-inner bg-background/70">
+                                              <h3 className="text-md font-semibold">Registrar Detalles de la Sesión de Hoy:</h3>
+                                              
+                                              <div>
+                                                  <Label htmlFor="session-overall-note">Notas Generales de la Sesión</Label>
+                                                  <Textarea
+                                                      id="session-overall-note"
+                                                      placeholder="Comentarios generales sobre la sesión de hoy..."
+                                                      value={sessionOverallNote}
+                                                      onChange={(e) => setSessionOverallNote(e.target.value)}
+                                                      className="min-h-[80px]"
+                                                  />
+                                              </div>
+
+                                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                  <div>
+                                                      <Label htmlFor={`day-plannedReps`}>Planificado</Label>
+                                                      <Input
+                                                          id={`day-plannedReps`}
+                                                          type="text"
+                                                          placeholder="Ej: 1 sesión, 45 min"
+                                                          value={sessionDayResult.plannedReps ?? ''}
+                                                          onChange={(e) => handleSessionDayResultChange('plannedReps', e.target.value)}
+                                                      />
+                                                  </div>
+                                                  <div>
+                                                    <Label htmlFor={`day-rating`}>Calificación del Día (1-5): {sessionDayResult.rating}</Label>
+                                                    <Slider
+                                                        id={`day-rating`}
+                                                        value={[sessionDayResult.rating]}
+                                                        min={1}
+                                                        max={5}
+                                                        step={1}
+                                                        className="mt-1"
+                                                        onValueChange={(value) => handleSessionDayResultChange('rating', value[0])}
+                                                    />
+                                                  </div>
+                                              </div>
+
+                                              <div className="pt-3 border-t mt-3">
+                                                  <div className="space-y-1 mb-3">
+                                                      <Label htmlFor={`day-obs-additionalNotes`}>Notas Adicionales (específicas del día)</Label>
+                                                      <Textarea
+                                                          id={`day-obs-additionalNotes`}
+                                                          placeholder="Notas sobre el rendimiento, dificultades, etc."
+                                                          value={sessionDayResult.observations?.additionalNotes || ''}
+                                                          onChange={(e) => handleSessionDayResultChange(`observations.additionalNotes`, e.target.value)}
+                                                          className="min-h-[70px]"
+                                                      />
+                                                  </div>
+                                                  <h4 className="text-sm font-semibold mb-2">Observaciones de Tensión:</h4>
+                                                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-xs">
+                                                      {OBSERVATION_ZONES.map(zone => (
+                                                      <div key={zone.id} className="space-y-1">
+                                                          <Label htmlFor={`day-obs-${zone.id}`}>{zone.label}</Label>
+                                                          <Select
+                                                          value={sessionDayResult.observations?.[zone.id as keyof Omit<ExerciseResultObservations, 'additionalNotes'>] || ''}
+                                                          onValueChange={(value) => handleSessionDayResultChange(`observations.${zone.id as keyof Omit<ExerciseResultObservations, 'additionalNotes'>}`, value === 'N/A' ? 'N/A' : (value || null))}
+                                                          >
+                                                          <SelectTrigger id={`day-obs-${zone.id}`} className="h-8 text-xs">
+                                                              <SelectValue placeholder={`Estado...`} />
+                                                          </SelectTrigger>
+                                                          <SelectContent>
+                                                              {TENSION_STATUS_OPTIONS.map(option => (
+                                                              <SelectItem key={option.value} value={option.value} className="text-xs">
+                                                                  {option.label}
+                                                              </SelectItem>
+                                                              ))}
+                                                          </SelectContent>
+                                                          </Select>
+                                                      </div>
+                                                      ))}
+                                                  </div>
+                                              </div>
+                                              <div className="flex justify-end mt-3">
+                                                <Button
+                                                  onClick={handleSaveSessionAndNavigate}
+                                                  disabled={isSavingSession || !date || !selectedHorse || !currentActiveBlock || !selectedDayForSession || !sessionDayResult}
+                                                >
+                                                  {isSavingSession && <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />}
+                                                  Guardar Sesión del Día
+                                                </Button>
+                                              </div>
+                                          </Card>
+                                      )}
+                                    </CardContent>
+                                </Card>
                             ) : (
-                              <p className="text-sm text-muted-foreground p-2">Esta etapa no tiene días definidos. {isUserAdmin ? "Añade días en la pestaña 'Gestionar Plan'." : ""}</p>
+                              <p className="text-sm text-muted-foreground p-2 text-center mt-4">
+                                Esta etapa no tiene días definidos. {isUserAdmin ? "Añade días en la pestaña 'Gestionar Plan'." : ""}
+                              </p>
                             )}
                            </>
                         )}
                          {selectedHorse.activePlanId && !currentActiveBlock && !isLoadingCurrentBlock && (
                             <p className="text-sm text-muted-foreground p-2 text-center">Cargando etapa actual del caballo...</p>
-                        )}
-
-
-                        {selectedDayForSession && sessionDayResult && currentActiveBlock && (
-                            <Card className="p-4 space-y-3 mt-2 shadow-inner bg-background">
-                                <h3 className="text-lg font-semibold">Detalles para: Día {daysInCurrentBlock.findIndex(d => d.id === selectedDayForSession.id) + 1} - {selectedDayForSession.title}</h3>
-                                
-                                <div>
-                                    <Label htmlFor="session-overall-note">Notas Generales de la Sesión (para este día)</Label>
-                                    <Textarea
-                                        id="session-overall-note"
-                                        placeholder="Comentarios generales sobre la sesión de hoy..."
-                                        value={sessionOverallNote}
-                                        onChange={(e) => setSessionOverallNote(e.target.value)}
-                                    />
-                                </div>
-
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                    <div>
-                                        <Label htmlFor={`day-plannedReps`}>Planificado</Label>
-                                        <Input
-                                            id={`day-plannedReps`}
-                                            type="text"
-                                            placeholder="Ej: 1 sesión, 45 min"
-                                            value={sessionDayResult.plannedReps ?? ''}
-                                            onChange={(e) => handleSessionDayResultChange('plannedReps', e.target.value)}
-                                        />
-                                    </div>
-                                    <div className="flex items-center space-x-2 pt-6">
-                                        <Checkbox
-                                            id={`session-day-doneReps`}
-                                            checked={sessionDayResult.doneReps === 1}
-                                            onCheckedChange={(checked) => handleSessionDayResultChange('doneReps', !!checked)}
-                                        />
-                                        <Label htmlFor={`session-day-doneReps`} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                                            Día Completado (en esta sesión)
-                                        </Label>
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <Label htmlFor={`day-rating`}>Calificación del Día (1-5): {sessionDayResult.rating}</Label>
-                                    <Slider
-                                        id={`day-rating`}
-                                        value={[sessionDayResult.rating]}
-                                        min={1}
-                                        max={5}
-                                        step={1}
-                                        className="mt-1"
-                                        onValueChange={(value) => handleSessionDayResultChange('rating', value[0])}
-                                    />
-                                </div>
-
-                                <div className="pt-3 border-t mt-3">
-                                    <div className="space-y-1 mb-3">
-                                        <Label htmlFor={`day-obs-additionalNotes`}>Notas Adicionales (específicas del día)</Label>
-                                        <Textarea
-                                            id={`day-obs-additionalNotes`}
-                                            placeholder="Notas sobre el rendimiento, dificultades, etc."
-                                            value={sessionDayResult.observations?.additionalNotes || ''}
-                                            onChange={(e) => handleSessionDayResultChange(`observations.additionalNotes`, e.target.value)}
-                                        />
-                                    </div>
-                                    <h4 className="text-md font-semibold mb-2">Observaciones de Tensión:</h4>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 mt-3">
-                                        {OBSERVATION_ZONES.map(zone => (
-                                        <div key={zone.id} className="space-y-1">
-                                            <Label htmlFor={`day-obs-${zone.id}`}>{zone.label}</Label>
-                                            <Select
-                                            value={sessionDayResult.observations?.[zone.id as keyof Omit<ExerciseResultObservations, 'additionalNotes'>] || ''}
-                                            onValueChange={(value) => handleSessionDayResultChange(`observations.${zone.id as keyof Omit<ExerciseResultObservations, 'additionalNotes'>}`, value === 'N/A' ? 'N/A' : (value || null))}
-                                            >
-                                            <SelectTrigger id={`day-obs-${zone.id}`}>
-                                                <SelectValue placeholder={`Estado de ${zone.label.toLowerCase()}`} />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {TENSION_STATUS_OPTIONS.map(option => (
-                                                <SelectItem key={option.value} value={option.value}>
-                                                    {option.label}
-                                                </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                            </Select>
-                                        </div>
-                                        ))}
-                                    </div>
-                                </div>
-                                <div className="flex justify-end mt-2">
-                                  <Button
-                                    onClick={handleSaveSessionAndNavigate}
-                                    disabled={isSavingSession || !date || !selectedHorse || !currentActiveBlock || !selectedDayForSession || !sessionDayResult}
-                                  >
-                                    {isSavingSession && <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />}
-                                    Guardar Sesión del Día
-                                  </Button>
-                                </div>
-                            </Card>
-                        )}
-                         {!selectedDayForSession && currentActiveBlock && daysInCurrentBlock.length > 0 && (
-                            <p className="text-center text-muted-foreground mt-4">Por favor, selecciona un día de la lista de arriba para registrar sus detalles.</p>
                         )}
                          {!selectedHorse.activePlanId && !isLoadingPlans && allPlansForDropdown.length === 0 && (
                             <p className="text-center text-muted-foreground mt-4">No hay planes disponibles para iniciar.</p>
