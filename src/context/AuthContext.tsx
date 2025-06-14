@@ -36,11 +36,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check if the imported firebaseAuthService is actually initialized
     if (!firebaseAuthService) {
       console.error("AuthContext: Firebase Auth service (firebaseAuthService) is not available. Firebase might not have initialized correctly. Auth features will not work.");
-      setLoading(false); // Stop loading as auth cannot proceed
-      return; // Exit early
+      setLoading(false);
+      return;
     }
 
     const unsubscribe = onAuthStateChanged(firebaseAuthService, async (user) => {
@@ -48,8 +47,27 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (user) {
         console.log(`%c[AuthContext] User authenticated: ${user.uid}. Fetching profile...`, "color: blue;");
         try {
-            const profile = await getUserProfile(user.uid);
-            console.log(`%c[AuthContext] Fetched user profile for UID ${user.uid}:`, "color: green; font-weight: bold;", JSON.stringify(profile, null, 2));
+            let profile = await getUserProfile(user.uid);
+
+            // TEMPORARY OVERRIDE FOR ADMIN UID LPL3vwFZk5NDHlD8rLpaENEt5AC3
+            if (user.uid === "LPL3vwFZk5NDHlD8rLpaENEt5AC3") {
+              console.warn(`%c[AuthContext] SPECIAL OVERRIDE: UID ${user.uid} detected. Forcing admin role. This is a temporary measure for development.`, "color: magenta; font-weight: bold;");
+              if (profile) {
+                profile.role = 'admin'; // Ensure existing profile has admin role
+              } else {
+                // If no profile was found, create a minimal one for the override
+                profile = {
+                  uid: user.uid,
+                  email: user.email,
+                  displayName: user.displayName || user.email?.split('@')[0] || 'Admin (Forced)',
+                  photoURL: user.photoURL || '',
+                  role: 'admin',
+                };
+              }
+            }
+            // END TEMPORARY OVERRIDE
+
+            console.log(`%c[AuthContext] Fetched/Processed user profile for UID ${user.uid}:`, "color: green; font-weight: bold;", JSON.stringify(profile, null, 2));
             setUserProfile(profile);
         } catch (error) {
             console.error("[AuthContext] Error fetching user profile:", error);
@@ -81,4 +99,3 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
-
