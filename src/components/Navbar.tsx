@@ -53,12 +53,14 @@ export default function Navbar() {
     <>
       {currentUser && (
         <>
-          <Button variant={isMobile ? "outline" : "ghost"} asChild className={isMobile ? "w-full justify-start" : ""}>
-            <Link href="/library/exercises">
-              <Library className="mr-2 h-4 w-4" />
-              Ejercicios
-            </Link>
-          </Button>
+          {userProfile?.role === 'admin' && (
+            <Button variant={isMobile ? "outline" : "ghost"} asChild className={isMobile ? "w-full justify-start" : ""}>
+              <Link href="/library/exercises">
+                <Library className="mr-2 h-4 w-4" />
+                Ejercicios
+              </Link>
+            </Button>
+          )}
           <Button variant={isMobile ? "outline" : "ghost"} asChild className={isMobile ? "w-full justify-start" : ""}>
             <Link href="/horse-history">
               <History className="mr-2 h-4 w-4" />
@@ -225,4 +227,3 @@ export default function Navbar() {
     </nav>
   );
 }
-
