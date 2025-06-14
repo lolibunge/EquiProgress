@@ -20,12 +20,26 @@ export async function createSession(sessionData: SessionDataInput): Promise<stri
     console.error("[SessionService] createSession: Horse ID is required.");
     throw new Error("Horse ID is required to create a session.");
   }
+  if (!sessionData.blockId) {
+    console.error("[SessionService] createSession: Block ID (Week ID) is required.");
+    throw new Error("Block ID (Week ID) is required to create a session.");
+  }
+  if (!sessionData.selectedDayExerciseId || !sessionData.selectedDayExerciseTitle) {
+    console.error("[SessionService] createSession: Selected Day Exercise ID and Title are required.");
+    throw new Error("Selected Day Exercise ID and Title are required to create a session.");
+  }
+
 
   const sessionsCollectionRef = collection(db, 'horses', sessionData.horseId, 'sessions');
   
   const newSessionDoc: Omit<SessionData, 'id' | 'createdAt' | 'updatedAt'> & { createdAt: Timestamp, updatedAt: Timestamp, userId: string } = {
-    ...sessionData,
+    horseId: sessionData.horseId,
     userId: user.uid,
+    date: sessionData.date,
+    blockId: sessionData.blockId, // Week ID
+    selectedDayExerciseId: sessionData.selectedDayExerciseId,
+    selectedDayExerciseTitle: sessionData.selectedDayExerciseTitle,
+    overallNote: sessionData.overallNote || "",
     createdAt: serverTimestamp() as Timestamp,
     updatedAt: serverTimestamp() as Timestamp,
   };
@@ -41,7 +55,7 @@ export async function createSession(sessionData: SessionDataInput): Promise<stri
 }
 
 /**
- * Adds an exercise result to a specific training session.
+ * Adds an exercise result (for a "Day Card") to a specific training session.
  * @param horseId The ID of the horse.
  * @param sessionId The ID of the session.
  * @param exerciseResultData The data for the exercise result.
@@ -60,7 +74,7 @@ export async function addExerciseResult(horseId: string, sessionId: string, exer
     : null;
 
   const newExerciseResultDoc: Omit<ExerciseResult, 'id' | 'createdAt' | 'updatedAt'> & { createdAt: Timestamp, updatedAt: Timestamp } = {
-    exerciseId: exerciseResultData.exerciseId,
+    exerciseId: exerciseResultData.exerciseId, // This is the MasterExercise ID of the "Day Card"
     plannedReps: exerciseResultData.plannedReps,
     doneReps: exerciseResultData.doneReps,
     rating: exerciseResultData.rating,
@@ -71,7 +85,7 @@ export async function addExerciseResult(horseId: string, sessionId: string, exer
 
   try {
     const docRef = await addDoc(exerciseResultsCollectionRef, newExerciseResultDoc);
-    console.log('[SessionService] addExerciseResult: Exercise result added with ID: ', docRef.id);
+    console.log('[SessionService] addExerciseResult: Exercise result (for Day Card) added with ID: ', docRef.id);
     return docRef.id;
   } catch (e) {
     console.error('[SessionService] addExerciseResult: Error adding exercise result: ', e);
@@ -81,7 +95,7 @@ export async function addExerciseResult(horseId: string, sessionId: string, exer
 
 
 /**
- * Updates fields for a specific exercise result within a session.
+ * Updates fields for a specific exercise result (Day Card result) within a session.
  * @param horseId The ID of the horse.
  * @param sessionId The ID of the session.
  * @param exerciseResultId The ID of the exercise result to update.
@@ -151,7 +165,7 @@ export async function getSession(horseId: string, sessionId: string): Promise<Se
 }
 
 /**
- * Fetches all exercise results for a specific training session.
+ * Fetches all exercise results (Day Card results) for a specific training session.
  * @param horseId The ID of the horse.
  * @param sessionId The ID of the session.
  * @returns An array of exercise results.
@@ -269,4 +283,3 @@ export async function deleteSession(horseId: string, sessionId: string): Promise
     throw error;
   }
 }
-

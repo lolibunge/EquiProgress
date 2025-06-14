@@ -127,14 +127,14 @@ const OBSERVATION_ZONES = [
 ] as const;
 
 
-type SessionExerciseResultState = Omit<ExerciseResultInput, 'exerciseId' | 'observations'> & {
+type SessionDayResultState = Omit<ExerciseResultInput, 'exerciseId' | 'observations'> & {
     observations: Omit<ExerciseResultObservations, 'additionalNotes'> & { additionalNotes?: string | null };
 };
 
 
 interface SortableExerciseItemProps {
-  exercise: BlockExerciseDisplay;
-  blockId: string;
+  exercise: BlockExerciseDisplay; // Represents a "Day"
+  blockId: string; // Represents a "Week ID"
   planId: string;
   onRemove: (planId: string, blockId: string, masterExerciseId: string) => void;
   canEdit: boolean;
@@ -166,8 +166,8 @@ function SortableExerciseItem({ exercise, blockId, planId, onRemove, canEdit }: 
       className="flex items-center justify-between group p-2 rounded-md hover:bg-muted/70 active:bg-muted bg-card border mx-2.5"
     >
       <div>
-        <span className="font-medium">{exercise.title}</span>
-        {exercise.suggestedReps && ` (Reps: ${exercise.suggestedReps})`}
+        <span className="font-medium">{exercise.title}</span> {/* Day Title */}
+        {exercise.suggestedReps && ` (Sugerido: ${exercise.suggestedReps})`}
         {exercise.description && <p className="text-xs text-muted-foreground pl-2">- Desc: {exercise.description}</p>}
         {exercise.objective && <p className="text-xs text-muted-foreground pl-2">- Obj: {exercise.objective}</p>}
       </div>
@@ -182,7 +182,7 @@ function SortableExerciseItem({ exercise, blockId, planId, onRemove, canEdit }: 
             }}
         >
             <Icons.trash className="h-4 w-4 text-destructive" />
-            <span className="sr-only">Quitar Ejercicio de la Etapa</span>
+            <span className="sr-only">Quitar Día de la Semana</span>
         </Button>
       )}
     </li>
@@ -190,7 +190,7 @@ function SortableExerciseItem({ exercise, blockId, planId, onRemove, canEdit }: 
 }
 
 interface SortableBlockAccordionItemProps {
-  block: TrainingBlock;
+  block: TrainingBlock; // Represents a "Week"
   children: ReactNode;
   onEditBlock: (block: TrainingBlock) => void;
   canEdit: boolean;
@@ -225,10 +225,10 @@ function SortableBlockAccordionItem({ block, children, onEditBlock, canEdit }: S
           {...(canEdit ? attributes : {})}
           {...(canEdit ? listeners : {})}
           className="flex-grow p-4 hover:no-underline"
-          disabled={!canEdit && !children} // Disable trigger if cannot edit and no children to show
+          disabled={!canEdit && !children} 
         >
             <span className="flex-grow">
-              {block.title}
+              {block.title} {/* Week Title */}
               {block.notes && <span className="block sm:inline text-xs text-muted-foreground ml-0 sm:ml-2">- {block.notes}</span>}
               {block.duration && <span className="block sm:inline text-xs text-muted-foreground ml-0 sm:ml-2">- Duración: {block.duration}</span>}
               {block.goal && <span className="block sm:inline text-xs text-muted-foreground ml-0 sm:ml-2">- Meta: {block.goal}</span>}
@@ -247,7 +247,7 @@ function SortableBlockAccordionItem({ block, children, onEditBlock, canEdit }: S
             >
                 <span>
                 <Icons.edit className="h-4 w-4" />
-                <span className="sr-only">Editar Etapa</span>
+                <span className="sr-only">Editar Semana</span>
                 </span>
             </Button>
         )}
@@ -259,7 +259,7 @@ function SortableBlockAccordionItem({ block, children, onEditBlock, canEdit }: S
 
 
 const Dashboard = () => {
-  const { currentUser, userProfile } = useAuth(); // Added userProfile
+  const { currentUser, userProfile } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
   const [isAddHorseDialogOpen, setIsAddHorseDialogOpen] = useState(false);
@@ -271,23 +271,25 @@ const Dashboard = () => {
   const [isLoadingPlans, setIsLoadingPlans] = useState(true);
   const [selectedPlan, setSelectedPlan] = useState<TrainingPlan | null>(null);
 
-  const [blocks, setBlocks] = useState<TrainingBlock[]>([]);
+  const [blocks, setBlocks] = useState<TrainingBlock[]>([]); // Represents "Weeks"
   const [isLoadingBlocks, setIsLoadingBlocks] = useState(false);
-  const [selectedBlock, setSelectedBlock] = useState<TrainingBlock | null>(null);
+  const [selectedBlock, setSelectedBlock] = useState<TrainingBlock | null>(null); // Represents selected "Week"
 
-  const [exercisesInPlan, setExercisesInPlan] = useState<BlockExerciseDisplay[]>([]);
+  const [exercisesInPlan, setExercisesInPlan] = useState<BlockExerciseDisplay[]>([]); // Represents "Days" within the entire plan
   const [isLoadingExercises, setIsLoadingExercises] = useState(false);
+  const [selectedDayForSession, setSelectedDayForSession] = useState<BlockExerciseDisplay | null>(null); // Selected "Day" for logging
 
   const [date, setDate] = useState<Date | undefined>(new Date());
 
   const [sessionOverallNote, setSessionOverallNote] = useState("");
-  const [sessionExerciseResults, setSessionExerciseResults] = useState<Map<string, SessionExerciseResultState>>(new Map());
+  // Store result for the single selected day
+  const [sessionDayResult, setSessionDayResult] = useState<SessionDayResultState | null>(null);
   const [isSavingSession, setIsSavingSession] = useState(false);
 
 
   const [isCreatePlanDialogOpen, setIsCreatePlanDialogOpen] = useState(false);
-  const [isAddBlockDialogOpen, setIsAddBlockDialogOpen] = useState(false);
-  const [currentBlockIdForNewExercise, setCurrentBlockIdForNewExercise] = useState<string | null>(null);
+  const [isAddBlockDialogOpen, setIsAddBlockDialogOpen] = useState(false); // For adding "Week"
+  const [currentBlockIdForNewExercise, setCurrentBlockIdForNewExercise] = useState<string | null>(null); // For adding "Day" to "Week"
 
   const [isEditBlockDialogOpen, setIsEditBlockDialogOpen] = useState(false);
   const [editingBlock, setEditingBlock] = useState<TrainingBlock | null>(null);
@@ -315,17 +317,14 @@ const Dashboard = () => {
   );
 
   const performFetchHorses = useCallback(async (uid: string) => {
-    console.log("[Dashboard] performFetchHorses triggered for UID:", uid);
     setIsLoadingHorses(true);
     try {
       const userHorses = await fetchHorsesService(uid);
       setHorses(userHorses);
-      console.log(`[Dashboard] performFetchHorses: ${userHorses.length} horses fetched.`);
       if (userHorses.length === 0) {
         setSelectedHorse(null);
       }
     } catch (error) {
-      console.error("[Dashboard] performFetchHorses: Error fetching horses:", error);
       toast({ variant: "destructive", title: "Error al Cargar Caballos", description: "No se pudieron cargar los caballos." });
       setHorses([]);
     } finally {
@@ -334,27 +333,22 @@ const Dashboard = () => {
   }, [toast]);
 
   useEffect(() => {
-    console.log("[Dashboard] Horses useEffect triggered. currentUser?.uid:", currentUser?.uid);
     if (currentUser?.uid) {
       performFetchHorses(currentUser.uid);
     } else {
-      console.log("[Dashboard] Horses useEffect: No currentUser.uid. Clearing horses data.");
       setHorses([]);
       setSelectedHorse(null);
-      setIsLoadingHorses(false); // Ensure loading is false if no user
+      setIsLoadingHorses(false);
     }
   }, [currentUser?.uid, performFetchHorses]);
 
 
   const performFetchPlans = useCallback(async () => {
-    console.log("[Dashboard] performFetchPlans triggered.");
     setIsLoadingPlans(true);
     try {
-      const plans = await getTrainingPlans(); // This fetches all plans, admin will see all, customer might see all for selection
+      const plans = await getTrainingPlans();
       setTrainingPlans(plans);
-      console.log(`[Dashboard] performFetchPlans: ${plans.length} plans fetched.`);
     } catch (error) {
-      console.error("[Dashboard] performFetchPlans: Error fetching training plans:", error);
       toast({ variant: "destructive", title: "Error al Cargar Planes", description: "No se pudieron cargar los planes." });
       setTrainingPlans([]);
     } finally {
@@ -363,25 +357,21 @@ const Dashboard = () => {
   }, [toast]);
 
   useEffect(() => {
-    console.log("[Dashboard] Plans useEffect triggered. currentUser:", currentUser ? currentUser.uid : 'null');
     if (currentUser) {
       performFetchPlans();
     } else {
-      console.log("[Dashboard] Plans useEffect: No currentUser. Clearing plans data.");
       setTrainingPlans([]);
       setSelectedPlan(null);
       setBlocks([]);
       setExercisesInPlan([]);
-      setIsLoadingPlans(false); // Ensure loading is false if no user
+      setIsLoadingPlans(false);
     }
   }, [currentUser, performFetchPlans]);
 
   const performFetchExercisesForPlan = useCallback(async (planId: string, currentPlanBlocks: TrainingBlock[]) => {
-    console.log(`[Dashboard] performFetchExercisesForPlan triggered for planId: ${planId}, with ${currentPlanBlocks.length} blocks.`);
     if (!planId || currentPlanBlocks.length === 0) {
         setExercisesInPlan([]);
-        console.log(`[Dashboard] performFetchExercisesForPlan: No planId or no blocks for plan ${planId}, clearing exercises.`)
-        setIsLoadingExercises(false); // Ensure loading state is reset
+        setIsLoadingExercises(false);
         return;
     }
     setIsLoadingExercises(true);
@@ -389,16 +379,11 @@ const Dashboard = () => {
       let allExercisesForPlan: BlockExerciseDisplay[] = [];
       for (const block of currentPlanBlocks) {
         if (block && block.id) {
-          console.log(`[Dashboard] performFetchExercisesForPlan: Fetching exercises for block ${block.id} in plan ${planId}`);
-          const blockExercises = await getExercisesForBlock(block.id);
+          const blockExercises = await getExercisesForBlock(block.id); // These are "Days" for the "Week"
           const exercisesWithBlockId = blockExercises.map(ex => ({ ...ex, blockId: block.id }));
           allExercisesForPlan = [...allExercisesForPlan, ...exercisesWithBlockId];
-          console.log(`[Dashboard] performFetchExercisesForPlan: Fetched ${blockExercises.length} exercises for block ${block.id}. Total so far: ${allExercisesForPlan.length}`);
-        } else {
-          console.warn(`[Dashboard] performFetchExercisesForPlan: Skipping fetch for block with undefined id in plan ${planId}`);
         }
       }
-      // Sort exercises: first by block order, then by exercise order within the block
       const sortedExercises = allExercisesForPlan.sort((a, b) => {
         const blockAOrder = currentPlanBlocks.find(bl => bl.id === a.blockId)?.order ?? Infinity;
         const blockBOrder = currentPlanBlocks.find(bl => bl.id === b.blockId)?.order ?? Infinity;
@@ -408,40 +393,38 @@ const Dashboard = () => {
         return (a.orderInBlock ?? Infinity) - (b.orderInBlock ?? Infinity);
       });
       setExercisesInPlan(sortedExercises);
-      console.log(`[Dashboard] performFetchExercisesForPlan: Exercises for plan ${planId} fetched and sorted: ${sortedExercises.length}`);
     } catch (error) {
-      console.error(`[Dashboard] performFetchExercisesForPlan: Error fetching exercises for plan ${planId}:`, error);
-      toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar los ejercicios del plan." });
+      toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar los días del plan." });
       setExercisesInPlan([]);
     } finally {
       setIsLoadingExercises(false);
     }
   }, [toast]);
 
- const performFetchBlocks = useCallback(async (planId: string) => {
-    console.log(`[Dashboard] performFetchBlocks triggered for planId: ${planId}.`);
+ const performFetchBlocks = useCallback(async (planId: string) => { // Fetches "Weeks"
     if (!planId) {
       setBlocks([]);
       setExercisesInPlan([]);
-      console.log("[Dashboard] performFetchBlocks: No planId. Clearing blocks and exercises.")
-      setIsLoadingBlocks(false); // Ensure loading state is reset
+      setSelectedBlock(null);
+      setSelectedDayForSession(null);
+      setIsLoadingBlocks(false);
       return;
     }
     setIsLoadingBlocks(true);
     setExercisesInPlan([]);
+    setSelectedBlock(null);
+    setSelectedDayForSession(null);
     try {
       const fetchedBlocks = await getTrainingBlocks(planId);
       const sortedBlocks = fetchedBlocks.sort((a,b) => (a.order ?? Infinity) - (b.order ?? Infinity));
       setBlocks(sortedBlocks);
-      console.log(`[Dashboard] performFetchBlocks: Blocks for plan ${planId} fetched and sorted: ${sortedBlocks.length}`);
       if (sortedBlocks.length > 0) {
         await performFetchExercisesForPlan(planId, sortedBlocks);
       } else {
          setExercisesInPlan([]);
       }
     } catch (error) {
-      console.error(`[Dashboard] performFetchBlocks: Error fetching blocks for plan ${planId}:`, error);
-      toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar las etapas para este plan." });
+      toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar las semanas para este plan." });
       setBlocks([]);
       setExercisesInPlan([]);
     } finally {
@@ -452,20 +435,25 @@ const Dashboard = () => {
 
   useEffect(() => {
     if (selectedPlan?.id) {
-      console.log(`[Dashboard] Selected Plan useEffect: Plan changed to ${selectedPlan.id}. Fetching its blocks.`);
       performFetchBlocks(selectedPlan.id);
     } else {
-      console.log("[Dashboard] Selected Plan useEffect: No plan selected. Clearing blocks and exercises.");
       setBlocks([]);
       setExercisesInPlan([]);
+      setSelectedBlock(null);
+      setSelectedDayForSession(null);
     }
   }, [selectedPlan, performFetchBlocks]);
+
+  // Reset selected day if selected block (week) changes
+  useEffect(() => {
+    setSelectedDayForSession(null);
+    setSessionDayResult(null);
+  }, [selectedBlock]);
 
 
   const handleHorseAdded = () => {
     setIsAddHorseDialogOpen(false);
     if (currentUser?.uid) {
-        console.log("[Dashboard] handleHorseAdded: Horse added, re-fetching horses.");
         performFetchHorses(currentUser.uid);
     }
   };
@@ -473,17 +461,12 @@ const Dashboard = () => {
 
   const handlePlanAdded = (newPlanId: string) => {
     setIsCreatePlanDialogOpen(false);
-    console.log(`[Dashboard] handlePlanAdded: Plan added with ID ${newPlanId}. Re-fetching plans and selecting new one.`);
     performFetchPlans().then(() => {
-      // After re-fetching, find and set the new plan as selected
-      getTrainingPlans().then(refreshedPlans => { // getTrainingPlans is already a service call
-        setTrainingPlans(refreshedPlans); // Update local state with fresh list
+      getTrainingPlans().then(refreshedPlans => {
+        setTrainingPlans(refreshedPlans);
         const newPlan = refreshedPlans.find(p => p.id === newPlanId);
         if (newPlan) {
           setSelectedPlan(newPlan);
-          console.log(`[Dashboard] handlePlanAdded: New plan "${newPlan.title}" selected.`);
-        } else {
-          console.warn(`[Dashboard] handlePlanAdded: New plan with ID ${newPlanId} not found after refresh.`);
         }
       });
     });
@@ -491,24 +474,21 @@ const Dashboard = () => {
 
   const handlePlanDeleted = () => {
     setIsDeletePlanDialogOpen(false);
-    setSelectedPlan(null); // This will trigger the useEffect for selectedPlan to clear blocks/exercises
-    console.log("[Dashboard] handlePlanDeleted: Plan deleted, re-fetching plans.");
+    setSelectedPlan(null);
     performFetchPlans();
   };
 
   const handleDeleteSelectedPlan = async () => {
-    if (!selectedPlan || !isUserAdmin) return; // Added admin check
+    if (!selectedPlan || !isUserAdmin) return;
     setIsDeletingPlan(true);
-    console.log(`[Dashboard] handleDeleteSelectedPlan: Deleting plan ${selectedPlan.id} - "${selectedPlan.title}"`);
     try {
       await deleteTrainingPlan(selectedPlan.id);
       toast({
         title: "Plan Eliminado",
         description: `El plan "${selectedPlan.title}" y todo su contenido han sido eliminados.`,
       });
-      handlePlanDeleted(); // This will clear selectedPlan and re-fetch plans
+      handlePlanDeleted();
     } catch (error) {
-      console.error("[Dashboard] handleDeleteSelectedPlan: Error deleting plan:", error);
       toast({
         variant: "destructive",
         title: "Error al Eliminar Plan",
@@ -516,112 +496,98 @@ const Dashboard = () => {
       });
     } finally {
       setIsDeletingPlan(false);
-      // setIsDeletePlanDialogOpen(false); // This is handled by handlePlanDeleted if successful or if an error occurs the dialog should remain controllable
     }
   };
 
 
-  const handleBlockAdded = () => {
+  const handleBlockAdded = () => { // For "Week"
     setIsAddBlockDialogOpen(false);
     if (selectedPlan?.id) {
-      console.log(`[Dashboard] handleBlockAdded: Block added to plan ${selectedPlan.id}. Re-fetching blocks.`);
       performFetchBlocks(selectedPlan.id);
     }
   };
 
-  const handleBlockUpdated = () => {
+  const handleBlockUpdated = () => { // For "Week"
     setIsEditBlockDialogOpen(false);
     setEditingBlock(null);
     if (selectedPlan?.id) {
-      console.log(`[Dashboard] handleBlockUpdated: Block updated in plan ${selectedPlan.id}. Re-fetching blocks.`);
       performFetchBlocks(selectedPlan.id);
     }
   };
 
-  const openEditBlockDialog = (block: TrainingBlock) => {
-    if (!isUserAdmin) return; // Added admin check
+  const openEditBlockDialog = (block: TrainingBlock) => { // For "Week"
+    if (!isUserAdmin) return;
     setEditingBlock(block);
     setIsEditBlockDialogOpen(true);
   };
 
-  const openSelectExerciseDialog = async (blockId: string) => {
-    if (!isUserAdmin) return; // Added admin check
-    console.log(`[Dashboard] openSelectExerciseDialog: Opening select exercise dialog for block ${blockId}.`);
+  const openSelectExerciseDialog = async (blockId: string) => { // For adding "Day" to "Week"
+    if (!isUserAdmin) return;
     setCurrentBlockIdForNewExercise(blockId);
-    setExerciseSearchTerm(""); // Reset search term
+    setExerciseSearchTerm("");
     setIsLoadingMasterExercises(true);
     setIsSelectExerciseDialogOpen(true);
     try {
       const masters = await getMasterExercises();
       setAvailableMasterExercises(masters);
-      setSelectedMasterExercisesForBlock(new Set()); // Reset selections
-      console.log(`[Dashboard] openSelectExerciseDialog: Master exercises fetched: ${masters.length}`);
+      setSelectedMasterExercisesForBlock(new Set());
     } catch (error) {
-      console.error("[Dashboard] openSelectExerciseDialog: Error fetching master exercises:", error);
-      toast({ title: "Error", description: "No se pudieron cargar los ejercicios de la biblioteca.", variant: "destructive" });
+      toast({ title: "Error", description: "No se pudieron cargar los ejercicios (días) de la biblioteca.", variant: "destructive" });
       setAvailableMasterExercises([]);
     } finally {
       setIsLoadingMasterExercises(false);
     }
   };
 
-  const handleAddSelectedExercisesToBlock = async () => {
-    if (!selectedPlan?.id || !currentBlockIdForNewExercise || selectedMasterExercisesForBlock.size === 0 || !isUserAdmin) { // Added admin check
-      toast({ title: "Nada Seleccionado", description: "Por favor, selecciona al menos un ejercicio.", variant: "default" });
-      console.warn("[Dashboard] handleAddSelectedExercisesToBlock: Aborted - missing plan, block, no exercises selected, or not admin.");
+  const handleAddSelectedExercisesToBlock = async () => { // For adding "Day(s)" to "Week"
+    if (!selectedPlan?.id || !currentBlockIdForNewExercise || selectedMasterExercisesForBlock.size === 0 || !isUserAdmin) {
+      toast({ title: "Nada Seleccionado", description: "Por favor, selecciona al menos un día.", variant: "default" });
       return;
     }
     setIsLoadingExercises(true);
-    console.log(`[Dashboard] handleAddSelectedExercisesToBlock: Adding ${selectedMasterExercisesForBlock.size} exercises to block ${currentBlockIdForNewExercise} in plan ${selectedPlan.id}.`);
     try {
       for (const masterExerciseId of selectedMasterExercisesForBlock) {
         await addExerciseToBlockReference(selectedPlan.id, currentBlockIdForNewExercise, masterExerciseId);
       }
-      toast({ title: "Ejercicios Añadidos", description: "Los ejercicios seleccionados se han añadido a la etapa." });
+      toast({ title: "Día(s) Añadido(s)", description: "Los días seleccionados se han añadido a la semana." });
       setIsSelectExerciseDialogOpen(false);
       setCurrentBlockIdForNewExercise(null);
       if (selectedPlan?.id && blocks.length > 0) {
-        console.log(`[Dashboard] handleAddSelectedExercisesToBlock: Exercises added, re-fetching exercises for plan ${selectedPlan.id}.`);
         await performFetchExercisesForPlan(selectedPlan.id, blocks);
       }
     } catch (error) {
-      console.error("[Dashboard] handleAddSelectedExercisesToBlock: Error adding exercises to block:", error);
-      toast({ title: "Error", description: "No se pudieron añadir los ejercicios a la etapa.", variant: "destructive" });
+      toast({ title: "Error", description: "No se pudieron añadir los días a la semana.", variant: "destructive" });
     } finally {
       setIsLoadingExercises(false);
     }
   };
 
-  const handleRemoveExerciseFromBlock = async (planId: string, blockId: string, masterExerciseId: string) => {
-    if (!isUserAdmin) return; // Added admin check
-    console.log(`[Dashboard] handleRemoveExerciseFromBlock: Removing exercise ${masterExerciseId} from block ${blockId} in plan ${planId}.`);
+  const handleRemoveExerciseFromBlock = async (planId: string, blockId: string, masterExerciseId: string) => { // For removing "Day" from "Week"
+    if (!isUserAdmin) return;
     setIsLoadingExercises(true);
     try {
       await removeExerciseFromBlockReference(planId, blockId, masterExerciseId);
-      toast({title: "Ejercicio Removido", description: "El ejercicio ha sido quitado de esta etapa."});
+      toast({title: "Día Removido", description: "El día ha sido quitado de esta semana."});
       if (selectedPlan?.id && blocks.length > 0) {
-        console.log(`[Dashboard] handleRemoveExerciseFromBlock: Exercise removed, re-fetching exercises for plan ${selectedPlan.id}.`);
         await performFetchExercisesForPlan(selectedPlan.id, blocks);
       }
     } catch (error) {
-      console.error("[Dashboard] handleRemoveExerciseFromBlock: Error removing exercise from block:", error);
-      toast({title: "Error", description: "No se pudo quitar el ejercicio.", variant: "destructive"});
+      toast({title: "Error", description: "No se pudo quitar el día.", variant: "destructive"});
     } finally {
       setIsLoadingExercises(false);
     }
   };
 
 
-  const handleSessionExerciseInputChange = (
-    exerciseId: string,
-    field: keyof Omit<SessionExerciseResultState, 'observations'> | `observations.${keyof Omit<ExerciseResultObservations, 'additionalNotes'>}` | 'observations.additionalNotes',
+  const handleSessionDayResultChange = (
+    field: keyof Omit<SessionDayResultState, 'observations'> | `observations.${keyof Omit<ExerciseResultObservations, 'additionalNotes'>}` | 'observations.additionalNotes',
     value: string | number | null
   ) => {
-    setSessionExerciseResults(prev => {
-        const newMap = new Map(prev);
-        const masterExerciseDetails = exercisesInPlan.find(ex => ex.id === exerciseId);
-        let currentExerciseData = newMap.get(exerciseId) || {
-            plannedReps: masterExerciseDetails?.suggestedReps ?? "",
+    if (!selectedDayForSession) return;
+
+    setSessionDayResult(prev => {
+        const currentDayData = prev || {
+            plannedReps: selectedDayForSession?.suggestedReps ?? "1 sesión",
             doneReps: 0,
             rating: 3,
             observations: {
@@ -631,147 +597,84 @@ const Dashboard = () => {
             }
         };
 
+        let updatedDayData = { ...currentDayData };
+
         if (String(field).startsWith('observations.')) {
             const obsField = String(field).split('.')[1] as keyof ExerciseResultObservations;
-             if (!currentExerciseData.observations) {
-                currentExerciseData.observations = {
-                    nostrils: null, lips: null, ears: null, eyes: null, neck: null,
-                    back: null, croup: null, limbs: null, tail: null,
-                    additionalNotes: ""
-                };
-            }
-            currentExerciseData = {
-                ...currentExerciseData,
+            updatedDayData = {
+                ...updatedDayData,
                 observations: {
-                    ...currentExerciseData.observations,
+                    ...(updatedDayData.observations || { /* Default structure */ }),
                     [obsField]: value === '' || value === 'N/A' ? null : String(value)
                 }
             };
         } else if (field === 'doneReps' || field === 'rating') {
-            (currentExerciseData as any)[field] = Number(value);
+            (updatedDayData as any)[field] = Number(value);
         } else if (field === 'plannedReps') {
-            (currentExerciseData as any)[field] = String(value);
+            (updatedDayData as any)[field] = String(value);
         }
-        newMap.set(exerciseId, currentExerciseData);
-        return newMap;
+        return updatedDayData;
     });
   };
 
 
 const handleSaveSessionAndNavigate = async () => {
     if (!currentUser || !date || !selectedHorse || !selectedHorse.id ) {
-      toast({
-        variant: "destructive",
-        title: "Error de Validación",
-        description: "Por favor, asegúrate de que la fecha y el caballo estén seleccionados.",
-      });
+      toast({ variant: "destructive", title: "Error de Validación", description: "Asegúrate de que la fecha y el caballo estén seleccionados."});
       return;
     }
      if (!selectedPlan) {
-        toast({
-            variant: "destructive",
-            title: "Error de Validación",
-            description: "Por favor, selecciona un plan de entrenamiento.",
-        });
+        toast({ variant: "destructive", title: "Error de Validación", description: "Selecciona un plan de entrenamiento."});
         return;
     }
-    if (!selectedBlock || !selectedBlock.id) {
-        toast({
-            variant: "destructive",
-            title: "Error de Validación",
-            description: "Por favor, selecciona una etapa para la sesión.",
-        });
+    if (!selectedBlock || !selectedBlock.id) { // Selected "Week"
+        toast({ variant: "destructive", title: "Error de Validación", description: "Selecciona una semana para la sesión."});
         return;
     }
-    console.log(`[Dashboard] handleSaveSession: Attempting to save session for horse ${selectedHorse.id}, block ${selectedBlock.id}.`);
-
-    // Re-fetch exercises for the selected block to ensure they are current before saving
-    const exercisesInSelectedBlockForSession = await getExercisesForBlock(selectedBlock.id);
-    console.log(`[Dashboard] handleSaveSession: Exercises fetched for selected block ${selectedBlock.id} to save in session: ${exercisesInSelectedBlockForSession.length}`);
-
-
-    if (exercisesInSelectedBlockForSession.length === 0) {
-        toast({
-            variant: "destructive",
-            title: "Sin Ejercicios",
-            description: "La etapa seleccionada para la sesión no tiene ejercicios. Si eres administrador, añade ejercicios a esta etapa en la pestaña 'Plan'.",
-        });
-        console.warn(`[Dashboard] handleSaveSession: Cannot save session - block ${selectedBlock.id} has no exercises.`);
+    if (!selectedDayForSession || !selectedDayForSession.id) { // Selected "Day"
+        toast({ variant: "destructive", title: "Error de Validación", description: "Selecciona un día para la sesión."});
         return;
     }
-
+    if (!sessionDayResult) {
+        toast({ variant: "destructive", title: "Error de Validación", description: "Completa los detalles del día."});
+        return;
+    }
 
     setIsSavingSession(true);
     try {
       const sessionInput: SessionDataInput = {
         horseId: selectedHorse.id,
         date: Timestamp.fromDate(date),
-        blockId: selectedBlock.id, // Ensure this is the ID of the selected block
+        blockId: selectedBlock.id, // Week ID
+        selectedDayExerciseId: selectedDayForSession.id, // Day (MasterExercise) ID
+        selectedDayExerciseTitle: selectedDayForSession.title, // Day (MasterExercise) Title
         overallNote: sessionOverallNote,
       };
-      console.log("[Dashboard] handleSaveSession: Session input data for creation:", sessionInput);
 
       const sessionId = await createSession(sessionInput);
-      console.log(`[Dashboard] handleSaveSession: Session created with ID: ${sessionId}`);
-
 
       if (sessionId) {
-        const exerciseResultsToSave: ExerciseResultInput[] = [];
+        const dayResultInput: ExerciseResultInput = {
+            exerciseId: selectedDayForSession.id, // ID of the Day Card (MasterExercise)
+            plannedReps: sessionDayResult.plannedReps,
+            doneReps: sessionDayResult.doneReps,
+            rating: sessionDayResult.rating,
+            observations: sessionDayResult.observations && Object.values(sessionDayResult.observations).some(v => v !== null && v !== undefined && String(v).trim() !== '')
+                            ? sessionDayResult.observations
+                            : null,
+        };
+        await addExerciseResult(selectedHorse.id, sessionId, dayResultInput);
 
-        // Use the freshly fetched exercisesInSelectedBlockForSession
-        exercisesInSelectedBlockForSession.forEach(exercise => {
-            const resultData = sessionExerciseResults.get(exercise.id); // Get user input from state
-            const plannedRepsValue = resultData?.plannedReps ?? exercise?.suggestedReps ?? '';
-            const doneRepsValue = resultData?.doneReps ?? 0;
-            const ratingValue = resultData?.rating ?? 3;
+        toast({ title: "Sesión Guardada", description: "La sesión del día ha sido registrada." });
+        setSessionOverallNote("");
+        setSelectedDayForSession(null); // Reset selected day
+        setSessionDayResult(null); // Reset day's result form
 
-            let observationsToSave: Omit<ExerciseResultObservations, 'additionalNotes'> & { additionalNotes?: string | null} | null = null;
-             if (resultData?.observations) {
-                const tempObs: Partial<ExerciseResultObservations> = {};
-                let hasValidObservation = false;
-                (Object.keys(resultData.observations) as Array<keyof ExerciseResultObservations>).forEach(key => {
-                    const obsVal = resultData.observations![key];
-                    if (obsVal !== undefined && obsVal !== null && String(obsVal).trim() !== '') {
-                        (tempObs as any)[key] = obsVal;
-                        hasValidObservation = true;
-                    } else {
-                        (tempObs as any)[key] = null; // ensure nulls are stored if empty
-                    }
-                });
-                if (hasValidObservation) {
-                    observationsToSave = tempObs as Omit<ExerciseResultObservations, 'additionalNotes'> & { additionalNotes?: string | null};
-                }
-            }
-
-            exerciseResultsToSave.push({
-                exerciseId: exercise.id, // This is the MasterExercise ID
-                plannedReps: String(plannedRepsValue),
-                doneReps: Number(doneRepsValue),
-                rating: Number(ratingValue),
-                observations: observationsToSave,
-            });
-        });
-        console.log("[Dashboard] handleSaveSession: Exercise results to save:", exerciseResultsToSave.length, JSON.parse(JSON.stringify(exerciseResultsToSave)));
-
-
-        if (exerciseResultsToSave.length > 0) {
-             for (const resultInput of exerciseResultsToSave) {
-                await addExerciseResult(selectedHorse.id, sessionId, resultInput);
-            }
-            console.log(`[Dashboard] handleSaveSession: ${exerciseResultsToSave.length} exercise results added to session ${sessionId}.`);
-        }
-
-        toast({ title: "Sesión Guardada", description: "La sesión y los resultados de los ejercicios han sido registrados." });
-        setSessionOverallNote(""); // Clear form
-        setSessionExerciseResults(new Map()); // Clear form
-
-        router.push(`/session/${sessionId}?horseId=${selectedHorse.id}`); // Navigate to session detail
+        router.push(`/session/${sessionId}?horseId=${selectedHorse.id}`);
       } else {
         toast({ variant: "destructive", title: "Error", description: "No se pudo crear la sesión." });
-        console.error("[Dashboard] handleSaveSession: Session ID was null after creation attempt.");
       }
     } catch (error) {
-      console.error("[Dashboard] handleSaveSession: Error saving session:", error);
       let errorMessage = "Ocurrió un error al guardar la sesión.";
       if (error instanceof Error) {
         errorMessage = error.message;
@@ -782,54 +685,43 @@ const handleSaveSessionAndNavigate = async () => {
     }
   };
 
-  const handleDragEndExercises = async (event: DragEndEvent) => {
-    if (!isUserAdmin) return; // Added admin check
+  const handleDragEndExercises = async (event: DragEndEvent) => { // For "Days" within a "Week"
+    if (!isUserAdmin) return;
     const { active, over } = event;
-    console.log(`[Dashboard] handleDragEndExercises: Active ID - ${active?.id}, Over ID - ${over?.id}`);
 
     if (active && over && active.id !== over.id) {
-      const activeExerciseId = String(active.id);
-      const overExerciseId = String(over.id);
+      const activeExerciseId = String(active.id); // Day ID
+      const overExerciseId = String(over.id); // Day ID
 
       const activeExercise = exercisesInPlan.find(ex => ex.id === activeExerciseId);
       if (!activeExercise || !selectedPlan?.id) {
-          console.warn("[Dashboard] handleDragEndExercises: Active exercise or selected plan not found. Cannot reorder.");
           return;
       }
 
-      const blockIdOfDraggedItem = activeExercise.blockId;
+      const blockIdOfDraggedItem = activeExercise.blockId; // Week ID
       if (!blockIdOfDraggedItem) {
-        console.error("[Dashboard] handleDragEndExercises: Dragged exercise does not have a blockId. Cannot reorder.");
-        toast({variant: "destructive", title: "Error", description: "No se pudo determinar la etapa del ejercicio."});
+        toast({variant: "destructive", title: "Error", description: "No se pudo determinar la semana del día."});
         return;
       }
-      console.log(`[Dashboard] handleDragEndExercises: Dragged item ${activeExerciseId} belongs to block ${blockIdOfDraggedItem}`);
 
-      const targetBlock = blocks.find(b => b.id === blockIdOfDraggedItem);
+      const targetBlock = blocks.find(b => b.id === blockIdOfDraggedItem); // Target Week
       if (!targetBlock || !targetBlock.exerciseReferences) {
-          console.warn(`[Dashboard] handleDragEndExercises: Target block ${blockIdOfDraggedItem} or its exerciseReferences not found.`);
           return;
       }
 
       let currentReferencesForBlock: ExerciseReference[] = [...targetBlock.exerciseReferences];
-      console.log(`[Dashboard] handleDragEndExercises: Current references for block ${blockIdOfDraggedItem} before reorder:`, JSON.parse(JSON.stringify(currentReferencesForBlock)));
-
       const oldIndex = currentReferencesForBlock.findIndex((ref) => ref.exerciseId === activeExerciseId);
       const newIndex = currentReferencesForBlock.findIndex((ref) => ref.exerciseId === overExerciseId);
-      console.log(`[Dashboard] handleDragEndExercises: Old index - ${oldIndex}, New index - ${newIndex} within block's references.`);
 
       if (oldIndex === -1 || newIndex === -1) {
-          console.warn("[Dashboard] handleDragEndExercises: Could not find old or new index in the block's references. Drag might be across blocks which is not supported by this handler.");
           return;
       }
 
       const reorderedReferencesForBlock = arrayMove(currentReferencesForBlock, oldIndex, newIndex).map((ref, index) => ({
         ...ref,
-        order: index, // Re-assign order based on new array position
+        order: index,
       }));
-      console.log(`[Dashboard] handleDragEndExercises: Reordered references for block ${blockIdOfDraggedItem}:`, JSON.parse(JSON.stringify(reorderedReferencesForBlock)));
 
-      // Optimistic UI update for exercisesInPlan
       setExercisesInPlan(prevExercises => {
         const otherBlocksExercises = prevExercises.filter(ex => ex.blockId !== blockIdOfDraggedItem);
         const reorderedBlockExercises = reorderedReferencesForBlock.map(ref => {
@@ -837,7 +729,7 @@ const handleSaveSessionAndNavigate = async () => {
             return { ...masterDetails!, blockId: blockIdOfDraggedItem, orderInBlock: ref.order };
         });
         const allExercises = [...otherBlocksExercises, ...reorderedBlockExercises];
-        return allExercises.sort((a,b) => { // Re-sort all exercises for consistency
+        return allExercises.sort((a,b) => {
             const blockAOrder = blocks.find(bl => bl.id === a.blockId)?.order ?? Infinity;
             const blockBOrder = blocks.find(bl => bl.id === b.blockId)?.order ?? Infinity;
             if (blockAOrder !== blockBOrder) return blockAOrder - blockBOrder;
@@ -845,63 +737,46 @@ const handleSaveSessionAndNavigate = async () => {
         });
       });
 
-
       try {
         await updateExercisesOrderInBlock(blockIdOfDraggedItem, reorderedReferencesForBlock);
-        toast({ title: "Orden de ejercicios actualizado", description: "El nuevo orden ha sido guardado." });
-        console.log(`[Dashboard] handleDragEndExercises: Order updated in DB for block ${blockIdOfDraggedItem}. Re-fetching exercises for plan ${selectedPlan.id} for full consistency.`);
-        // Full re-fetch to ensure data integrity after optimistic update
-        if (selectedPlan?.id && blocks.length > 0) { // Ensure blocks is not empty
+        toast({ title: "Orden de días actualizado", description: "El nuevo orden ha sido guardado." });
+        if (selectedPlan?.id && blocks.length > 0) {
             await performFetchExercisesForPlan(selectedPlan.id, blocks);
         }
       } catch (err) {
-        console.error("[Dashboard] handleDragEndExercises: Error updating exercises order in DB:", err);
         toast({ variant: "destructive", title: "Error", description: "No se pudo guardar el nuevo orden." });
-        console.log(`[Dashboard] handleDragEndExercises: Error in DB, re-fetching exercises for plan ${selectedPlan.id} to revert UI.`);
-        // Revert optimistic update by re-fetching
-        if (selectedPlan?.id && blocks.length > 0) { // Ensure blocks is not empty
+        if (selectedPlan?.id && blocks.length > 0) {
            await performFetchExercisesForPlan(selectedPlan.id, blocks);
         }
       }
     }
   };
 
-  const handleDragEndBlocks = async (event: DragEndEvent) => {
-    if (!isUserAdmin) return; // Added admin check
+  const handleDragEndBlocks = async (event: DragEndEvent) => { // For "Weeks"
+    if (!isUserAdmin) return;
     const { active, over } = event;
-    console.log(`[Dashboard] handleDragEndBlocks: Active ID - ${active?.id}, Over ID - ${over?.id}`);
 
     if (active && over && active.id !== over.id && selectedPlan) {
       setBlocks((prevBlocks) => {
         const oldIndex = prevBlocks.findIndex(b => b.id === String(active.id));
         const newIndex = prevBlocks.findIndex(b => b.id === String(over.id));
-        console.log(`[Dashboard] handleDragEndBlocks: Old block index - ${oldIndex}, New block index - ${newIndex}`);
-
         if (oldIndex === -1 || newIndex === -1) return prevBlocks;
 
         const reorderedBlocks = arrayMove(prevBlocks, oldIndex, newIndex);
-        console.log("[Dashboard] handleDragEndBlocks: Blocks reordered in state (optimistic).");
-
         const updatedBlocksForDb = reorderedBlocks.map((block, index) => ({
           ...block,
           order: index,
         }));
-        console.log("[Dashboard] handleDragEndBlocks: Updated block data for DB:", JSON.parse(JSON.stringify(updatedBlocksForDb)));
-
         const dbPayload = updatedBlocksForDb.map(b => ({ id: b.id, order: b.order as number }));
 
         updateBlocksOrder(selectedPlan.id, dbPayload)
           .then(async () => {
-            toast({ title: "Orden de etapas actualizado", description: "El nuevo orden de etapas ha sido guardado." });
-            console.log(`[Dashboard] handleDragEndBlocks: Order updated in DB. Re-fetching blocks and their exercises for plan ${selectedPlan.id}.`);
-            // Full re-fetch of blocks (which will trigger exercise fetch)
+            toast({ title: "Orden de semanas actualizado", description: "El nuevo orden de semanas ha sido guardado." });
             await performFetchBlocks(selectedPlan.id);
           })
           .catch(async err => {
-            console.error("[Dashboard] handleDragEndBlocks: Error updating blocks order in DB:", err);
-            toast({ variant: "destructive", title: "Error", description: "No se pudo guardar el nuevo orden de etapas." });
+            toast({ variant: "destructive", title: "Error", description: "No se pudo guardar el nuevo orden de semanas." });
             if (selectedPlan?.id) {
-                console.log(`[Dashboard] handleDragEndBlocks: Error in DB, re-fetching blocks for plan ${selectedPlan.id} to revert UI.`);
                 await performFetchBlocks(selectedPlan.id);
             }
           });
@@ -913,6 +788,8 @@ const handleSaveSessionAndNavigate = async () => {
   const filteredMasterExercises = availableMasterExercises.filter(exercise =>
     exercise.title.toLowerCase().includes(exerciseSearchTerm.toLowerCase())
   );
+
+  const daysInSelectedWeek = selectedBlock ? exercisesInPlan.filter(ex => ex.blockId === selectedBlock.id).sort((a,b) => (a.orderInBlock ?? Infinity) - (b.orderInBlock ?? Infinity)) : [];
 
 
   return (
@@ -944,7 +821,6 @@ const handleSaveSessionAndNavigate = async () => {
                         <DropdownMenuItem
                           key={horse.id}
                           onSelect={() => {
-                            console.log("[Dashboard] Horse selected from dropdown:", horse.name);
                             setSelectedHorse(horse);
                           }}
                         >
@@ -1004,9 +880,8 @@ const handleSaveSessionAndNavigate = async () => {
                                         <DropdownMenuItem
                                             key={plan.id}
                                             onSelect={() => {
-                                                console.log("[Dashboard] Plan selected from dropdown:", plan.title);
                                                 setSelectedPlan(plan);
-                                                setSelectedBlock(null); // Reset selected block when plan changes
+                                                setSelectedBlock(null);
                                             }}
                                         >
                                             {plan.title} {plan.template && "(Plantilla)"}
@@ -1042,7 +917,7 @@ const handleSaveSessionAndNavigate = async () => {
                                     <AlertDialogTitle>¿Estás realmente seguro?</AlertDialogTitle>
                                     <AlertDialogDescription>
                                         Esta acción no se puede deshacer. Esto eliminará permanentemente el plan &quot;{selectedPlan?.title}&quot;
-                                        y todas sus etapas y ejercicios asociados.
+                                        y todas sus semanas y días asociados.
                                     </AlertDialogDescription>
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>
@@ -1066,12 +941,12 @@ const handleSaveSessionAndNavigate = async () => {
                             <SortableContext items={blocks.map(b => b.id)} strategy={verticalListSortingStrategy} disabled={!isUserAdmin}>
                                 <Accordion type="single" collapsible className="w-full space-y-2">
                                 {(isLoadingBlocks && blocks.length === 0) ? (
-                                  <div className="flex items-center justify-center p-4"><Icons.spinner className="h-5 w-5 animate-spin mr-2" /> Cargando etapas...</div>
+                                  <div className="flex items-center justify-center p-4"><Icons.spinner className="h-5 w-5 animate-spin mr-2" /> Cargando semanas...</div>
                                 ) : blocks.length === 0 && !isLoadingBlocks ? (
-                                    <p className="text-sm text-muted-foreground p-2 text-center">Este plan no tiene etapas. {isUserAdmin ? "¡Añade la primera!" : ""}</p>
+                                    <p className="text-sm text-muted-foreground p-2 text-center">Este plan no tiene semanas. {isUserAdmin ? "¡Añade la primera!" : ""}</p>
                                 ) : (
-                                  blocks.map((block) => {
-                                      const exercisesForThisBlock = exercisesInPlan.filter(ex => ex.blockId === block.id).sort((a,b) => (a.orderInBlock ?? Infinity) - (b.orderInBlock ?? Infinity));
+                                  blocks.map((block) => { // block is a "Week"
+                                      const daysInThisWeek = exercisesInPlan.filter(ex => ex.blockId === block.id).sort((a,b) => (a.orderInBlock ?? Infinity) - (b.orderInBlock ?? Infinity));
                                       return (
                                       <SortableBlockAccordionItem
                                           key={block.id}
@@ -1082,22 +957,22 @@ const handleSaveSessionAndNavigate = async () => {
                                           <AccordionContent className="px-1 sm:px-2.5">
                                           {block.goal && (
                                               <p className="text-sm text-primary font-semibold mb-2">
-                                              Meta de la Etapa: <span className="font-normal text-muted-foreground">{block.goal}</span>
+                                              Meta de la Semana: <span className="font-normal text-muted-foreground">{block.goal}</span>
                                               </p>
                                           )}
-                                          {isLoadingExercises && exercisesForThisBlock.length === 0 && block.exerciseReferences && block.exerciseReferences.length > 0 ? ( // Show loading only if references exist but exercises not yet loaded
+                                          {isLoadingExercises && daysInThisWeek.length === 0 && block.exerciseReferences && block.exerciseReferences.length > 0 ? (
                                               <div className="flex items-center justify-center p-4">
-                                                  <Icons.spinner className="h-5 w-5 animate-spin mr-2" /> Cargando ejercicios...
+                                                  <Icons.spinner className="h-5 w-5 animate-spin mr-2" /> Cargando días...
                                               </div>
-                                          ) : exercisesForThisBlock.length > 0 ? (
+                                          ) : daysInThisWeek.length > 0 ? (
                                           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndExercises}>
-                                              <SortableContext items={exercisesForThisBlock.map(e => e.id)} strategy={verticalListSortingStrategy} disabled={!isUserAdmin}>
+                                              <SortableContext items={daysInThisWeek.map(e => e.id)} strategy={verticalListSortingStrategy} disabled={!isUserAdmin}>
                                                   <ul className="list-none pl-0 space-y-1 text-sm">
-                                                  {exercisesForThisBlock.map((exercise) => (
+                                                  {daysInThisWeek.map((exercise) => ( // exercise is a "Day"
                                                       <SortableExerciseItem
                                                         key={exercise.id}
                                                         exercise={exercise}
-                                                        blockId={block.id}
+                                                        blockId={block.id} // Week ID
                                                         planId={selectedPlan.id}
                                                         onRemove={handleRemoveExerciseFromBlock}
                                                         canEdit={isUserAdmin}
@@ -1108,12 +983,12 @@ const handleSaveSessionAndNavigate = async () => {
                                           </DndContext>
                                           ) : (
                                           <p className="text-sm text-muted-foreground p-2">
-                                            Esta etapa no tiene ejercicios.
+                                            Esta semana no tiene días definidos.
                                           </p>
                                           )}
                                           {isUserAdmin && (
                                             <Button size="sm" variant="outline" className="mt-2" onClick={() => openSelectExerciseDialog(block.id)}>
-                                                <Icons.plus className="mr-2 h-4 w-4" /> Añadir Ejercicio
+                                                <Icons.plus className="mr-2 h-4 w-4" /> Añadir Día
                                             </Button>
                                           )}
                                       </AccordionContent>
@@ -1125,7 +1000,7 @@ const handleSaveSessionAndNavigate = async () => {
                           {isUserAdmin && (
                             <div className="flex flex-wrap justify-end mt-4 gap-2">
                                 <Button onClick={() => setIsAddBlockDialogOpen(true)} disabled={!selectedPlan || isLoadingBlocks}>
-                                    <Icons.plus className="mr-2 h-4 w-4" /> Añadir Etapa
+                                    <Icons.plus className="mr-2 h-4 w-4" /> Añadir Semana
                                 </Button>
                             </div>
                           )}
@@ -1144,159 +1019,167 @@ const handleSaveSessionAndNavigate = async () => {
                         <CardDescription>Para {selectedHorse.name} en {date ? date.toLocaleDateString("es-ES") : 'fecha no seleccionada'}</CardDescription>
                       </CardHeader>
                       <CardContent className="grid gap-4">
+                        {/* Week Selector */}
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="outline" className="w-full justify-start" disabled={!selectedPlan || blocks.length === 0 || isLoadingBlocks}>
-                              {isLoadingBlocks ? "Cargando etapas..." : (selectedBlock && blocks.some(b => b.id === selectedBlock.id)) ? selectedBlock.title : "Seleccionar Etapa para la Sesión"}
+                              {isLoadingBlocks ? "Cargando semanas..." : (selectedBlock && blocks.some(b => b.id === selectedBlock.id)) ? selectedBlock.title : "Seleccionar Semana"}
                               {!isLoadingBlocks && <Icons.chevronDown className="ml-auto h-4 w-4" />}
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent className="w-[var(--radix-dropdown-menu-trigger-width)]">
-                            <DropdownMenuLabel>Etapas del Plan: {selectedPlan?.title || "N/A"}</DropdownMenuLabel>
+                            <DropdownMenuLabel>Semanas del Plan: {selectedPlan?.title || "N/A"}</DropdownMenuLabel>
                             <DropdownMenuSeparator />
                             {isLoadingBlocks ? (
-                                <DropdownMenuItem disabled>Cargando etapas...</DropdownMenuItem>
+                                <DropdownMenuItem disabled>Cargando semanas...</DropdownMenuItem>
                             ) : blocks.length > 0 ? (
                               blocks.sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity)).map((block) => (
-                                  <DropdownMenuItem key={block.id} onSelect={() => {
-                                    console.log("[Dashboard] Block selected for session:", block.title);
-                                    setSelectedBlock(block);
-                                    setSessionExerciseResults(new Map()); // Clear previous exercise inputs
-                                  }}>
+                                  <DropdownMenuItem key={block.id} onSelect={() => setSelectedBlock(block)}>
                                       {block.title}
                                       {block.notes && <span className="text-xs text-muted-foreground ml-1">({block.notes})</span>}
                                   </DropdownMenuItem>
                               ))
                               ) : (
-                              <DropdownMenuItem disabled>No hay etapas en el plan seleccionado</DropdownMenuItem>
+                              <DropdownMenuItem disabled>No hay semanas en el plan</DropdownMenuItem>
                               )}
                           </DropdownMenuContent>
                         </DropdownMenu>
 
+                        {/* Day Selector (visible after week is selected) */}
                         {selectedBlock && (
-                            <>
-                            <Label htmlFor="session-overall-note">Notas Generales de la Sesión</Label>
-                            <Textarea
-                                id="session-overall-note"
-                                placeholder="Comentarios generales sobre la sesión, estado del caballo, etc."
-                                value={sessionOverallNote}
-                                onChange={(e) => setSessionOverallNote(e.target.value)}
-                            />
-
-                            {isLoadingExercises && exercisesInPlan.filter(ex => ex.blockId === selectedBlock.id).length === 0 && selectedBlock.exerciseReferences && selectedBlock.exerciseReferences.length > 0 ? (
-                                <div className="flex items-center justify-center p-4">
-                                    <Icons.spinner className="h-5 w-5 animate-spin mr-2" /> Cargando ejercicios para la etapa...
-                                </div>
-                            ) : exercisesInPlan.filter(ex => ex.blockId === selectedBlock.id).length > 0 ? (
-                                exercisesInPlan.filter(ex => ex.blockId === selectedBlock.id).sort((a,b) => (a.orderInBlock ?? Infinity) - (b.orderInBlock ?? Infinity)).map(exercise => {
-                                    const currentResult = sessionExerciseResults.get(exercise.id) || {
+                          <>
+                            <Label>Seleccionar Día de la {selectedBlock.title}:</Label>
+                            {isLoadingExercises && daysInSelectedWeek.length === 0 && selectedBlock.exerciseReferences && selectedBlock.exerciseReferences.length > 0 ? (
+                                <div className="flex items-center p-2"><Icons.spinner className="h-4 w-4 animate-spin mr-2" /> Cargando días...</div>
+                            ): daysInSelectedWeek.length > 0 ? (
+                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                                {daysInSelectedWeek.map(day => (
+                                  <Button
+                                    key={day.id}
+                                    variant={selectedDayForSession?.id === day.id ? "default" : "outline"}
+                                    onClick={() => {
+                                      setSelectedDayForSession(day);
+                                      // Initialize or reset sessionDayResult when a new day is selected
+                                      setSessionDayResult({
+                                        plannedReps: day.suggestedReps ?? "1 sesión",
                                         doneReps: 0,
                                         rating: 3,
-                                        plannedReps: exercise.suggestedReps ?? "",
-                                        observations: {
-                                          nostrils: null, lips: null, ears: null, eyes: null, neck: null,
-                                          back: null, croup: null, limbs: null, tail: null,
-                                          additionalNotes: ""
-                                        }
-                                    };
-                                    return (
-                                        <Card key={exercise.id} className="p-4 space-y-3">
-                                            <Label className="font-semibold text-lg">{exercise.title}</Label>
-                                            {exercise.description && <p className="text-xs text-muted-foreground">{exercise.description}</p>}
-
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                                <div>
-                                                    <Label htmlFor={`plannedReps-${exercise.id}`}>Repeticiones Planificadas</Label>
-                                                    <Input
-                                                        id={`plannedReps-${exercise.id}`}
-                                                        type="text"
-                                                        placeholder="Ej: 10 o 'Hasta lograr X'"
-                                                        value={currentResult.plannedReps ?? ''}
-                                                        onChange={(e) => handleSessionExerciseInputChange(exercise.id, 'plannedReps', e.target.value)}
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <Label htmlFor={`doneReps-${exercise.id}`}>Repeticiones Realizadas</Label>
-                                                    <Input
-                                                        id={`doneReps-${exercise.id}`}
-                                                        type="number"
-                                                        placeholder="Ej: 8"
-                                                        value={String(currentResult.doneReps)}
-                                                        onChange={(e) => handleSessionExerciseInputChange(exercise.id, 'doneReps', e.target.value)}
-                                                    />
-                                                </div>
-                                            </div>
-
-                                            <div>
-                                                <Label htmlFor={`rating-${exercise.id}`}>Calificación (1-5): {currentResult.rating}</Label>
-                                                <Slider
-                                                    id={`rating-${exercise.id}`}
-                                                    defaultValue={[currentResult.rating]}
-                                                    min={1}
-                                                    max={5}
-                                                    step={1}
-                                                    className="mt-1"
-                                                    onValueChange={(value) => handleSessionExerciseInputChange(exercise.id, 'rating', value[0])}
-                                                />
-                                            </div>
-
-                                            <div className="pt-3 border-t mt-3">
-                                                 <div className="space-y-1 mb-3">
-                                                    <Label htmlFor={`obs-additionalNotes-${exercise.id}`}>Notas Adicionales (del ejercicio)</Label>
-                                                    <Textarea
-                                                      id={`obs-additionalNotes-${exercise.id}`}
-                                                      placeholder="Otras notas específicas del ejercicio..."
-                                                      value={currentResult.observations?.additionalNotes || ''}
-                                                      onChange={(e) => handleSessionExerciseInputChange(exercise.id, `observations.additionalNotes`, e.target.value)}
-                                                    />
-                                                </div>
-                                                <h4 className="text-md font-semibold mb-2">Observaciones de Tensión:</h4>
-                                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 mt-3">
-                                                    {OBSERVATION_ZONES.map(zone => (
-                                                      <div key={zone.id} className="space-y-1">
-                                                        <Label htmlFor={`obs-${exercise.id}-${zone.id}`}>{zone.label}</Label>
-                                                        <Select
-                                                          value={currentResult.observations?.[zone.id as keyof Omit<ExerciseResultObservations, 'additionalNotes'>] || ''}
-                                                          onValueChange={(value) => handleSessionExerciseInputChange(exercise.id, `observations.${zone.id as keyof Omit<ExerciseResultObservations, 'additionalNotes'>}`, value === 'N/A' ? 'N/A' : (value || null))}
-                                                        >
-                                                          <SelectTrigger id={`obs-${exercise.id}-${zone.id}`}>
-                                                            <SelectValue placeholder={`Estado de ${zone.label.toLowerCase()}`} />
-                                                          </SelectTrigger>
-                                                          <SelectContent>
-                                                            {TENSION_STATUS_OPTIONS.map(option => (
-                                                              <SelectItem key={option.value} value={option.value}>
-                                                                {option.label}
-                                                              </SelectItem>
-                                                            ))}
-                                                          </SelectContent>
-                                                        </Select>
-                                                      </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        </Card>
-                                    )
-                                })
+                                        observations: { /* initial observations */ }
+                                      });
+                                    }}
+                                    className="h-auto py-2 text-left flex flex-col items-start"
+                                  >
+                                    <span className="font-semibold">{day.title}</span>
+                                    {day.objective && <span className="text-xs text-muted-foreground">{day.objective}</span>}
+                                  </Button>
+                                ))}
+                              </div>
                             ) : (
-                                <p className="text-sm text-muted-foreground p-2 text-center">
-                                    { selectedBlock.exerciseReferences && selectedBlock.exerciseReferences.length > 0 && isLoadingExercises ?
-                                        'Cargando ejercicios...' :
-                                        'Selecciona una etapa con ejercicios para registrar la sesión. Si eres administrador, puedes añadir ejercicios en la pestaña "Plan".'
-                                    }
-                                </p>
+                              <p className="text-sm text-muted-foreground p-2">Esta semana no tiene días definidos. {isUserAdmin ? "Añade días en la pestaña 'Plan'." : ""}</p>
                             )}
-                            </>
+                          </>
                         )}
 
-                        <div className="flex justify-end mt-2">
-                          <Button
-                            onClick={handleSaveSessionAndNavigate}
-                            disabled={isSavingSession || !date || !selectedHorse || !selectedBlock || (selectedBlock && (!selectedBlock.exerciseReferences || selectedBlock.exerciseReferences.length === 0)) || (selectedBlock && exercisesInPlan.filter(ex => ex.blockId === selectedBlock.id).length === 0 && !isLoadingExercises) }
-                          >
-                            {isSavingSession && <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />}
-                            Guardar Sesión e Ir a Detalles
-                          </Button>
-                        </div>
+                        {/* Form for the selected day */}
+                        {selectedDayForSession && sessionDayResult && (
+                            <Card className="p-4 space-y-3 mt-4">
+                                <h3 className="text-lg font-semibold">Detalles para: {selectedDayForSession.title}</h3>
+                                <div>
+                                    <Label htmlFor="session-overall-note">Notas Generales de la Sesión (para este día)</Label>
+                                    <Textarea
+                                        id="session-overall-note"
+                                        placeholder="Comentarios generales sobre la sesión de hoy..."
+                                        value={sessionOverallNote}
+                                        onChange={(e) => setSessionOverallNote(e.target.value)}
+                                    />
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <Label htmlFor={`day-plannedReps`}>Planificado</Label>
+                                        <Input
+                                            id={`day-plannedReps`}
+                                            type="text"
+                                            placeholder="Ej: 1 sesión, 45 min"
+                                            value={sessionDayResult.plannedReps ?? ''}
+                                            onChange={(e) => handleSessionDayResultChange('plannedReps', e.target.value)}
+                                        />
+                                    </div>
+                                    <div>
+                                        <Label htmlFor={`day-doneReps`}>Realizado (0=No, 1=Sí)</Label>
+                                        <Input
+                                            id={`day-doneReps`}
+                                            type="number"
+                                            min="0" max="1" step="1"
+                                            placeholder="1"
+                                            value={String(sessionDayResult.doneReps)}
+                                            onChange={(e) => handleSessionDayResultChange('doneReps', e.target.value)}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <Label htmlFor={`day-rating`}>Calificación del Día (1-5): {sessionDayResult.rating}</Label>
+                                    <Slider
+                                        id={`day-rating`}
+                                        value={[sessionDayResult.rating]}
+                                        min={1}
+                                        max={5}
+                                        step={1}
+                                        className="mt-1"
+                                        onValueChange={(value) => handleSessionDayResultChange('rating', value[0])}
+                                    />
+                                </div>
+
+                                <div className="pt-3 border-t mt-3">
+                                    <div className="space-y-1 mb-3">
+                                        <Label htmlFor={`day-obs-additionalNotes`}>Notas Adicionales (específicas del día)</Label>
+                                        <Textarea
+                                            id={`day-obs-additionalNotes`}
+                                            placeholder="Notas sobre el rendimiento, dificultades, etc."
+                                            value={sessionDayResult.observations?.additionalNotes || ''}
+                                            onChange={(e) => handleSessionDayResultChange(`observations.additionalNotes`, e.target.value)}
+                                        />
+                                    </div>
+                                    <h4 className="text-md font-semibold mb-2">Observaciones de Tensión:</h4>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 mt-3">
+                                        {OBSERVATION_ZONES.map(zone => (
+                                        <div key={zone.id} className="space-y-1">
+                                            <Label htmlFor={`day-obs-${zone.id}`}>{zone.label}</Label>
+                                            <Select
+                                            value={sessionDayResult.observations?.[zone.id as keyof Omit<ExerciseResultObservations, 'additionalNotes'>] || ''}
+                                            onValueChange={(value) => handleSessionDayResultChange(`observations.${zone.id as keyof Omit<ExerciseResultObservations, 'additionalNotes'>}`, value === 'N/A' ? 'N/A' : (value || null))}
+                                            >
+                                            <SelectTrigger id={`day-obs-${zone.id}`}>
+                                                <SelectValue placeholder={`Estado de ${zone.label.toLowerCase()}`} />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {TENSION_STATUS_OPTIONS.map(option => (
+                                                <SelectItem key={option.value} value={option.value}>
+                                                    {option.label}
+                                                </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                            </Select>
+                                        </div>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div className="flex justify-end mt-2">
+                                  <Button
+                                    onClick={handleSaveSessionAndNavigate}
+                                    disabled={isSavingSession || !date || !selectedHorse || !selectedBlock || !selectedDayForSession || !sessionDayResult}
+                                  >
+                                    {isSavingSession && <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />}
+                                    Guardar Sesión del Día
+                                  </Button>
+                                </div>
+                            </Card>
+                        )}
+                         {!selectedDayForSession && selectedBlock && daysInSelectedWeek.length > 0 && (
+                            <p className="text-center text-muted-foreground mt-4">Por favor, selecciona un día de la lista de arriba para registrar sus detalles.</p>
+                        )}
+
                       </CardContent>
                     </Card>
                   </TabsContent>
@@ -1374,8 +1257,8 @@ const handleSaveSessionAndNavigate = async () => {
             <Dialog open={isAddBlockDialogOpen} onOpenChange={setIsAddBlockDialogOpen}>
                 <DialogContent className="sm:max-w-[480px]">
                 <DialogHeader>
-                    <DialogTitle>Añadir Nueva Etapa al Plan</DialogTitle>
-                    <DialogDescription>Añade una etapa a "{selectedPlan?.title}".</DialogDescription>
+                    <DialogTitle>Añadir Nueva Semana al Plan</DialogTitle>
+                    <DialogDescription>Añade una semana a "{selectedPlan?.title}".</DialogDescription>
                 </DialogHeader>
                 {selectedPlan && (
                     <AddBlockForm
@@ -1390,8 +1273,8 @@ const handleSaveSessionAndNavigate = async () => {
             <Dialog open={isEditBlockDialogOpen} onOpenChange={setIsEditBlockDialogOpen}>
                 <DialogContent className="sm:max-w-[480px]">
                 <DialogHeader>
-                    <DialogTitle>Editar Etapa</DialogTitle>
-                    <DialogDescription>Modifica los detalles de la etapa "{editingBlock?.title}".</DialogDescription>
+                    <DialogTitle>Editar Semana</DialogTitle>
+                    <DialogDescription>Modifica los detalles de la semana "{editingBlock?.title}".</DialogDescription>
                 </DialogHeader>
                 {selectedPlan && editingBlock && (
                     <EditBlockForm
@@ -1413,15 +1296,15 @@ const handleSaveSessionAndNavigate = async () => {
             }}>
                 <DialogContent className="sm:max-w-lg">
                 <DialogHeader>
-                    <DialogTitle>Añadir Ejercicios a la Etapa</DialogTitle>
+                    <DialogTitle>Añadir Días a la Semana</DialogTitle>
                     <DialogDescription>
-                    Selecciona ejercicios de la biblioteca para añadir a la etapa: {blocks.find(b => b.id === currentBlockIdForNewExercise)?.title || ""}
+                    Selecciona Días (plantillas de MasterExercise) para añadir a la semana: {blocks.find(b => b.id === currentBlockIdForNewExercise)?.title || ""}
                     </DialogDescription>
                 </DialogHeader>
                 <div className="my-4">
                     <Input
                     type="search"
-                    placeholder="Buscar ejercicios por título..."
+                    placeholder="Buscar días por título..."
                     value={exerciseSearchTerm}
                     onChange={(e) => setExerciseSearchTerm(e.target.value)}
                     className="w-full"
@@ -1431,9 +1314,9 @@ const handleSaveSessionAndNavigate = async () => {
                     {isLoadingMasterExercises ? (
                     <div className="flex justify-center"><Icons.spinner className="h-6 w-6 animate-spin" /></div>
                     ) : filteredMasterExercises.length === 0 && availableMasterExercises.length > 0 ? (
-                        <p className="text-center text-muted-foreground">No se encontraron ejercicios con &quot;{exerciseSearchTerm}&quot;.</p>
+                        <p className="text-center text-muted-foreground">No se encontraron días con &quot;{exerciseSearchTerm}&quot;.</p>
                     ) : filteredMasterExercises.length === 0 && availableMasterExercises.length === 0 ? (
-                    <p className="text-center text-muted-foreground">No hay ejercicios en la biblioteca. <Link href="/library/exercises" className="text-primary hover:underline" onClick={() => setIsSelectExerciseDialogOpen(false)}>Añade algunos primero.</Link></p>
+                    <p className="text-center text-muted-foreground">No hay plantillas de día en la biblioteca. <Link href="/library/exercises" className="text-primary hover:underline" onClick={() => setIsSelectExerciseDialogOpen(false)}>Añade algunas primero.</Link></p>
                     ) : (
                     filteredMasterExercises.map(masterEx => (
                         <div key={masterEx.id} className="flex items-center space-x-3 rounded-md border p-3 hover:bg-accent/50">

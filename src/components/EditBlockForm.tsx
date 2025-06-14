@@ -35,7 +35,7 @@ const editBlockSchema = z.object({
 type EditBlockFormValues = z.infer<typeof editBlockSchema>;
 
 interface EditBlockFormProps {
-  block: TrainingBlock;
+  block: TrainingBlock; // Represents a "Week"
   planId: string;
   onSuccess: () => void;
   onCancel: () => void;
@@ -68,29 +68,29 @@ export default function EditBlockForm({ block, planId, onSuccess, onCancel }: Ed
   const onSubmit: SubmitHandler<EditBlockFormValues> = async (data) => {
     setIsLoading(true);
     if (!planId || !block.id) {
-        toast({ variant: "destructive", title: "Error", description: "ID del plan o de la etapa no encontrado."});
+        toast({ variant: "destructive", title: "Error", description: "ID del plan o de la semana no encontrado."});
         setIsLoading(false);
         return;
     }
     try {
       const blockInputData: Partial<Omit<TrainingBlockInput, 'planId' | 'order' | 'exerciseReferences'>> = { 
         title: data.title,
-        notes: data.notes,
-        duration: data.duration,
-        goal: data.goal,
+        notes: data.notes || null, // Store empty string as null
+        duration: data.duration || null,
+        goal: data.goal || null,
       };
       await updateTrainingBlock(planId, block.id, blockInputData); 
       toast({
-        title: "Etapa Actualizada",
-        description: `La etapa "${data.title}" ha sido actualizada exitosamente.`,
+        title: "Semana Actualizada",
+        description: `La semana "${data.title}" ha sido actualizada exitosamente.`,
       });
       onSuccess();
     } catch (error: any) {
-      console.error("Error updating training block/etapa:", error);
+      console.error("Error updating training block/week:", error);
       toast({
         variant: "destructive",
-        title: "Error al Actualizar Etapa",
-        description: error.message || "Ocurrió un error inesperado al actualizar la etapa.",
+        title: "Error al Actualizar Semana",
+        description: error.message || "Ocurrió un error inesperado al actualizar la semana.",
       });
     } finally {
       setIsLoading(false);
@@ -100,23 +100,23 @@ export default function EditBlockForm({ block, planId, onSuccess, onCancel }: Ed
   const handleDeleteBlock = async () => {
     setIsDeleting(true);
     if (!planId || !block.id) {
-      toast({ variant: "destructive", title: "Error", description: "ID del plan o de la etapa no encontrado." });
+      toast({ variant: "destructive", title: "Error", description: "ID del plan o de la semana no encontrado." });
       setIsDeleting(false);
       return;
     }
     try {
       await deleteTrainingBlock(planId, block.id);
       toast({
-        title: "Etapa Eliminada",
-        description: `La etapa "${block.title}" y todos sus ejercicios han sido eliminados.`,
+        title: "Semana Eliminada",
+        description: `La semana "${block.title}" y todos sus días han sido eliminados.`,
       });
-      onSuccess(); // Call onSuccess to close dialog and refresh list
+      onSuccess();
     } catch (error: any) {
-      console.error("Error deleting training block:", error);
+      console.error("Error deleting training block/week:", error);
       toast({
         variant: "destructive",
-        title: "Error al Eliminar Etapa",
-        description: error.message || "Ocurrió un error inesperado al eliminar la etapa.",
+        title: "Error al Eliminar Semana",
+        description: error.message || "Ocurrió un error inesperado al eliminar la semana.",
       });
     } finally {
       setIsDeleting(false);
@@ -131,9 +131,9 @@ export default function EditBlockForm({ block, planId, onSuccess, onCancel }: Ed
           name="title"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Título de la Etapa</FormLabel>
+              <FormLabel>Título de la Semana</FormLabel>
               <FormControl>
-                <Input placeholder="Ej: Etapa 1, Fundamentos" {...field} />
+                <Input placeholder="Ej: Semana 1, Fundamentos" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -146,7 +146,7 @@ export default function EditBlockForm({ block, planId, onSuccess, onCancel }: Ed
             <FormItem>
               <FormLabel>Subtítulo (Opcional)</FormLabel>
               <FormControl>
-                <Textarea placeholder="Notas adicionales o un subtítulo para la etapa..." {...field} value={field.value ?? ''} />
+                <Textarea placeholder="Notas adicionales o un subtítulo para la semana..." {...field} value={field.value ?? ''} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -159,7 +159,7 @@ export default function EditBlockForm({ block, planId, onSuccess, onCancel }: Ed
             <FormItem>
               <FormLabel>Duración (Opcional)</FormLabel>
               <FormControl>
-                <Input placeholder="Ej: 1 semana, 3 días" {...field} value={field.value ?? ''}/>
+                <Input placeholder="Ej: 7 días" {...field} value={field.value ?? ''}/>
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -170,9 +170,9 @@ export default function EditBlockForm({ block, planId, onSuccess, onCancel }: Ed
           name="goal"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Meta de la Etapa (Opcional)</FormLabel>
+              <FormLabel>Meta de la Semana (Opcional)</FormLabel>
               <FormControl>
-                <Textarea placeholder="Describe la meta principal de esta etapa..." {...field} value={field.value ?? ''} />
+                <Textarea placeholder="Describe la meta principal de esta semana..." {...field} value={field.value ?? ''} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -183,15 +183,15 @@ export default function EditBlockForm({ block, planId, onSuccess, onCancel }: Ed
             <AlertDialogTrigger asChild>
               <Button type="button" variant="destructive" disabled={isLoading || isDeleting}>
                 {isDeleting ? <Icons.spinner className="mr-2 h-4 w-4 animate-spin" /> : <Icons.trash className="mr-2 h-4 w-4" />}
-                Eliminar Etapa
+                Eliminar Semana
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Esta acción no se puede deshacer. Esto eliminará permanentemente la etapa
-                  &quot;{block.title}&quot; y todos los ejercicios que contiene.
+                  Esta acción no se puede deshacer. Esto eliminará permanentemente la semana
+                  &quot;{block.title}&quot; y todos los días que contiene.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>

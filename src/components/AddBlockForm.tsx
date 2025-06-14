@@ -15,9 +15,9 @@ import { addTrainingBlock, type TrainingBlockInput } from '@/services/firestore'
 import { Icons } from '@/components/icons';
 
 const addBlockSchema = z.object({
-  title: z.string().min(3, { message: "El título debe tener al menos 3 caracteres." }).max(100, { message: "El título no puede exceder los 100 caracteres." }),
+  title: z.string().min(3, { message: "El título debe tener al menos 3 caracteres." }).max(100, { message: "El título no puede exceder los 100 caracteres." }), // e.g., "Semana 1"
   notes: z.string().max(200, { message: "El subtítulo no puede exceder los 200 caracteres."}).optional(),
-  duration: z.string().max(50, { message: "La duración no puede exceder los 50 caracteres."}).optional(),
+  duration: z.string().max(50, { message: "La duración no puede exceder los 50 caracteres."}).optional(), // e.g., "7 días"
   goal: z.string().max(500, { message: "La meta no puede exceder los 500 caracteres."}).optional(),
 });
 
@@ -25,7 +25,7 @@ type AddBlockFormValues = z.infer<typeof addBlockSchema>;
 
 interface AddBlockFormProps {
   planId: string;
-  onSuccess: (blockId: string) => void;
+  onSuccess: (blockId: string) => void; // blockId is Week ID
   onCancel: () => void;
 }
 
@@ -45,33 +45,30 @@ export default function AddBlockForm({ planId, onSuccess, onCancel }: AddBlockFo
 
   const onSubmit: SubmitHandler<AddBlockFormValues> = async (data) => {
     setIsLoading(true);
-    console.log("[AddBlockForm] onSubmit called with planId:", planId, "and data:", data);
     if (!planId) {
-        toast({ variant: "destructive", title: "Error", description: "ID del plan no encontrado. No se puede añadir la etapa."});
-        console.error("[AddBlockForm] onSubmit: planId is missing.");
+        toast({ variant: "destructive", title: "Error", description: "ID del plan no encontrado. No se puede añadir la semana."});
         setIsLoading(false);
         return;
     }
     try {
       const blockInputData: Omit<TrainingBlockInput, 'exerciseReferences' | 'order'> = { 
         title: data.title,
-        notes: data.notes,
-        duration: data.duration,
-        goal: data.goal,
+        notes: data.notes || undefined, // Store empty as undefined if preferred, or handle in service
+        duration: data.duration || undefined,
+        goal: data.goal || undefined,
       };
       const blockId = await addTrainingBlock(planId, blockInputData); 
       toast({
-        title: "Etapa Añadida",
-        description: `La etapa "${data.title}" ha sido guardada exitosamente.`,
+        title: "Semana Añadida",
+        description: `La semana "${data.title}" ha sido guardada exitosamente.`,
       });
       form.reset();
       onSuccess(blockId);
     } catch (error: any) {
-      console.error("[AddBlockForm] Error adding training block/etapa:", error);
       toast({
         variant: "destructive",
-        title: "Error al Añadir Etapa",
-        description: error.message || "Ocurrió un error inesperado al guardar la etapa.",
+        title: "Error al Añadir Semana",
+        description: error.message || "Ocurrió un error inesperado al guardar la semana.",
       });
     } finally {
       setIsLoading(false);
@@ -86,9 +83,9 @@ export default function AddBlockForm({ planId, onSuccess, onCancel }: AddBlockFo
           name="title"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Título de la Etapa</FormLabel>
+              <FormLabel>Título de la Semana</FormLabel>
               <FormControl>
-                <Input placeholder="Ej: Etapa 1, Fundamentos" {...field} />
+                <Input placeholder="Ej: Semana 1, Fundamentos" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -101,7 +98,7 @@ export default function AddBlockForm({ planId, onSuccess, onCancel }: AddBlockFo
             <FormItem>
               <FormLabel>Subtítulo (Opcional)</FormLabel>
               <FormControl>
-                <Textarea placeholder="Notas adicionales o un subtítulo para la etapa..." {...field} value={field.value ?? ''} />
+                <Textarea placeholder="Notas adicionales o un subtítulo para la semana..." {...field} value={field.value ?? ''} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -114,7 +111,7 @@ export default function AddBlockForm({ planId, onSuccess, onCancel }: AddBlockFo
             <FormItem>
               <FormLabel>Duración (Opcional)</FormLabel>
               <FormControl>
-                <Input placeholder="Ej: 1 semana, 3 días" {...field} value={field.value ?? ''} />
+                <Input placeholder="Ej: 7 días, 1 semana" {...field} value={field.value ?? ''} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -125,9 +122,9 @@ export default function AddBlockForm({ planId, onSuccess, onCancel }: AddBlockFo
           name="goal"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Meta de la Etapa (Opcional)</FormLabel>
+              <FormLabel>Meta de la Semana (Opcional)</FormLabel>
               <FormControl>
-                <Textarea placeholder="Describe la meta principal de esta etapa..." {...field} value={field.value ?? ''} />
+                <Textarea placeholder="Describe la meta principal de esta semana..." {...field} value={field.value ?? ''} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -139,7 +136,7 @@ export default function AddBlockForm({ planId, onSuccess, onCancel }: AddBlockFo
           </Button>
           <Button type="submit" disabled={isLoading}>
             {isLoading && <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />}
-            Guardar Etapa
+            Guardar Semana
           </Button>
         </div>
       </form>

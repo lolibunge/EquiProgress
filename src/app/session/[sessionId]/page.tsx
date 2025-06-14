@@ -7,8 +7,8 @@ import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { getSession, getExerciseResults, updateSession, updateExerciseResult, deleteSession } from '@/services/session';
 import { getHorseById } from '@/services/horse';
-import { getBlockById, getExercise } from '@/services/firestore';
-import type { SessionData, ExerciseResult, Horse, TrainingBlock, Exercise, ExerciseResultObservations, SessionUpdateData, ExerciseResultUpdateData } from '@/types/firestore';
+import { getBlockById, getMasterExerciseById as getDayCardDetails } from '@/services/firestore'; // Renamed for clarity
+import type { SessionData, ExerciseResult, Horse, TrainingBlock, MasterExercise, ExerciseResultObservations, SessionUpdateData, ExerciseResultUpdateData } from '@/types/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Icons } from '@/components/icons';
@@ -59,14 +59,15 @@ const OBSERVATION_ZONES = [
 ] as const;
 
 
-interface ExerciseResultWithDetails extends ExerciseResult {
-  exerciseDetails?: Exercise | null;
+// This will now typically hold a single result, representing the "Day Card"
+interface ExerciseResultWithDayCardDetails extends ExerciseResult {
+  dayCardDetails?: MasterExercise | null; // Details of the MasterExercise that represents the Day
 }
 
-// Helper type for editable exercise results
-type EditableExerciseResult = Omit<ExerciseResultWithDetails, 'createdAt' | 'updatedAt' | 'id' | 'exerciseId' | 'observations'> & {
+// Helper type for editable exercise results (Day Card result)
+type EditableDayCardResult = Omit<ExerciseResultWithDayCardDetails, 'createdAt' | 'updatedAt' | 'id' | 'exerciseId' | 'observations'> & {
   id: string;
-  exerciseId: string;
+  exerciseId: string; // ID of the Day Card (MasterExercise)
   observations: Omit<ExerciseResultObservations, 'overallBehavior'>;
 };
 
@@ -85,10 +86,11 @@ function SessionDetailContent() {
   const [editableOverallNote, setEditableOverallNote] = useState<string>("");
   const [editableDate, setEditableDate] = useState<Date | undefined>(undefined);
 
-  const [editableExerciseResults, setEditableExerciseResults] = useState<EditableExerciseResult[]>([]);
+  // Will usually contain one item: the result for the "Day Card"
+  const [editableDayCardResults, setEditableDayCardResults] = useState<EditableDayCardResult[]>([]);
 
   const [horse, setHorse] = useState<Horse | null>(null);
-  const [block, setBlock] = useState<TrainingBlock | null>(null);
+  const [block, setBlock] = useState<TrainingBlock | null>(null); // Week
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -123,24 +125,24 @@ function SessionDetailContent() {
         const horseData = await getHorseById(sessionData.horseId);
         setHorse(horseData);
 
-        if (sessionData.blockId) {
+        if (sessionData.blockId) { // blockId is Week ID
           const blockData = await getBlockById(sessionData.blockId);
           setBlock(blockData);
         }
 
-        const resultsData = await getExerciseResults(horseId, sessionId);
-        const resultsWithDetails: ExerciseResultWithDetails[] = await Promise.all(
+        const resultsData = await getExerciseResults(horseId, sessionId); // Should be one result for the Day Card
+        const resultsWithDetails: ExerciseResultWithDayCardDetails[] = await Promise.all(
           resultsData.map(async (result) => {
-            const exerciseDetails = await getExercise(result.exerciseId);
-            return { ...result, exerciseDetails };
+            const dayCardDetails = await getDayCardDetails(result.exerciseId); // Fetch details of the MasterExercise (Day Card)
+            return { ...result, dayCardDetails };
           })
         );
 
-        setEditableExerciseResults(resultsWithDetails.map(r => ({
+        setEditableDayCardResults(resultsWithDetails.map(r => ({
             id: r.id,
             exerciseId: r.exerciseId,
-            exerciseDetails: r.exerciseDetails,
-            plannedReps: r.plannedReps || r.exerciseDetails?.suggestedReps || "",
+            dayCardDetails: r.dayCardDetails,
+            plannedReps: r.plannedReps || r.dayCardDetails?.suggestedReps || "",
             doneReps: r.doneReps,
             rating: r.rating,
             observations: r.observations ?
@@ -174,23 +176,19 @@ function SessionDetailContent() {
     fetchData();
   }, [sessionId, currentUser, horseId]);
 
-  const handleExerciseResultChange = (
-    exerciseResultId: string,
-    field: keyof Omit<EditableExerciseResult, 'id' | 'exerciseId' | 'exerciseDetails' | 'observations'> | `observations.${keyof Omit<ExerciseResultObservations, 'overallBehavior'>}`,
+  const handleDayCardResultChange = (
+    exerciseResultId: string, // This is the ID of the ExerciseResult document
+    field: keyof Omit<EditableDayCardResult, 'id' | 'exerciseId' | 'dayCardDetails' | 'observations'> | `observations.${keyof Omit<ExerciseResultObservations, 'overallBehavior'>}`,
     value: string | number | null
   ) => {
-    setEditableExerciseResults(prev =>
+    setEditableDayCardResults(prev =>
         prev.map(er => {
             if (er.id === exerciseResultId) {
                 const updatedEr = { ...er };
                 if (String(field).startsWith('observations.')) {
                     const obsField = String(field).split('.')[1] as keyof Omit<ExerciseResultObservations, 'overallBehavior'>;
                     updatedEr.observations = {
-                        ...(updatedEr.observations || {
-                            nostrils: null, lips: null, ears: null, eyes: null, neck: null,
-                            back: null, croup: null, limbs: null, tail: null,
-                            additionalNotes: ""
-                        }),
+                        ...(updatedEr.observations || { /* Default structure */ }),
                         [obsField]: value === '' || value === 'N/A' ? null : String(value)
                     };
                 } else if (field === 'doneReps' || field === 'rating') {
@@ -214,7 +212,6 @@ function SessionDetailContent() {
 
     setIsSaving(true);
     try {
-      // 1. Update Session Data (date, overallNote)
       const sessionUpdates: SessionUpdateData = {};
       let sessionChanged = false;
       if (editableDate && editableDate.getTime() !== session.date.toDate().getTime()) {
@@ -225,13 +222,15 @@ function SessionDetailContent() {
         sessionUpdates.overallNote = editableOverallNote;
         sessionChanged = true;
       }
+      // selectedDayExerciseId and Title are part of SessionData, not updated here usually unless a specific UI for it is made
 
       if (sessionChanged) {
         await updateSession(horseId, sessionId, sessionUpdates);
       }
 
-      for (const er of editableExerciseResults) {
-        const { id, exerciseId, exerciseDetails, createdAt, updatedAt, ...dataToUpdateNoComment } = er;
+      // Update the single Day Card result
+      for (const er of editableDayCardResults) {
+        const { id, exerciseId, dayCardDetails, createdAt, updatedAt, ...dataToUpdateNoComment } = er;
 
         const resultUpdateData: ExerciseResultUpdateData = {
             plannedReps: dataToUpdateNoComment.plannedReps,
@@ -246,27 +245,27 @@ function SessionDetailContent() {
 
       toast({
         title: "Cambios Guardados",
-        description: "La sesión y los resultados de los ejercicios han sido actualizados.",
+        description: "La sesión y los detalles del día han sido actualizados.",
       });
 
-      // Re-fetch data to reflect changes immediately and correctly
+      // Re-fetch data to reflect changes
       const updatedSessionData = await getSession(horseId, sessionId);
       if (updatedSessionData) {
         setSession(updatedSessionData);
         setEditableOverallNote(updatedSessionData.overallNote || "");
         setEditableDate(updatedSessionData.date.toDate());
         const resultsData = await getExerciseResults(horseId, sessionId);
-        const resultsWithDetails: ExerciseResultWithDetails[] = await Promise.all(
+        const resultsWithDetails: ExerciseResultWithDayCardDetails[] = await Promise.all(
           resultsData.map(async (result) => {
-            const exerciseDetails = await getExercise(result.exerciseId);
-            return { ...result, exerciseDetails };
+            const dayCardDetails = await getDayCardDetails(result.exerciseId);
+            return { ...result, dayCardDetails };
           })
         );
-        setEditableExerciseResults(resultsWithDetails.map(r => ({
+        setEditableDayCardResults(resultsWithDetails.map(r => ({
             id: r.id,
             exerciseId: r.exerciseId,
-            exerciseDetails: r.exerciseDetails,
-            plannedReps: r.plannedReps || r.exerciseDetails?.suggestedReps || "",
+            dayCardDetails: r.dayCardDetails,
+            plannedReps: r.plannedReps || r.dayCardDetails?.suggestedReps || "",
             doneReps: r.doneReps,
             rating: r.rating,
              observations: r.observations ?
@@ -359,8 +358,11 @@ function SessionDetailContent() {
             Detalle de la Sesión
           </CardTitle>
           <div className="text-sm text-muted-foreground">
-            Caballo: {horse?.name || 'Desconocido'} | Etapa: {block?.title || 'Desconocida'}
+            Caballo: {horse?.name || 'Desconocido'} | Semana: {block?.title || 'Desconocida'}
           </div>
+           {session.selectedDayExerciseTitle && (
+             <p className="text-lg font-semibold text-primary mt-1">Día: {session.selectedDayExerciseTitle}</p>
+           )}
         </CardHeader>
         <CardContent className="space-y-6">
             <div>
@@ -390,7 +392,7 @@ function SessionDetailContent() {
             </div>
 
           <div>
-            <Label htmlFor="overallNote" className="text-lg font-semibold mb-1 block">Nota General de la Sesión:</Label>
+            <Label htmlFor="overallNote" className="text-lg font-semibold mb-1 block">Nota General de la Sesión (para este día):</Label>
             <Textarea
               id="overallNote"
               value={editableOverallNote}
@@ -400,16 +402,18 @@ function SessionDetailContent() {
             />
           </div>
 
-          {editableExerciseResults.length > 0 ? (
+          {editableDayCardResults.length > 0 ? (
             <div>
-              <h3 className="text-xl font-semibold mb-3">Ejercicios Realizados:</h3>
+              <h3 className="text-xl font-semibold mb-3">Detalles del Día Realizado:</h3>
               <div className="space-y-6">
-                {editableExerciseResults.map((result, index) => (
+                {editableDayCardResults.map((result, index) => ( // Should be only one result
                   <Card key={result.id} className="p-4 shadow-md">
                     <h4 className="font-semibold text-lg mb-2">
-                      {result.exerciseDetails?.title || 'Ejercicio Desconocido'}
+                      {result.dayCardDetails?.title || 'Día Desconocido'}
                     </h4>
-                    {result.exerciseDetails?.description && <p className="text-sm text-muted-foreground mb-3">{result.exerciseDetails.description}</p>}
+                    {result.dayCardDetails?.description && <p className="text-sm text-muted-foreground mb-1 whitespace-pre-wrap">{result.dayCardDetails.description}</p>}
+                    {result.dayCardDetails?.objective && <p className="text-sm text-muted-foreground mb-3 whitespace-pre-wrap"><strong>Objetivo del día:</strong> {result.dayCardDetails.objective}</p>}
+
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-3">
                       <div>
@@ -417,43 +421,44 @@ function SessionDetailContent() {
                         <Input
                           id={`plannedReps-${result.id}`}
                           value={result.plannedReps || ""}
-                          onChange={(e) => handleExerciseResultChange(result.id, 'plannedReps', e.target.value)}
-                          placeholder="Ej: 10"
+                          onChange={(e) => handleDayCardResultChange(result.id, 'plannedReps', e.target.value)}
+                          placeholder="Ej: 1 sesión, 45 min"
                         />
                       </div>
                        <div>
-                        <Label htmlFor={`doneReps-${result.id}`}>Realizado (reps)</Label>
+                        <Label htmlFor={`doneReps-${result.id}`}>Realizado (0=No, 1=Sí)</Label>
                         <Input
                           id={`doneReps-${result.id}`}
                           type="number"
+                          min="0" max="1" step="1"
                           value={result.doneReps}
-                          onChange={(e) => handleExerciseResultChange(result.id, 'doneReps', parseInt(e.target.value, 10) || 0)}
+                          onChange={(e) => handleDayCardResultChange(result.id, 'doneReps', parseInt(e.target.value, 10) || 0)}
                         />
                       </div>
                     </div>
 
                     <div className="mb-3">
-                      <Label htmlFor={`rating-${result.id}`}>Calificación: {result.rating} / 5</Label>
+                      <Label htmlFor={`rating-${result.id}`}>Calificación del Día: {result.rating} / 5</Label>
                       <Slider
                         id={`rating-${result.id}`}
                         value={[result.rating]}
                         min={1}
                         max={5}
                         step={1}
-                        onValueChange={(value) => handleExerciseResultChange(result.id, 'rating', value[0])}
+                        onValueChange={(value) => handleDayCardResultChange(result.id, 'rating', value[0])}
                         className="mt-1"
                       />
                     </div>
 
                     <div className="pt-4 border-t">
-                        <h5 className="font-semibold text-md mb-3">Observaciones del Ejercicio:</h5>
+                        <h5 className="font-semibold text-md mb-3">Observaciones Específicas del Día:</h5>
                         <div className="mb-3">
-                            <Label htmlFor={`obs-notes-${result.id}`}>Notas Adicionales (del ejercicio)</Label>
+                            <Label htmlFor={`obs-notes-${result.id}`}>Notas Adicionales</Label>
                              <Textarea
                                 id={`obs-notes-${result.id}`}
                                 value={result.observations?.additionalNotes || ''}
-                                onChange={(e) => handleExerciseResultChange(result.id, `observations.additionalNotes`, e.target.value)}
-                                placeholder="Otras notas relevantes sobre este ejercicio..."
+                                onChange={(e) => handleDayCardResultChange(result.id, `observations.additionalNotes`, e.target.value)}
+                                placeholder="Otras notas relevantes sobre el entrenamiento de hoy..."
                                 className="min-h-[80px] whitespace-pre-wrap"
                             />
                          </div>
@@ -463,7 +468,7 @@ function SessionDetailContent() {
                               <Label htmlFor={`obs-${result.id}-${zone.id}`}>{zone.label}</Label>
                               <Select
                                 value={result.observations?.[zone.id as keyof Omit<ExerciseResultObservations, 'overallBehavior'>] || ''}
-                                onValueChange={(value) => handleExerciseResultChange(result.id, `observations.${zone.id as keyof Omit<ExerciseResultObservations, 'overallBehavior'>}`, value === 'N/A' ? 'N/A' : (value || null))}
+                                onValueChange={(value) => handleDayCardResultChange(result.id, `observations.${zone.id as keyof Omit<ExerciseResultObservations, 'overallBehavior'>}`, value === 'N/A' ? 'N/A' : (value || null))}
                               >
                                 <SelectTrigger id={`obs-${result.id}-${zone.id}`}>
                                   <SelectValue placeholder="Estado..." />
@@ -485,7 +490,7 @@ function SessionDetailContent() {
               </div>
             </div>
           ) : (
-            <p className="text-muted-foreground">No se registraron ejercicios para esta sesión.</p>
+            <p className="text-muted-foreground">No se registraron detalles para el día de esta sesión.</p>
           )}
 
           <div className="mt-8 flex flex-col sm:flex-row justify-center items-center gap-4">
@@ -504,7 +509,7 @@ function SessionDetailContent() {
                 <AlertDialogHeader>
                   <AlertDialogTitle>¿Estás realmente seguro?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Esta acción no se puede deshacer. Esto eliminará permanentemente esta sesión y todos los resultados de ejercicios asociados.
+                    Esta acción no se puede deshacer. Esto eliminará permanentemente esta sesión y todos los detalles del día asociados.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -534,4 +539,3 @@ export default function SessionDetailPage() {
     </Suspense>
   );
 }
-
