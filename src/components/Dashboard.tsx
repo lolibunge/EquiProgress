@@ -533,7 +533,7 @@ const Dashboard = () => {
 
   const allDaysInBlockCompleted = useMemo(() => {
     console.log('%c[Dashboard Memo] Calculating allDaysInBlockCompleted. Input daysInCurrentBlock:', 'color: #FF8C00', JSON.parse(JSON.stringify(daysInCurrentBlock.map(d => ({id: d.id, title: d.title})))));
-    console.log('%c[Dashboard Memo] Calculating allDaysInBlockCompleted. Input selectedHorse.planProgress:', 'color: #FF8C00', selectedHorse?.planProgress ? JSON.parse(JSON.stringify(selectedHorse.planProgress)) : undefined);
+    console.log('%c[Dashboard Memo] Calculating allDaysInBlockCompleted. Input selectedHorse.planProgress:', 'color: #FF8C00', JSON.parse(JSON.stringify(selectedHorse?.planProgress || {})));
     console.log('%c[Dashboard Memo] Calculating allDaysInBlockCompleted. Input currentActiveBlock.id:', 'color: #FF8C00', currentActiveBlock?.id);
     if (!selectedHorse || !currentActiveBlock || !daysInCurrentBlock.length || !selectedHorse.planProgress) {
         console.log('%c[Dashboard Memo] allDaysInBlockCompleted: Pre-condition failed (horse, block, daysInBlock.length, or planProgress missing). Returning false.', 'color: #FF8C00');
@@ -976,7 +976,8 @@ const handleSaveSessionAndNavigate = async () => {
     console.log("[Dashboard - Derive allPlansForDropdown] All trainingPlans before filter:", JSON.stringify(trainingPlans.map(p => ({id: p.id, title: p.title, template: p.template})), null, 2));
     const filtered = trainingPlans.filter(p => {
         const isTemplate = p.template;
-        const shouldInclude = true; // Changed this from !isTemplate
+        // const shouldInclude = !isTemplate; // Original logic to exclude templates
+        const shouldInclude = true; // Changed logic to include templates
         console.log(`[Dashboard - Derive allPlansForDropdown] Plan: "${p.title}" (ID: ${p.id}), template: ${isTemplate}. Will include: ${shouldInclude}`);
         return shouldInclude;
     });
@@ -1106,9 +1107,8 @@ const handleSaveSessionAndNavigate = async () => {
                                     <Icons.check className="mx-auto h-10 w-10 text-green-500 mb-2" />
                                     <CardTitle className="text-lg">¡Etapa Completada!</CardTitle>
                                     <CardDescription>Todos los días de "{currentActiveBlock.title}" han sido completados.</CardDescription>
-                                    {/* Placeholder for "Next Etapa" logic */}
                                 </Card>
-                            ) : currentActiveDayDetails ? ( 
+                            ) : !allDaysInBlockCompleted && currentActiveDayDetails ? ( 
                                 <Card key={currentActiveDayDetails.id} className="mt-4">
                                     <CardHeader>
                                         <CardTitle className="text-lg">
@@ -1130,8 +1130,7 @@ const handleSaveSessionAndNavigate = async () => {
                                             <Label htmlFor={`active-day-complete-${currentActiveDayDetails.id}`} className="text-base font-medium">Marcar Día como Hecho</Label>
                                         </div>
                                     
-                                        {/* Session Logging Form - only if a day is active and not all days in block completed */}
-                                        {selectedDayForSession && sessionDayResult && !allDaysInBlockCompleted && currentActiveDayDetails.id === selectedDayForSession.id && (
+                                        {selectedDayForSession && sessionDayResult && currentActiveDayDetails.id === selectedDayForSession.id && (
                                             <div className="pt-3 space-y-3">
                                                 <h3 className="text-md font-semibold">Registrar Detalles de la Sesión de Hoy ({selectedDayForSession.title}):</h3>
                                                 
