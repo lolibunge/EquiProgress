@@ -104,7 +104,7 @@ import {
   sortableKeyboardCoordinates,
   useSortable,
   verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
+} from '@dnd-kit/sortable'; // Corrected import
 import { CSS } from '@dnd-kit/utilities';
 
 
@@ -301,9 +301,10 @@ const Dashboard = () => {
   const [isLoadingMasterExercises, setIsLoadingMasterExercises] = useState(false);
   const [selectedMasterExercisesForBlock, setSelectedMasterExercisesForBlock] = useState<Set<string>>(new Set());
   const [exerciseSearchTerm, setExerciseSearchTerm] = useState("");
-  const [activeTab, setActiveTab] = useState("sesiones");
-
+  
   const isUserAdmin = userProfile?.role === 'admin';
+  console.log('[Dashboard] Rendering. userProfile:', userProfile, 'isUserAdmin:', isUserAdmin);
+  const [activeTab, setActiveTab] = useState(isUserAdmin && !isLoadingHorses && !isLoadingPlans ? "plan" : "sesiones");
 
 
   const sensors = useSensors(
@@ -442,6 +443,18 @@ const Dashboard = () => {
       setIsLoadingBlocks(false);
     }
   }, [toast, performFetchExercisesForPlan]);
+
+  useEffect(() => {
+    // Update activeTab when user role or loading states change,
+    // ensuring admin users might default to "plan" tab if appropriate.
+    if (!isLoadingHorses && !isLoadingPlans && !isLoadingBlocks) { // Ensure primary data loads are complete
+      if (isUserAdmin && activeTab !== "plan") {
+        setActiveTab("plan");
+      } else if (!isUserAdmin && activeTab === "plan") {
+        setActiveTab("sesiones");
+      }
+    }
+  }, [isUserAdmin, isLoadingHorses, isLoadingPlans, isLoadingBlocks, activeTab]);
 
 
   useEffect(() => {
@@ -940,11 +953,11 @@ const handleSaveSessionAndNavigate = async () => {
                                         observations: { nostrils: null, lips: null, ears: null, eyes: null, neck: null, back: null, croup: null, limbs: null, tail: null, additionalNotes: "" }
                                       });
                                     }}
-                                    className="h-auto py-2 text-left flex flex-col items-start w-full overflow-hidden whitespace-normal break-words"
+                                    className="h-auto py-2 text-left flex flex-col items-start w-full overflow-hidden"
                                   >
-                                    <span className="font-semibold block w-full">{day.title}</span>
+                                    <span className="font-semibold block w-full whitespace-normal break-words">{day.title}</span>
                                     {day.objective && (
-                                      <span className={`text-xs block w-full ${selectedDayForSession?.id === day.id ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}>
+                                      <span className={`text-xs block w-full whitespace-normal break-words ${selectedDayForSession?.id === day.id ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}>
                                         {day.objective}
                                       </span>
                                     )}
