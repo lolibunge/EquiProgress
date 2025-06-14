@@ -462,7 +462,12 @@ const Dashboard = () => {
             const refreshAllBlocksOnly = async () => {
                 setIsLoadingCurrentBlock(true);
                 try {
-                    const allPlanBlocks = await getTrainingBlocks(selectedHorse.activePlanId!); // Ensure activePlanId is not null
+                    if (!selectedHorse.activePlanId) { // Guard clause
+                         console.warn("[Dashboard useEffect for selectedHorse - refreshAllBlocksOnly] Horse activePlanId is null, cannot refresh blocks.");
+                         setIsLoadingCurrentBlock(false);
+                         return;
+                    }
+                    const allPlanBlocks = await getTrainingBlocks(selectedHorse.activePlanId);
                     const sortedAllPlanBlocks = allPlanBlocks.sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity));
                     setAllBlocksInActivePlan(sortedAllPlanBlocks);
                     // If the currentActiveBlock (the one being VIEWED) is no longer in the plan (e.g., admin deleted it)
@@ -492,7 +497,7 @@ const Dashboard = () => {
       setIsLoadingCurrentBlock(false);
       previousHorseDataRef.current = null;
     }
-  }, [selectedHorse, fetchHorseActivePlanDetails]);
+  }, [selectedHorse, fetchHorseActivePlanDetails]); // currentActiveBlock removed as direct dependency
 
 
  const fetchDetailsForAdminPlan = useCallback(async (planId: string) => {
@@ -1104,6 +1109,13 @@ const handleSaveSessionAndNavigate = async () => {
     }
   }, [currentUser, userProfile, isUserAdmin, authLoading, selectedHorse]);
 
+  const activePlanTitle = useMemo(() => {
+    if (selectedHorse?.activePlanId && trainingPlans.length > 0) {
+      return trainingPlans.find(p => p.id === selectedHorse.activePlanId)?.title;
+    }
+    return null;
+  }, [selectedHorse?.activePlanId, trainingPlans]);
+
 
   return (
     <div className="container mx-auto py-6 sm:py-10">
@@ -1132,7 +1144,18 @@ const handleSaveSessionAndNavigate = async () => {
 
           {selectedHorse ? (
             <Card>
-              <CardHeader><CardTitle>Entrenamiento para {selectedHorse.name}</CardTitle><CardDescription>Selecciona un plan y registra tus sesiones.</CardDescription></CardHeader>
+              <CardHeader>
+                <CardTitle>Entrenamiento para {selectedHorse.name}</CardTitle>
+                {activePlanTitle && (
+                  <CardDescription>Plan Activo: {activePlanTitle}</CardDescription>
+                )}
+                {!activePlanTitle && selectedHorse.activePlanId && (
+                    <CardDescription>Cargando nombre del plan...</CardDescription>
+                )}
+                {!selectedHorse.activePlanId && (
+                     <CardDescription>Selecciona un plan y registra tus sesiones.</CardDescription>
+                )}
+              </CardHeader>
               <CardContent>
                  <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                    <TabsList className={`grid w-full ${isUserAdmin ? 'grid-cols-2' : 'grid-cols-1'} mb-4`}>
@@ -1191,7 +1214,7 @@ const handleSaveSessionAndNavigate = async () => {
                             </div>
 
                             {isLoadingNumberedDays || isLoadingSuggestedExercises ? <div className="flex items-center p-2"><Icons.spinner className="h-4 w-4 animate-spin mr-2" /> Cargando datos del día...</div>
-                            : allDaysInBlockCompleted && currentActiveBlock.id === selectedHorse?.currentBlockId ? ( 
+                            : allDaysInBlockCompleted && currentActiveBlock.id === selectedHorse.currentBlockId ? ( // Check if it's the horse's *actual* current block
                                 <Card className="mt-4 p-4 text-center">
                                     <Icons.check className="mx-auto h-10 w-10 text-green-500 mb-2" />
                                     <CardTitle className="text-lg">¡Etapa {currentActiveBlock.title} Completada!</CardTitle>
