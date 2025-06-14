@@ -9,7 +9,7 @@ import { auth as firebaseAuthService, db } from '@/firebase'; // Import the expo
 import type { UserProfile } from '@/types/firestore';
 import { getUserProfile } from '@/services/auth';
 import { Icons } from '@/components/icons'; // For loader icon
-import { Timestamp } from 'firebase/firestore'; // Added for override
+import { Timestamp } from 'firebase/firestore';
 
 interface AuthContextType {
   currentUser: User | null;
@@ -40,6 +40,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     if (!firebaseAuthService) {
       console.error("AuthContext: Firebase Auth service (firebaseAuthService) is not available. Firebase might not have initialized correctly. Auth features will not work.");
       setLoading(false);
+      setCurrentUser(null);
+      setUserProfile(null);
       return;
     }
 
@@ -55,25 +57,22 @@ export function AuthProvider({ children }: AuthProviderProps) {
             // TEMPORARY OVERRIDE FOR ADMIN UID LPL3vwFZk5NDHlD8rLpaENEt5AC3
             if (user.uid === "LPL3vwFZk5NDHlD8rLpaENEt5AC3") {
               console.warn(`%c[AuthContext] SPECIAL OVERRIDE: UID ${user.uid} detected. Forcing admin role. This is a temporary measure for development.`, "color: magenta; font-weight: bold;");
-              if (profile) { // If a profile was fetched (even if it's 'customer')
-                profile = {
-                    ...profile, // Spread existing properties
-                    role: 'admin' // Ensure role is admin
-                };
-                console.log(`%c[AuthContext] Override: Existing profile modified to ensure admin role.`, "color: magenta;");
-              } else { // If no profile was found in Firestore
-                profile = {
-                  uid: user.uid,
-                  email: user.email,
-                  displayName: user.displayName || user.email?.split('@')[0] || 'Admin (Forced)',
-                  photoURL: user.photoURL || '',
-                  role: 'admin',
-                  // Optional: Add dummy timestamps if your UserProfile type might expect them,
-                  // though the current type doesn't strictly require them.
-                  // createdAt: Timestamp.now(),
-                  // updatedAt: Timestamp.now(),
-                };
-                console.log(`%c[AuthContext] Override: No Firestore profile found, created minimal admin profile locally.`, "color: magenta;");
+             const baseProfile = profile || { // Use fetched profile as base, or create a minimal one
+                uid: user.uid,
+                email: user.email!,
+                displayName: user.displayName || user.email?.split('@')[0] || 'Admin (Forced)',
+                photoURL: user.photoURL || '',
+                // createdAt: Timestamp.now(),
+                // updatedAt: Timestamp.now(),
+              };
+              profile = { // This creates a new object for 'profile'
+                ...baseProfile,
+                role: 'admin' as 'admin' // Explicitly set/override role to admin
+              };
+              if (profile && baseProfile.role && baseProfile.role !== 'admin') { // Check original role if profile existed
+                console.log(`%c[AuthContext] Override: Existing profile (role: ${baseProfile.role}) modified to ensure admin role.`, "color: magenta;");
+              } else if (!baseProfile.role && profile && profile.uid === user.uid) { // Check if we just created it
+                console.log(`%c[AuthContext] Override: No Firestore profile role found or profile missing, created minimal admin profile locally.`, "color: magenta;");
               }
             }
             // END TEMPORARY OVERRIDE
