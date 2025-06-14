@@ -104,7 +104,7 @@ import {
   sortableKeyboardCoordinates,
   useSortable,
   verticalListSortingStrategy,
-} from '@dnd-kit/sortable'; // Corrected import
+} from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
 
@@ -226,7 +226,7 @@ function SortableBlockAccordionItem({ block, children, onEditBlock, canEdit }: S
           {...(canEdit ? attributes : {})}
           {...(canEdit ? listeners : {})}
           className="flex-grow p-4 hover:no-underline"
-          disabled={!canEdit && !children}
+          disabled={!canEdit && (!block.exerciseReferences || block.exerciseReferences.length === 0)}
         >
             <span className="flex-grow">
               {block.title} {/* Week Title */}
@@ -304,7 +304,9 @@ const Dashboard = () => {
   
   const isUserAdmin = userProfile?.role === 'admin';
   console.log('[Dashboard] Rendering. userProfile:', userProfile, 'isUserAdmin:', isUserAdmin);
-  const [activeTab, setActiveTab] = useState(isUserAdmin && !isLoadingHorses && !isLoadingPlans ? "plan" : "sesiones");
+
+  const initialLoadingComplete = !isLoadingHorses && !isLoadingPlans && !isLoadingBlocks;
+  const [activeTab, setActiveTab] = useState(isUserAdmin && initialLoadingComplete ? "plan" : "sesiones");
 
 
   const sensors = useSensors(
@@ -445,9 +447,8 @@ const Dashboard = () => {
   }, [toast, performFetchExercisesForPlan]);
 
   useEffect(() => {
-    // Update activeTab when user role or loading states change,
-    // ensuring admin users might default to "plan" tab if appropriate.
-    if (!isLoadingHorses && !isLoadingPlans && !isLoadingBlocks) { // Ensure primary data loads are complete
+    const allLoadingComplete = !isLoadingHorses && !isLoadingPlans && !isLoadingBlocks;
+    if (allLoadingComplete) {
       if (isUserAdmin && activeTab !== "plan") {
         setActiveTab("plan");
       } else if (!isUserAdmin && activeTab === "plan") {
@@ -1085,6 +1086,7 @@ const handleSaveSessionAndNavigate = async () => {
                         <Card className="my-4 border-none p-0">
                         <CardHeader className="px-1 pt-1 pb-3">
                             <CardTitle className="text-xl">Gestionar Plan Activo</CardTitle>
+                            {console.log("[Dashboard - Admin Tab] userProfile for admin checks:", userProfile, "isUserAdmin:", isUserAdmin)}
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mt-2">
                             <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full">
                                     <DropdownMenu>
@@ -1129,7 +1131,6 @@ const handleSaveSessionAndNavigate = async () => {
                                         <Button
                                         variant="destructive"
                                         size="sm"
-                                        onClick={() => setIsDeletePlanDialogOpen(true)}
                                         className="w-full sm:w-auto mt-2 sm:mt-0"
                                         disabled={!selectedPlan || isDeletingPlan}
                                         >
