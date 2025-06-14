@@ -631,7 +631,7 @@ const Dashboard = () => {
           setSessionOverallNote("");
           setSessionDayResult({
               plannedReps: "1 sesión", // Default planned reps
-              rating: 3,
+              rating: 5, // Default rating 5 for 0-10 scale
               observations: { nostrils: null, lips: null, ears: null, eyes: null, neck: null, back: null, croup: null, limbs: null, tail: null, additionalNotes: "" }
           });
       } else {
@@ -813,7 +813,7 @@ const Dashboard = () => {
     setSessionDayResult(prev => {
         const currentDayData = prev || {
             plannedReps: "1 sesión",
-            rating: 3,
+            rating: 5, // Default rating 5 for 0-10 scale
             observations: { nostrils: null, lips: null, ears: null, eyes: null, neck: null, back: null, croup: null, limbs: null, tail: null, additionalNotes: "" }
         };
         let updatedDayData = { ...currentDayData };
@@ -995,16 +995,24 @@ const handleSaveSessionAndNavigate = async () => {
         toast({ title: "Error", description: "No hay caballo o plan activo seleccionado.", variant: "destructive" });
         return;
     }
+
     // Client-side check: Ensure we are trying to advance from the HORSE'S ACTUAL current block
     if (currentActiveBlock.id !== selectedHorse.currentBlockId) {
-        toast({ title: "Acción no Permitida", description: `Solo puedes avanzar desde la etapa actual DEL CABALLO (${allBlocksInActivePlan.find(b=>b.id === selectedHorse.currentBlockId)?.title || 'Desconocida'}). Estás viendo: ${currentActiveBlock.title}.`, variant: "destructive", duration: 7000 });
-        const actualCurrentBlock = allBlocksInActivePlan.find(b => b.id === selectedHorse.currentBlockId);
-        if (actualCurrentBlock) {
-             console.log(`[Dashboard handleAdvanceToNextEtapa] User tried to advance from non-current block. Snapping back to horse's actual current block: ${actualCurrentBlock.id}`);
-             setCurrentActiveBlock(actualCurrentBlock); // Snap view to horse's actual current block
+        const actualCurrentBlockDetails = allBlocksInActivePlan.find(b => b.id === selectedHorse.currentBlockId);
+        toast({
+            title: "Acción no Permitida",
+            description: `Solo puedes avanzar desde la etapa actual DEL CABALLO (${actualCurrentBlockDetails?.title || 'Desconocida'}). Estás viendo: ${currentActiveBlock.title}.`,
+            variant: "destructive",
+            duration: 7000
+        });
+        // Snap view to horse's actual current block if it's different from the viewed block
+        if (actualCurrentBlockDetails) {
+            console.log(`[Dashboard handleAdvanceToNextEtapa] User tried to advance from non-current block. Snapping back to horse's actual current block: ${actualCurrentBlockDetails.id}`);
+            setCurrentActiveBlock(actualCurrentBlockDetails);
         }
         return;
     }
+
 
     // Client-side duration check for immediate feedback
     if (currentActiveBlock?.duration && selectedHorse.currentBlockStartDate) {
@@ -1146,13 +1154,11 @@ const handleSaveSessionAndNavigate = async () => {
             <Card>
               <CardHeader>
                 <CardTitle>Entrenamiento para {selectedHorse.name}</CardTitle>
-                {activePlanTitle && (
+                {activePlanTitle ? (
                   <CardDescription>Plan Activo: {activePlanTitle}</CardDescription>
-                )}
-                {!activePlanTitle && selectedHorse.activePlanId && (
+                ) : selectedHorse.activePlanId ? (
                     <CardDescription>Cargando nombre del plan...</CardDescription>
-                )}
-                {!selectedHorse.activePlanId && (
+                ): (
                      <CardDescription>Selecciona un plan y registra tus sesiones.</CardDescription>
                 )}
               </CardHeader>
@@ -1214,7 +1220,7 @@ const handleSaveSessionAndNavigate = async () => {
                             </div>
 
                             {isLoadingNumberedDays || isLoadingSuggestedExercises ? <div className="flex items-center p-2"><Icons.spinner className="h-4 w-4 animate-spin mr-2" /> Cargando datos del día...</div>
-                            : allDaysInBlockCompleted && currentActiveBlock.id === selectedHorse.currentBlockId ? ( // Check if it's the horse's *actual* current block
+                            : allDaysInBlockCompleted && currentActiveBlock.id === selectedHorse.currentBlockId ? (
                                 <Card className="mt-4 p-4 text-center">
                                     <Icons.check className="mx-auto h-10 w-10 text-green-500 mb-2" />
                                     <CardTitle className="text-lg">¡Etapa {currentActiveBlock.title} Completada!</CardTitle>
@@ -1261,7 +1267,7 @@ const handleSaveSessionAndNavigate = async () => {
                                                 <div><Label htmlFor="session-overall-note">Notas Generales de la Sesión</Label><Textarea id="session-overall-note" placeholder="Comentarios generales sobre la sesión de hoy..." value={sessionOverallNote} onChange={(e) => setSessionOverallNote(e.target.value)} className="min-h-[80px]" /></div>
                                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                                     <div><Label htmlFor={`day-plannedReps`}>Trabajo Planificado para Hoy</Label><Input id={`day-plannedReps`} type="text" placeholder="Ej: 1 sesión, 45 min" value={sessionDayResult.plannedReps ?? ''} onChange={(e) => handleSessionDayResultChange('plannedReps', e.target.value)} /></div>
-                                                    <div><Label htmlFor={`day-rating`}>Calificación del Día (1-5): {sessionDayResult.rating}</Label><Slider id={`day-rating`} value={[sessionDayResult.rating]} min={1} max={5} step={1} className="mt-1" onValueChange={(value) => handleSessionDayResultChange('rating', value[0])} /></div>
+                                                    <div><Label htmlFor={`day-rating`}>Calificación del Día (0-10): {sessionDayResult.rating}</Label><Slider id={`day-rating`} value={[sessionDayResult.rating]} min={0} max={10} step={1} className="mt-1" onValueChange={(value) => handleSessionDayResultChange('rating', value[0])} /></div>
                                                 </div>
                                                 <div className="pt-3 border-t mt-3">
                                                     <div className="space-y-1 mb-3"><Label htmlFor={`day-obs-additionalNotes`}>Notas Adicionales (específicas del día)</Label><Textarea id={`day-obs-additionalNotes`} placeholder="Notas sobre rendimiento, dificultades, etc." value={sessionDayResult.observations?.additionalNotes || ''} onChange={(e) => handleSessionDayResultChange(`observations.additionalNotes`, e.target.value)} className="min-h-[70px]" /></div>
@@ -1393,5 +1399,7 @@ const handleSaveSessionAndNavigate = async () => {
   );
 };
 export default Dashboard;
+
+    
 
     

@@ -438,12 +438,12 @@ function SessionDetailContent() {
                     </div>
 
                     <div className="mb-3">
-                      <Label htmlFor={`rating-${result.id}`}>Calificación del Día: {result.rating} / 5</Label>
+                      <Label htmlFor={`rating-${result.id}`}>Calificación del Día: {result.rating} / 10</Label>
                       <Slider
                         id={`rating-${result.id}`}
                         value={[result.rating]}
-                        min={1}
-                        max={5}
+                        min={0}
+                        max={10}
                         step={1}
                         onValueChange={(value) => handleDayCardResultChange(result.id, 'rating', value[0])}
                         className="mt-1"
@@ -539,3 +539,6 @@ export default function SessionDetailPage() {
     </Suspense>
   );
 }
+
+
+    
