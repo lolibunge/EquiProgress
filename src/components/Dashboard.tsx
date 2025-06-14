@@ -279,7 +279,8 @@ const Dashboard = () => {
   const [daysInCurrentBlock, setDaysInCurrentBlock] = useState<BlockExerciseDisplay[]>([]); 
   const [isLoadingDaysInBlock, setIsLoadingDaysInBlock] = useState(false);
   
-  const [selectedDayForSession, setSelectedDayForSession] = useState<BlockExerciseDisplay | null>(null); 
+  // Renamed for clarity: this is for the *session logging form*
+  const [dayForSessionForm, setDayForSessionForm] = useState<BlockExerciseDisplay | null>(null); 
 
   const [date, setDate] = useState<Date | undefined>(new Date());
 
@@ -314,6 +315,9 @@ const Dashboard = () => {
   
   const initialLoadingComplete = !isLoadingHorses && !isLoadingPlans && !authLoading;
   const [activeTab, setActiveTab] = useState("sesiones");
+
+  // New state for the currently displayed day index
+  const [displayedDayIndex, setDisplayedDayIndex] = useState<number>(0);
 
   console.log(`%c[Dashboard Render] currentUser UID: ${currentUser?.uid}, userProfile: ${JSON.stringify(userProfile)}, isUserAdmin: ${isUserAdmin}, authLoading: ${authLoading}`, "color: blue; font-weight: bold;");
   if (selectedHorse) {
@@ -380,7 +384,7 @@ const Dashboard = () => {
     setIsLoadingPlans(true);
     try {
       const plans = await getTrainingPlans();
-      console.log("[Dashboard - performFetchAllPlans] Fetched plans raw from service:", JSON.stringify(plans, null, 2));
+      console.log("[Dashboard - performFetchAllPlans] Fetched plans raw from service:", JSON.stringify(plans.map(p => ({id: p.id, title:p.title, template:p.template})), null, 2));
       setTrainingPlans(plans);
     } catch (error) {
       toast({ variant: "destructive", title: "Error al Cargar Planes", description: "No se pudieron cargar los planes." });
@@ -410,6 +414,7 @@ const Dashboard = () => {
       setDaysInCurrentBlock([]);
       setIsLoadingCurrentBlock(false);
       setIsLoadingDaysInBlock(false);
+      setDisplayedDayIndex(0); // Reset index
       return;
     }
     setIsLoadingCurrentBlock(true);
@@ -421,16 +426,29 @@ const Dashboard = () => {
       if (block) {
         console.log(`%c[Dashboard Effect - fetchHorseActivePlanDetails] Fetched block ${block.id}. Now fetching days for this block.`, "color: purple");
         const days = await getExercisesForBlock(block.id);
-        console.log(`%c[Dashboard Effect - fetchHorseActivePlanDetails] Fetched ${days.length} days for block ${block.id}. Days: ${JSON.stringify(days.map(d=>d.title))}`, "color: purple");
-        setDaysInCurrentBlock(days.sort((a,b) => (a.orderInBlock ?? Infinity) - (b.orderInBlock ?? Infinity)));
+        const sortedDays = days.sort((a,b) => (a.orderInBlock ?? Infinity) - (b.orderInBlock ?? Infinity));
+        setDaysInCurrentBlock(sortedDays);
+        console.log(`%c[Dashboard Effect - fetchHorseActivePlanDetails] Fetched ${sortedDays.length} days for block ${block.id}. Days: ${JSON.stringify(sortedDays.map(d=>d.title))}`, "color: purple");
+        
+        // Set displayedDayIndex to first uncompleted day or 0 if all complete/no days
+        let firstUncompletedIndex = 0;
+        if (sortedDays.length > 0 && horse.planProgress && horse.planProgress[block.id]) {
+            firstUncompletedIndex = sortedDays.findIndex(day => !horse.planProgress?.[block.id]?.[day.id]?.completed);
+            if (firstUncompletedIndex === -1) firstUncompletedIndex = 0; // All complete, show first day
+        }
+        setDisplayedDayIndex(firstUncompletedIndex);
+        console.log(`%c[Dashboard Effect - fetchHorseActivePlanDetails] Initial displayedDayIndex set to: ${firstUncompletedIndex}`, "color: purple");
+
       } else {
         console.log(`%c[Dashboard Effect - fetchHorseActivePlanDetails] No block found for currentBlockId ${horse.currentBlockId}.`, "color: purple");
         setDaysInCurrentBlock([]);
+        setDisplayedDayIndex(0);
       }
     } catch (error) {
       toast({ variant: "destructive", title: "Error", description: "No se pudo cargar la etapa activa del caballo." });
       setCurrentActiveBlock(null);
       setDaysInCurrentBlock([]);
+      setDisplayedDayIndex(0);
     } finally {
       setIsLoadingCurrentBlock(false);
       setIsLoadingDaysInBlock(false);
@@ -443,6 +461,7 @@ const Dashboard = () => {
     } else {
         setCurrentActiveBlock(null);
         setDaysInCurrentBlock([]);
+        setDisplayedDayIndex(0);
     }
   }, [selectedHorse, fetchHorseActivePlanDetails]);
 
@@ -495,43 +514,16 @@ const Dashboard = () => {
   }, [selectedPlanForAdmin, activeTab, fetchDetailsForAdminPlan]);
 
 
-  const currentActiveDayIndexInBlock = useMemo(() => {
-    console.log(`%c[Dashboard Memo] Calculating currentActiveDayIndexInBlock. SelectedHorse ID: ${selectedHorse?.id}, ActiveBlock ID: ${currentActiveBlock?.id}, Days in block: ${daysInCurrentBlock.length}`, "color: orange;");
-    if (!selectedHorse || !currentActiveBlock || !daysInCurrentBlock.length || !selectedHorse.planProgress) {
-        console.log(`%c[Dashboard Memo] currentActiveDayIndexInBlock: Pre-condition not met. Returning 0.`, "color: orange;");
-        return 0; 
+  const displayedDayDetails: BlockExerciseDisplay | null = useMemo(() => {
+    if (daysInCurrentBlock && daysInCurrentBlock.length > displayedDayIndex) {
+        const day = daysInCurrentBlock[displayedDayIndex];
+        console.log(`%c[Dashboard Memo] displayedDayDetails updated. Index: ${displayedDayIndex}, Day ID: ${day?.id}, Day Title: ${day?.title}`, "color: orangered;");
+        return day;
     }
-    const blockProgress = selectedHorse.planProgress[currentActiveBlock.id];
-    if (!blockProgress) {
-        console.log(`%c[Dashboard Memo] currentActiveDayIndexInBlock: No blockProgress for block ${currentActiveBlock.id}. Returning 0.`, "color: orange;");
-        return 0; 
-    }
+    console.log(`%c[Dashboard Memo] displayedDayDetails: Index ${displayedDayIndex} out of bounds or no days. Returning null.`, "color: orangered;");
+    return null;
+  }, [daysInCurrentBlock, displayedDayIndex]);
 
-    for (let i = 0; i < daysInCurrentBlock.length; i++) {
-        const day = daysInCurrentBlock[i];
-        if (!blockProgress[day.id]?.completed) {
-            console.log(`%c[Dashboard Memo] currentActiveDayIndexInBlock: Day ${i} (ID: ${day.id}, Title: ${day.title}) is NOT completed. Returning index ${i}.`, "color: orange;");
-            return i;
-        }
-        console.log(`%c[Dashboard Memo] currentActiveDayIndexInBlock: Day ${i} (ID: ${day.id}, Title: ${day.title}) IS completed. Checking next.`, "color: orange;");
-    }
-    
-    console.log(`%c[Dashboard Memo] currentActiveDayIndexInBlock: All days completed or no days. Returning ${daysInCurrentBlock.length} (to indicate completion).`, "color: orange;");
-    return daysInCurrentBlock.length; 
-  }, [selectedHorse, currentActiveBlock, daysInCurrentBlock]);
-
-
-  const currentActiveDayDetails = useMemo(() => {
-      const activeIndex = currentActiveDayIndexInBlock;
-      console.log(`%c[Dashboard Memo] Recalculated currentActiveDayDetails. Index: ${activeIndex}`, "color: orangered;");
-      if (!daysInCurrentBlock || daysInCurrentBlock.length === 0 || activeIndex >= daysInCurrentBlock.length) { 
-          console.log(`%c[Dashboard Memo] currentActiveDayDetails: No days in block, or index ${activeIndex} is out of bounds for ${daysInCurrentBlock.length} days. Returning null.`, "color: orangered;");
-          return null;
-      }
-      const activeDay = daysInCurrentBlock[activeIndex];
-      console.log(`%c[Dashboard Memo] currentActiveDayDetails: Index: ${activeIndex}, Day ID: ${activeDay?.id}, Day Title: ${activeDay?.title}`, "color: orangered;");
-      return activeDay || null;
-  }, [daysInCurrentBlock, currentActiveDayIndexInBlock]);
 
   const allDaysInBlockCompleted = useMemo(() => {
     console.log('%c[Dashboard Memo] Calculating allDaysInBlockCompleted. Input daysInCurrentBlock:', 'color: #FF8C00', JSON.parse(JSON.stringify(daysInCurrentBlock.map(d => ({id: d.id, title: d.title})))));
@@ -561,24 +553,25 @@ const Dashboard = () => {
   }, [selectedHorse, currentActiveBlock, daysInCurrentBlock]);
 
 
+  // Effect to reset session form when displayedDayDetails changes
   useEffect(() => {
-      console.log(`%c[Dashboard Effect for Session Form Reset] currentActiveDayDetails.id changed to: "${currentActiveDayDetails?.id}" (${currentActiveDayDetails?.title}). currentActiveDayIndex: ${currentActiveDayIndexInBlock}`, "color: skyblue; font-weight: bold;");
-      if (currentActiveDayDetails) {
-          setSelectedDayForSession(currentActiveDayDetails);
+      console.log(`%c[Dashboard Effect for Session Form Reset] displayedDayDetails.id changed to: "${displayedDayDetails?.id}" (${displayedDayDetails?.title}).`, "color: skyblue; font-weight: bold;");
+      if (displayedDayDetails) {
+          setDayForSessionForm(displayedDayDetails);
           setSessionOverallNote(""); 
           setSessionDayResult({
-              plannedReps: currentActiveDayDetails.suggestedReps ?? "1 sesión", 
+              plannedReps: displayedDayDetails.suggestedReps ?? "1 sesión", 
               rating: 3,
               observations: { nostrils: null, lips: null, ears: null, eyes: null, neck: null, back: null, croup: null, limbs: null, tail: null, additionalNotes: "" }
           });
-          console.log(`%c[Dashboard Effect for Session Form Reset] Session form reset for day: ${currentActiveDayDetails.title}`, "color: skyblue;");
+          console.log(`%c[Dashboard Effect for Session Form Reset] Session form reset for day: ${displayedDayDetails.title}`, "color: skyblue;");
       } else {
-          setSelectedDayForSession(null);
+          setDayForSessionForm(null);
           setSessionDayResult(null);
           setSessionOverallNote("");
-          console.log(`%c[Dashboard Effect for Session Form Reset] currentActiveDayDetails is null. Session form cleared.`, "color: skyblue;");
+          console.log(`%c[Dashboard Effect for Session Form Reset] displayedDayDetails is null. Session form cleared.`, "color: skyblue;");
       }
-  }, [currentActiveDayDetails?.id, currentActiveDayIndexInBlock]); // Added currentActiveDayIndexInBlock as dependency
+  }, [displayedDayDetails?.id]);
 
 
   const handleHorseAdded = async () => {
@@ -728,6 +721,19 @@ const Dashboard = () => {
         if (updatedHorse) {
             console.log('%c[Dashboard] handleDayCheckboxChange: Fetched updatedHorse. New planProgress:', 'color: green; font-weight:bold;', updatedHorse.planProgress ? JSON.parse(JSON.stringify(updatedHorse.planProgress)) : undefined);
             setSelectedHorse(updatedHorse); 
+
+            // If the day marked complete was the currently displayed day,
+            // try to advance displayedDayIndex to the next uncompleted day or the same day if it was unchecked.
+            if (completed) {
+                let firstUncompletedIndex = daysInCurrentBlock.findIndex(day => !updatedHorse.planProgress?.[currentActiveBlock.id]?.[day.id]?.completed);
+                if (firstUncompletedIndex === -1 && daysInCurrentBlock.length > 0) { // All complete
+                    // Stay on last day or go to first if preferred, for now, stay on current/last
+                     setDisplayedDayIndex(daysInCurrentBlock.length -1); 
+                } else if (firstUncompletedIndex !== -1) {
+                    setDisplayedDayIndex(firstUncompletedIndex);
+                }
+            } // If unchecking, displayedDayIndex should remain on the current day.
+
         } else {
             console.warn('%c[Dashboard] handleDayCheckboxChange: Failed to fetch updated horse data after update.', 'color: red;');
         }
@@ -745,11 +751,11 @@ const Dashboard = () => {
     field: keyof Omit<SessionDayResultState, 'observations'> | `observations.${keyof Omit<ExerciseResultObservations, 'additionalNotes'>}` | 'observations.additionalNotes',
     value: string | number | boolean | null
   ) => {
-    if (!selectedDayForSession) return; 
+    if (!displayedDayDetails) return; 
 
     setSessionDayResult(prev => {
         const currentDayData = prev || {
-            plannedReps: selectedDayForSession?.suggestedReps ?? "1 sesión", 
+            plannedReps: displayedDayDetails?.suggestedReps ?? "1 sesión", 
             rating: 3,
             observations: { nostrils: null, lips: null, ears: null, eyes: null, neck: null, back: null, croup: null, limbs: null, tail: null, additionalNotes: "" }
         };
@@ -789,7 +795,7 @@ const handleSaveSessionAndNavigate = async () => {
         return;
     }
     
-    if (!selectedDayForSession || !selectedDayForSession.id) { 
+    if (!displayedDayDetails || !displayedDayDetails.id) { 
         toast({ variant: "destructive", title: "Error de Validación", description: "No hay un día activo para registrar la sesión."});
         return;
     }
@@ -804,8 +810,8 @@ const handleSaveSessionAndNavigate = async () => {
         horseId: selectedHorse.id,
         date: Timestamp.fromDate(date),
         blockId: selectedHorse.currentBlockId, 
-        selectedDayExerciseId: selectedDayForSession.id, 
-        selectedDayExerciseTitle: selectedDayForSession.title, 
+        selectedDayExerciseId: displayedDayDetails.id, 
+        selectedDayExerciseTitle: displayedDayDetails.title, 
         overallNote: sessionOverallNote,
       };
 
@@ -813,9 +819,9 @@ const handleSaveSessionAndNavigate = async () => {
 
       if (sessionId) {
         const dayResultInput: ExerciseResultInput = {
-            exerciseId: selectedDayForSession.id, 
+            exerciseId: displayedDayDetails.id, 
             plannedReps: sessionDayResult.plannedReps,
-            doneReps: 1, // Mark this logged instance of the day as done
+            doneReps: 1, 
             rating: sessionDayResult.rating,
             observations: sessionDayResult.observations && Object.values(sessionDayResult.observations).some(v => v !== null && v !== undefined && String(v).trim() !== '')
                             ? sessionDayResult.observations
@@ -974,19 +980,19 @@ const handleSaveSessionAndNavigate = async () => {
     return totalDaysInBlock > 0 ? (completedDays / totalDaysInBlock) * 100 : 0;
   }, [selectedHorse, currentActiveBlock, daysInCurrentBlock]);
 
-  const allPlansForDropdown = useMemo(() => {
-    console.log("[Dashboard - Derive allPlansForDropdown] All trainingPlans before filter:", JSON.stringify(trainingPlans.map(p => ({id: p.id, title: p.title, template: p.template})), null, 2));
+  const plansForDropdown = useMemo(() => {
+    console.log("[Dashboard - Derive plansForDropdown] All trainingPlans before filter:", JSON.stringify(trainingPlans.map(p => ({id: p.id, title: p.title, template: p.template})), null, 2));
     const filtered = trainingPlans.filter(p => {
-        const isTemplate = p.template;
-        const shouldInclude = true; // Show all plans, including templates
-        console.log(`[Dashboard - Derive allPlansForDropdown] Plan: "${p.title}" (ID: ${p.id}), template: ${isTemplate}. Will include: ${shouldInclude}`);
-        return shouldInclude;
+        // const isTemplate = p.template;
+        // console.log(`[Dashboard - Derive plansForDropdown] Plan: "${p.title}" (ID: ${p.id}), template: ${isTemplate}. Will include: ${!isTemplate}`);
+        // return !isTemplate;
+        return true; // Show all plans, including templates
     });
-    console.log("[Dashboard - Derive allPlansForDropdown] Filtered plans (showing all including templates):", JSON.stringify(filtered.map(p => ({id: p.id, title: p.title, template: p.template})), null, 2));
+    console.log("[Dashboard - Derive plansForDropdown] Filtered plans for dropdown (showing all):", JSON.stringify(filtered.map(p => ({id: p.id, title: p.title, template: p.template})), null, 2));
     return filtered;
   }, [trainingPlans]);
 
- const handleAdvanceToNextBlock = async () => {
+ const handleAdvanceToNextEtapa = async () => {
     if (!selectedHorse) return;
     setIsAdvancingBlock(true);
     try {
@@ -995,12 +1001,16 @@ const handleSaveSessionAndNavigate = async () => {
         toast({ title: "Etapa Avanzada", description: "Has pasado a la siguiente etapa del plan." });
         // Re-fetch horse data to update UI with new currentBlockId and reset days
         const updatedHorse = await getHorseById(selectedHorse.id);
-        setSelectedHorse(updatedHorse); // This will trigger useEffects to fetch new block details and days
+        if (updatedHorse) {
+          setSelectedHorse(updatedHorse); 
+          // fetchHorseActivePlanDetails will be called by useEffect due to selectedHorse change
+          // It will then set the displayedDayIndex to the first uncompleted day of the new etapa.
+        }
       } else if (result.planCompleted) {
         toast({ title: "¡Plan Completado!", description: "Has completado todas las etapas de este plan." });
-        // Optionally, clear activePlanId on the horse or offer to select a new plan
-         const updatedHorse = await getHorseById(selectedHorse.id); // Re-fetch to reflect any changes (e.g. if service clears planId)
+         const updatedHorse = await getHorseById(selectedHorse.id); 
          setSelectedHorse(updatedHorse);
+         // No new etapa to go to, UI should reflect plan completion state (e.g. offer to start new plan)
       } else {
         toast({ title: "Fin de Etapas", description: "No hay más etapas en este plan o no se pudo avanzar.", variant: "default" });
       }
@@ -1010,6 +1020,13 @@ const handleSaveSessionAndNavigate = async () => {
     } finally {
       setIsAdvancingBlock(false);
     }
+  };
+
+  const handlePreviousDay = () => {
+    setDisplayedDayIndex(prev => Math.max(0, prev - 1));
+  };
+  const handleNextDay = () => {
+    setDisplayedDayIndex(prev => Math.min(daysInCurrentBlock.length - 1, prev + 1));
   };
 
 
@@ -1079,7 +1096,7 @@ const handleSaveSessionAndNavigate = async () => {
                             <>
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
-                                    <Button variant="outline" className="w-full justify-start" disabled={isLoadingPlans || allPlansForDropdown.length === 0}>
+                                    <Button variant="outline" className="w-full justify-start" disabled={isLoadingPlans || plansForDropdown.length === 0}>
                                         {isLoadingPlans ? "Cargando planes..." : selectedPlanForSessionStart ? selectedPlanForSessionStart.title : "Seleccionar Plan para Comenzar"}
                                         {!isLoadingPlans && <Icons.chevronDown className="ml-auto h-4 w-4" />}
                                     </Button>
@@ -1089,8 +1106,8 @@ const handleSaveSessionAndNavigate = async () => {
                                     <DropdownMenuSeparator />
                                     {isLoadingPlans ? (
                                         <DropdownMenuItem disabled>Cargando...</DropdownMenuItem>
-                                    ) : allPlansForDropdown.length > 0 ? (
-                                        allPlansForDropdown.map((plan) => (
+                                    ) : plansForDropdown.length > 0 ? (
+                                        plansForDropdown.map((plan) => (
                                         <DropdownMenuItem key={plan.id} onSelect={() => setSelectedPlanForSessionStart(plan)}>
                                             {plan.title} {plan.template && <span className="text-xs text-muted-foreground ml-2">(Plantilla)</span>}
                                         </DropdownMenuItem>
@@ -1108,7 +1125,7 @@ const handleSaveSessionAndNavigate = async () => {
                                         Comenzar este Plan para {selectedHorse.name}
                                     </Button>
                                 )}
-                                 {!selectedPlanForSessionStart && allPlansForDropdown.length === 0 && !isLoadingPlans && (
+                                 {!selectedPlanForSessionStart && plansForDropdown.length === 0 && !isLoadingPlans && (
                                     <p className="text-sm text-muted-foreground text-center">
                                         {!isUserAdmin ? "No hay planes de entrenamiento disponibles. Por favor, contacta a un administrador." : "No hay planes de entrenamiento creados. Puedes crear uno en la pestaña 'Gestionar Plan (Admin)'."}
                                     </p>
@@ -1134,36 +1151,44 @@ const handleSaveSessionAndNavigate = async () => {
                                     <Icons.check className="mx-auto h-10 w-10 text-green-500 mb-2" />
                                     <CardTitle className="text-lg">¡Etapa {currentActiveBlock.title} Completada!</CardTitle>
                                     <CardDescription>Todos los días de "{currentActiveBlock.title}" han sido completados.</CardDescription>
-                                     <Button onClick={handleAdvanceToNextBlock} disabled={isAdvancingBlock} className="mt-4">
+                                     <Button onClick={handleAdvanceToNextEtapa} disabled={isAdvancingBlock} className="mt-4">
                                         {isAdvancingBlock ? <Icons.spinner className="mr-2 h-4 w-4 animate-spin" /> : <Icons.arrowRight className="mr-2 h-4 w-4" />}
                                         Siguiente Etapa
                                     </Button>
                                 </Card>
-                            ) : currentActiveDayDetails ? ( 
-                                <Card key={currentActiveDayDetails.id} className="mt-4">
+                             ) : !allDaysInBlockCompleted && displayedDayDetails ? ( 
+                                <Card key={displayedDayDetails.id} className="mt-4">
                                     <CardHeader>
-                                        <CardTitle className="text-lg">
-                                           Día de Trabajo {currentActiveDayIndexInBlock + 1}: {currentActiveDayDetails.title}
-                                        </CardTitle>
-                                        {currentActiveDayDetails.objective && <CardDescription>Objetivo del Día: {currentActiveDayDetails.objective}</CardDescription>}
+                                        <div className="flex justify-between items-center mb-2">
+                                            <Button onClick={handlePreviousDay} variant="outline" size="sm" disabled={displayedDayIndex === 0}>
+                                                <Icons.arrowRight className="h-4 w-4 rotate-180 mr-1" /> Día Anterior
+                                            </Button>
+                                            <CardTitle className="text-lg text-center flex-grow">
+                                                Día de Trabajo {displayedDayIndex + 1}: {displayedDayDetails.title}
+                                            </CardTitle>
+                                            <Button onClick={handleNextDay} variant="outline" size="sm" disabled={displayedDayIndex === daysInCurrentBlock.length - 1}>
+                                                Día Siguiente <Icons.arrowRight className="h-4 w-4 ml-1" />
+                                            </Button>
+                                        </div>
+                                        {displayedDayDetails.objective && <CardDescription>Objetivo del Día: {displayedDayDetails.objective}</CardDescription>}
                                     </CardHeader>
                                     <CardContent className="space-y-3">
-                                        {currentActiveDayDetails.description && <p className="text-sm text-muted-foreground mb-3 whitespace-pre-wrap">{currentActiveDayDetails.description}</p>}
-                                        {currentActiveDayDetails.suggestedReps && <p className="text-sm text-muted-foreground mb-3">Sugerido: {currentActiveDayDetails.suggestedReps}</p>}
+                                        {displayedDayDetails.description && <p className="text-sm text-muted-foreground mb-3 whitespace-pre-wrap">{displayedDayDetails.description}</p>}
+                                        {displayedDayDetails.suggestedReps && <p className="text-sm text-muted-foreground mb-3">Sugerido: {displayedDayDetails.suggestedReps}</p>}
 
                                         <div className="flex items-center space-x-2 py-3 border-t border-b">
                                             <Checkbox
-                                                id={`active-day-complete-${currentActiveDayDetails.id}`}
-                                                checked={selectedHorse?.planProgress?.[currentActiveBlock.id]?.[currentActiveDayDetails.id]?.completed || false}
-                                                onCheckedChange={(checked) => handleDayCheckboxChange(currentActiveDayDetails.id, !!checked)}
+                                                id={`active-day-complete-${displayedDayDetails.id}`}
+                                                checked={selectedHorse?.planProgress?.[currentActiveBlock.id]?.[displayedDayDetails.id]?.completed || false}
+                                                onCheckedChange={(checked) => handleDayCheckboxChange(displayedDayDetails.id, !!checked)}
                                                 className="h-5 w-5"
                                             />
-                                            <Label htmlFor={`active-day-complete-${currentActiveDayDetails.id}`} className="text-base font-medium">Marcar Día como Hecho</Label>
+                                            <Label htmlFor={`active-day-complete-${displayedDayDetails.id}`} className="text-base font-medium">Marcar Día como Hecho</Label>
                                         </div>
                                     
-                                        {selectedDayForSession && sessionDayResult && currentActiveDayDetails.id === selectedDayForSession.id && (
+                                        {dayForSessionForm && sessionDayResult && displayedDayDetails.id === dayForSessionForm.id && (
                                             <div className="pt-3 space-y-3">
-                                                <h3 className="text-md font-semibold">Registrar Detalles de la Sesión de Hoy ({selectedDayForSession.title}):</h3>
+                                                <h3 className="text-md font-semibold">Registrar Detalles de la Sesión de Hoy ({dayForSessionForm.title}):</h3>
                                                 
                                                 <div>
                                                     <Label htmlFor="session-overall-note">Notas Generales de la Sesión</Label>
@@ -1239,7 +1264,7 @@ const handleSaveSessionAndNavigate = async () => {
                                                 <div className="flex justify-end mt-3">
                                                 <Button
                                                     onClick={handleSaveSessionAndNavigate}
-                                                    disabled={isSavingSession || !date || !selectedHorse || !currentActiveBlock || !selectedDayForSession || !sessionDayResult}
+                                                    disabled={isSavingSession || !date || !selectedHorse || !currentActiveBlock || !displayedDayDetails || !sessionDayResult}
                                                 >
                                                     {isSavingSession && <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />}
                                                     Guardar Sesión del Día
@@ -1259,7 +1284,7 @@ const handleSaveSessionAndNavigate = async () => {
                          {selectedHorse.activePlanId && !currentActiveBlock && !isLoadingCurrentBlock && (
                             <p className="text-sm text-muted-foreground p-2 text-center">Cargando etapa actual del caballo...</p>
                         )}
-                         {!selectedHorse.activePlanId && !isLoadingPlans && allPlansForDropdown.length === 0 && (
+                         {!selectedHorse.activePlanId && !isLoadingPlans && plansForDropdown.length === 0 && (
                             <p className="text-center text-muted-foreground mt-4">No hay planes disponibles para iniciar.</p>
                          )}
 
@@ -1611,4 +1636,3 @@ const handleSaveSessionAndNavigate = async () => {
 };
 
 export default Dashboard;
-
