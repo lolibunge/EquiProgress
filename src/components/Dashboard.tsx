@@ -129,7 +129,7 @@ const OBSERVATION_ZONES = [
 ] as const;
 
 
-type SessionDayResultState = Omit<ExerciseResultInput, 'exerciseId' | 'observations' | 'doneReps'> & { 
+type SessionDayResultState = Omit<ExerciseResultInput, 'exerciseId' | 'observations'> & { 
     observations: Omit<ExerciseResultObservations, 'additionalNotes'> & { additionalNotes?: string | null };
 };
 
@@ -515,14 +515,14 @@ const Dashboard = () => {
     }
     
     console.log(`%c[Dashboard Memo] currentActiveDayIndexInBlock: All days completed or no days. Returning ${daysInCurrentBlock.length} (to indicate completion).`, "color: orange;");
-    return daysInCurrentBlock.length; // Return length to indicate all are done
+    return daysInCurrentBlock.length; 
   }, [selectedHorse, currentActiveBlock, daysInCurrentBlock]);
 
 
   const currentActiveDayDetails = useMemo(() => {
       const activeIndex = currentActiveDayIndexInBlock;
-      console.log(`%c[Dashboard Memo] Calculating currentActiveDayDetails. currentActiveDayIndexInBlock: ${activeIndex}`, "color: orangered;");
-      if (!daysInCurrentBlock || daysInCurrentBlock.length === 0 || activeIndex >= daysInCurrentBlock.length) { // Check if index is out of bounds (all completed)
+      console.log(`%c[Dashboard Memo] Recalculated currentActiveDayDetails. Index: ${activeIndex}`, "color: orangered;");
+      if (!daysInCurrentBlock || daysInCurrentBlock.length === 0 || activeIndex >= daysInCurrentBlock.length) { 
           console.log(`%c[Dashboard Memo] currentActiveDayDetails: No days in block, or index ${activeIndex} is out of bounds for ${daysInCurrentBlock.length} days. Returning null.`, "color: orangered;");
           return null;
       }
@@ -533,7 +533,7 @@ const Dashboard = () => {
 
   const allDaysInBlockCompleted = useMemo(() => {
     console.log('%c[Dashboard Memo] Calculating allDaysInBlockCompleted. Input daysInCurrentBlock:', 'color: #FF8C00', JSON.parse(JSON.stringify(daysInCurrentBlock.map(d => ({id: d.id, title: d.title})))));
-    console.log('%c[Dashboard Memo] Calculating allDaysInBlockCompleted. Input selectedHorse.planProgress:', 'color: #FF8C00', JSON.parse(JSON.stringify(selectedHorse?.planProgress)));
+    console.log('%c[Dashboard Memo] Calculating allDaysInBlockCompleted. Input selectedHorse.planProgress:', 'color: #FF8C00', selectedHorse?.planProgress ? JSON.parse(JSON.stringify(selectedHorse.planProgress)) : undefined);
     console.log('%c[Dashboard Memo] Calculating allDaysInBlockCompleted. Input currentActiveBlock.id:', 'color: #FF8C00', currentActiveBlock?.id);
     if (!selectedHorse || !currentActiveBlock || !daysInCurrentBlock.length || !selectedHorse.planProgress) {
         console.log('%c[Dashboard Memo] allDaysInBlockCompleted: Pre-condition failed (horse, block, daysInBlock.length, or planProgress missing). Returning false.', 'color: #FF8C00');
@@ -544,13 +544,13 @@ const Dashboard = () => {
         console.log('%c[Dashboard Memo] allDaysInBlockCompleted: No blockProgress for current block. Returning false.', 'color: #FF8C00');
         return false;
     }
-    // Note: An Etapa without days is not considered "all completed" in this context.
+    
     if (daysInCurrentBlock.length === 0) { 
         console.log('%c[Dashboard Memo] allDaysInBlockCompleted: daysInCurrentBlock is empty. Returning false.', 'color: #FF8C00');
         return false;
     }
     const result = daysInCurrentBlock.every(day => {
-        const isDayCompleted = !!blockProgress[day.id]?.completed; // Ensure boolean
+        const isDayCompleted = !!blockProgress[day.id]?.completed; 
         console.log(`%c[Dashboard Memo] allDaysInBlockCompleted check: Day ID ${day.id}, Title: ${day.title}, Completed in progress: ${isDayCompleted}`, 'color: #FFA07A');
         return isDayCompleted;
     });
@@ -576,7 +576,7 @@ const Dashboard = () => {
           setSessionOverallNote("");
           console.log(`%c[Dashboard Effect for Session Form Reset] currentActiveDayDetails is null. Session form cleared.`, "color: skyblue;");
       }
-  }, [currentActiveDayDetails?.id]); // Use currentActiveDayDetails.id for more precise dependency
+  }, [currentActiveDayDetails?.id]);
 
 
   const handleHorseAdded = async () => {
@@ -722,9 +722,9 @@ const Dashboard = () => {
         await updateDayCompletionStatus(selectedHorse.id, currentActiveBlock.id, dayId, completed);
         
         console.log(`%c[Dashboard] handleDayCheckboxChange: updateDayCompletionStatus successful for day ${dayId}. Fetching updated horse...`, "color: green;");
-        const updatedHorse = await getHorseById(selectedHorse.id); // Re-fetch to get the latest planProgress
+        const updatedHorse = await getHorseById(selectedHorse.id); 
         if (updatedHorse) {
-            console.log('%c[Dashboard] handleDayCheckboxChange: Fetched updatedHorse. New planProgress:', 'color: green; font-weight:bold;', JSON.parse(JSON.stringify(updatedHorse.planProgress)));
+            console.log('%c[Dashboard] handleDayCheckboxChange: Fetched updatedHorse. New planProgress:', 'color: green; font-weight:bold;', updatedHorse.planProgress ? JSON.parse(JSON.stringify(updatedHorse.planProgress)) : undefined);
             setSelectedHorse(updatedHorse); 
         } else {
             console.warn('%c[Dashboard] handleDayCheckboxChange: Failed to fetch updated horse data after update.', 'color: red;');
@@ -733,7 +733,7 @@ const Dashboard = () => {
     } catch (error) {
         toast({variant: "destructive", title: "Error", description: "No se pudo actualizar el estado del día."});
         console.error('%c[Dashboard] handleDayCheckboxChange: Error updating day status, attempting to revert local state if possible.', 'color: red;', error);
-        // Attempt to re-fetch to ensure local state consistency, though ideally error handling would be more granular
+        
         const previousHorseState = await getHorseById(selectedHorse.id);
         if (previousHorseState) setSelectedHorse(previousHorseState);
     }
@@ -743,11 +743,11 @@ const Dashboard = () => {
     field: keyof Omit<SessionDayResultState, 'observations'> | `observations.${keyof Omit<ExerciseResultObservations, 'additionalNotes'>}` | 'observations.additionalNotes',
     value: string | number | boolean | null
   ) => {
-    if (!selectedDayForSession) return; // Changed from currentActiveDayDetails to selectedDayForSession for consistency
+    if (!selectedDayForSession) return; 
 
     setSessionDayResult(prev => {
         const currentDayData = prev || {
-            plannedReps: selectedDayForSession?.suggestedReps ?? "1 sesión", // Use selectedDayForSession here too
+            plannedReps: selectedDayForSession?.suggestedReps ?? "1 sesión", 
             rating: 3,
             observations: { nostrils: null, lips: null, ears: null, eyes: null, neck: null, back: null, croup: null, limbs: null, tail: null, additionalNotes: "" }
         };
@@ -759,7 +759,7 @@ const Dashboard = () => {
             updatedDayData = {
                 ...updatedDayData,
                 observations: {
-                    ...(updatedDayData.observations || { }), // Ensure observations object exists
+                    ...(updatedDayData.observations || { }), 
                     [obsField]: value === '' || value === 'N/A' ? null : String(value)
                 }
             };
@@ -786,7 +786,7 @@ const handleSaveSessionAndNavigate = async () => {
         toast({ variant: "destructive", title: "Error", description: "No se pudo cargar la etapa activa."});
         return;
     }
-    // Use selectedDayForSession for saving, as it's tied to the form
+    
     if (!selectedDayForSession || !selectedDayForSession.id) { 
         toast({ variant: "destructive", title: "Error de Validación", description: "No hay un día activo para registrar la sesión."});
         return;
@@ -813,7 +813,7 @@ const handleSaveSessionAndNavigate = async () => {
         const dayResultInput: ExerciseResultInput = {
             exerciseId: selectedDayForSession.id, 
             plannedReps: sessionDayResult.plannedReps,
-            doneReps: 1, // This specific session log marks the day as "done" for this instance
+            doneReps: 1, 
             rating: sessionDayResult.rating,
             observations: sessionDayResult.observations && Object.values(sessionDayResult.observations).some(v => v !== null && v !== undefined && String(v).trim() !== '')
                             ? sessionDayResult.observations
@@ -975,11 +975,12 @@ const handleSaveSessionAndNavigate = async () => {
   const allPlansForDropdown = useMemo(() => {
     console.log("[Dashboard - Derive allPlansForDropdown] All trainingPlans before filter:", JSON.stringify(trainingPlans.map(p => ({id: p.id, title: p.title, template: p.template})), null, 2));
     const filtered = trainingPlans.filter(p => {
-        // const isTemplate = p.template; // This was the bug, always showing templates
-        console.log(`[Dashboard - Derive allPlansForDropdown] Plan: "${p.title}" (ID: ${p.id}), template: ${p.template}. Will include ALL plans for now.`);
-        return true; // Return all plans (including templates)
+        const isTemplate = p.template;
+        const shouldInclude = true; // Changed this from !isTemplate
+        console.log(`[Dashboard - Derive allPlansForDropdown] Plan: "${p.title}" (ID: ${p.id}), template: ${isTemplate}. Will include: ${shouldInclude}`);
+        return shouldInclude;
     });
-    console.log("[Dashboard - Derive allPlansForDropdown] Filtered plans (showing all):", JSON.stringify(filtered.map(p => ({id: p.id, title: p.title, template: p.template})), null, 2));
+    console.log("[Dashboard - Derive allPlansForDropdown] Filtered plans (showing all including templates):", JSON.stringify(filtered.map(p => ({id: p.id, title: p.title, template: p.template})), null, 2));
     return filtered;
   }, [trainingPlans]);
 
@@ -1111,7 +1112,7 @@ const handleSaveSessionAndNavigate = async () => {
                                 <Card key={currentActiveDayDetails.id} className="mt-4">
                                     <CardHeader>
                                         <CardTitle className="text-lg">
-                                            Día de Trabajo {currentActiveDayIndexInBlock + 1}: {currentActiveDayDetails.title}
+                                           Día de Trabajo {currentActiveDayIndexInBlock + 1}: {currentActiveDayDetails.title}
                                         </CardTitle>
                                         {currentActiveDayDetails.objective && <CardDescription>Objetivo del Día: {currentActiveDayDetails.objective}</CardDescription>}
                                     </CardHeader>
@@ -1119,110 +1120,109 @@ const handleSaveSessionAndNavigate = async () => {
                                         {currentActiveDayDetails.description && <p className="text-sm text-muted-foreground mb-3 whitespace-pre-wrap">{currentActiveDayDetails.description}</p>}
                                         {currentActiveDayDetails.suggestedReps && <p className="text-sm text-muted-foreground mb-3">Sugerido: {currentActiveDayDetails.suggestedReps}</p>}
 
-                                        <div className="flex items-center space-x-2 pt-3 pb-1 border-t">
+                                        <div className="flex items-center space-x-2 py-3 border-t border-b">
                                             <Checkbox
                                                 id={`active-day-complete-${currentActiveDayDetails.id}`}
                                                 checked={selectedHorse?.planProgress?.[currentActiveBlock.id]?.[currentActiveDayDetails.id]?.completed || false}
                                                 onCheckedChange={(checked) => handleDayCheckboxChange(currentActiveDayDetails.id, !!checked)}
                                                 className="h-5 w-5"
                                             />
-                                            <Label htmlFor={`active-day-complete-${currentActiveDayDetails.id}`} className="text-base font-medium">Marcar Día como Hecho (Progreso del Plan)</Label>
+                                            <Label htmlFor={`active-day-complete-${currentActiveDayDetails.id}`} className="text-base font-medium">Marcar Día como Hecho</Label>
                                         </div>
                                     
+                                        {/* Session Logging Form - only if a day is active and not all days in block completed */}
+                                        {selectedDayForSession && sessionDayResult && !allDaysInBlockCompleted && currentActiveDayDetails.id === selectedDayForSession.id && (
+                                            <div className="pt-3 space-y-3">
+                                                <h3 className="text-md font-semibold">Registrar Detalles de la Sesión de Hoy ({selectedDayForSession.title}):</h3>
+                                                
+                                                <div>
+                                                    <Label htmlFor="session-overall-note">Notas Generales de la Sesión</Label>
+                                                    <Textarea
+                                                        id="session-overall-note"
+                                                        placeholder="Comentarios generales sobre la sesión de hoy..."
+                                                        value={sessionOverallNote}
+                                                        onChange={(e) => setSessionOverallNote(e.target.value)}
+                                                        className="min-h-[80px]"
+                                                    />
+                                                </div>
+
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                    <div>
+                                                        <Label htmlFor={`day-plannedReps`}>Planificado/Realizado Hoy</Label>
+                                                        <Input
+                                                            id={`day-plannedReps`}
+                                                            type="text"
+                                                            placeholder="Ej: 1 sesión, 45 min"
+                                                            value={sessionDayResult.plannedReps ?? ''}
+                                                            onChange={(e) => handleSessionDayResultChange('plannedReps', e.target.value)}
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                    <Label htmlFor={`day-rating`}>Calificación del Día (1-5): {sessionDayResult.rating}</Label>
+                                                    <Slider
+                                                        id={`day-rating`}
+                                                        value={[sessionDayResult.rating]}
+                                                        min={1}
+                                                        max={5}
+                                                        step={1}
+                                                        className="mt-1"
+                                                        onValueChange={(value) => handleSessionDayResultChange('rating', value[0])}
+                                                    />
+                                                    </div>
+                                                </div>
+
+                                                <div className="pt-3 border-t mt-3">
+                                                    <div className="space-y-1 mb-3">
+                                                        <Label htmlFor={`day-obs-additionalNotes`}>Notas Adicionales (específicas del día)</Label>
+                                                        <Textarea
+                                                            id={`day-obs-additionalNotes`}
+                                                            placeholder="Notas sobre el rendimiento, dificultades, etc."
+                                                            value={sessionDayResult.observations?.additionalNotes || ''}
+                                                            onChange={(e) => handleSessionDayResultChange(`observations.additionalNotes`, e.target.value)}
+                                                            className="min-h-[70px]"
+                                                        />
+                                                    </div>
+                                                    <h4 className="text-sm font-semibold mb-2">Observaciones de Tensión:</h4>
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-xs">
+                                                        {OBSERVATION_ZONES.map(zone => (
+                                                        <div key={zone.id} className="space-y-1">
+                                                            <Label htmlFor={`day-obs-${zone.id}`}>{zone.label}</Label>
+                                                            <Select
+                                                            value={sessionDayResult.observations?.[zone.id as keyof Omit<ExerciseResultObservations, 'additionalNotes'>] || ''}
+                                                            onValueChange={(value) => handleSessionDayResultChange(`observations.${zone.id as keyof Omit<ExerciseResultObservations, 'additionalNotes'>}`, value === 'N/A' ? 'N/A' : (value || null))}
+                                                            >
+                                                            <SelectTrigger id={`day-obs-${zone.id}`} className="h-8 text-xs">
+                                                                <SelectValue placeholder={`Estado...`} />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                {TENSION_STATUS_OPTIONS.map(option => (
+                                                                <SelectItem key={option.value} value={option.value} className="text-xs">
+                                                                    {option.label}
+                                                                </SelectItem>
+                                                                ))}
+                                                            </SelectContent>
+                                                            </Select>
+                                                        </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                                <div className="flex justify-end mt-3">
+                                                <Button
+                                                    onClick={handleSaveSessionAndNavigate}
+                                                    disabled={isSavingSession || !date || !selectedHorse || !currentActiveBlock || !selectedDayForSession || !sessionDayResult}
+                                                >
+                                                    {isSavingSession && <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />}
+                                                    Guardar Sesión del Día
+                                                </Button>
+                                                </div>
+                                            </div>
+                                        )}
                                     </CardContent>
                                 </Card>
                             ) : (
                               <p className="text-sm text-muted-foreground p-2 text-center mt-4">
                                 Esta etapa no tiene días definidos o ha ocurrido un error al determinar el día activo.
                               </p>
-                            )}
-                            
-                            {/* Session Logging Form - only if a day is active and not all days in block completed */}
-                            {selectedDayForSession && sessionDayResult && !allDaysInBlockCompleted && (
-                                <Card className="p-4 space-y-3 mt-3 shadow-md bg-muted/10">
-                                    <h3 className="text-md font-semibold">Registrar Detalles de la Sesión de Hoy ({selectedDayForSession.title}):</h3>
-                                    
-                                    <div>
-                                        <Label htmlFor="session-overall-note">Notas Generales de la Sesión</Label>
-                                        <Textarea
-                                            id="session-overall-note"
-                                            placeholder="Comentarios generales sobre la sesión de hoy..."
-                                            value={sessionOverallNote}
-                                            onChange={(e) => setSessionOverallNote(e.target.value)}
-                                            className="min-h-[80px]"
-                                        />
-                                    </div>
-
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                        <div>
-                                            <Label htmlFor={`day-plannedReps`}>Planificado/Realizado Hoy</Label>
-                                            <Input
-                                                id={`day-plannedReps`}
-                                                type="text"
-                                                placeholder="Ej: 1 sesión, 45 min"
-                                                value={sessionDayResult.plannedReps ?? ''}
-                                                onChange={(e) => handleSessionDayResultChange('plannedReps', e.target.value)}
-                                            />
-                                        </div>
-                                        <div>
-                                        <Label htmlFor={`day-rating`}>Calificación del Día (1-5): {sessionDayResult.rating}</Label>
-                                        <Slider
-                                            id={`day-rating`}
-                                            value={[sessionDayResult.rating]}
-                                            min={1}
-                                            max={5}
-                                            step={1}
-                                            className="mt-1"
-                                            onValueChange={(value) => handleSessionDayResultChange('rating', value[0])}
-                                        />
-                                        </div>
-                                    </div>
-
-                                    <div className="pt-3 border-t mt-3">
-                                        <div className="space-y-1 mb-3">
-                                            <Label htmlFor={`day-obs-additionalNotes`}>Notas Adicionales (específicas del día)</Label>
-                                            <Textarea
-                                                id={`day-obs-additionalNotes`}
-                                                placeholder="Notas sobre el rendimiento, dificultades, etc."
-                                                value={sessionDayResult.observations?.additionalNotes || ''}
-                                                onChange={(e) => handleSessionDayResultChange(`observations.additionalNotes`, e.target.value)}
-                                                className="min-h-[70px]"
-                                            />
-                                        </div>
-                                        <h4 className="text-sm font-semibold mb-2">Observaciones de Tensión:</h4>
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-xs">
-                                            {OBSERVATION_ZONES.map(zone => (
-                                            <div key={zone.id} className="space-y-1">
-                                                <Label htmlFor={`day-obs-${zone.id}`}>{zone.label}</Label>
-                                                <Select
-                                                value={sessionDayResult.observations?.[zone.id as keyof Omit<ExerciseResultObservations, 'additionalNotes'>] || ''}
-                                                onValueChange={(value) => handleSessionDayResultChange(`observations.${zone.id as keyof Omit<ExerciseResultObservations, 'additionalNotes'>}`, value === 'N/A' ? 'N/A' : (value || null))}
-                                                >
-                                                <SelectTrigger id={`day-obs-${zone.id}`} className="h-8 text-xs">
-                                                    <SelectValue placeholder={`Estado...`} />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {TENSION_STATUS_OPTIONS.map(option => (
-                                                    <SelectItem key={option.value} value={option.value} className="text-xs">
-                                                        {option.label}
-                                                    </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                                </Select>
-                                            </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                    <div className="flex justify-end mt-3">
-                                    <Button
-                                        onClick={handleSaveSessionAndNavigate}
-                                        disabled={isSavingSession || !date || !selectedHorse || !currentActiveBlock || !selectedDayForSession || !sessionDayResult}
-                                    >
-                                        {isSavingSession && <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />}
-                                        Guardar Sesión del Día
-                                    </Button>
-                                    </div>
-                                </Card>
                             )}
                            </>
                         )}
