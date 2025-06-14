@@ -32,7 +32,7 @@ import AddMasterExerciseForm from "@/components/AddMasterExerciseForm";
 import EditMasterExerciseForm from "@/components/EditMasterExerciseForm";
 
 export default function ExerciseLibraryPage() {
-  const { currentUser, loading: authLoading } = useAuth();
+  const { currentUser, userProfile, loading: authLoading } = useAuth(); // Added userProfile
   const { toast } = useToast();
 
   const [exercises, setExercises] = useState<MasterExercise[]>([]);
@@ -47,8 +47,10 @@ export default function ExerciseLibraryPage() {
   const [deletingExerciseId, setDeletingExerciseId] = useState<string | null>(null);
   const [isProcessingDelete, setIsProcessingDelete] = useState(false);
 
+  const isUserAdmin = userProfile?.role === 'admin';
+
   const fetchExercises = useCallback(async () => {
-    if (!currentUser) return;
+    // No longer need currentUser check here as page access is handled below
     setIsLoadingExercises(true);
     try {
       const fetchedExercises = await getMasterExercises();
@@ -59,13 +61,12 @@ export default function ExerciseLibraryPage() {
     } finally {
       setIsLoadingExercises(false);
     }
-  }, [currentUser, toast]);
+  }, [toast]);
 
   useEffect(() => {
-    if (currentUser) {
-      fetchExercises();
-    }
-  }, [currentUser, fetchExercises]);
+    // Fetch exercises regardless of role, page access handles auth.
+    fetchExercises();
+  }, [fetchExercises]);
 
   const handleAddSuccess = () => {
     setIsAddExerciseDialogOpen(false);
@@ -79,17 +80,19 @@ export default function ExerciseLibraryPage() {
   };
 
   const openEditDialog = (exercise: MasterExercise) => {
+    if (!isUserAdmin) return;
     setEditingExercise(exercise);
     setIsEditExerciseDialogOpen(true);
   };
 
   const openDeleteConfirmation = (exerciseId: string) => {
+    if (!isUserAdmin) return;
     setDeletingExerciseId(exerciseId);
     setIsDeleteDialogOpen(true);
   };
 
   const handleDeleteConfirm = async () => {
-    if (!deletingExerciseId) return;
+    if (!deletingExerciseId || !isUserAdmin) return;
     setIsProcessingDelete(true);
     try {
       await deleteMasterExercise(deletingExerciseId);
@@ -151,13 +154,15 @@ export default function ExerciseLibraryPage() {
             <div className="flex-grow">
               <CardTitle className="text-2xl md:text-3xl">Biblioteca de Ejercicios</CardTitle>
               <CardDescription>
-                Aquí puedes ver, crear, editar y eliminar los ejercicios maestros de tu biblioteca.
+                {isUserAdmin ? "Aquí puedes ver, crear, editar y eliminar los ejercicios maestros de tu biblioteca." : "Explora los ejercicios disponibles en la biblioteca."}
               </CardDescription>
             </div>
-            <Button onClick={() => setIsAddExerciseDialogOpen(true)} className="w-full sm:w-auto">
-              <Icons.plus className="mr-2 h-4 w-4" />
-              Añadir Nuevo Ejercicio
-            </Button>
+            {isUserAdmin && (
+              <Button onClick={() => setIsAddExerciseDialogOpen(true)} className="w-full sm:w-auto">
+                <Icons.plus className="mr-2 h-4 w-4" />
+                Añadir Nuevo Ejercicio
+              </Button>
+            )}
           </div>
           <div className="mt-4">
             <Input
@@ -179,12 +184,14 @@ export default function ExerciseLibraryPage() {
               <Icons.logo className="h-16 w-16 text-muted-foreground mb-4" data-ai-hint="empty box books" />
               <h3 className="text-xl font-semibold">Tu Biblioteca está Vacía</h3>
               <p className="text-muted-foreground">
-                Comienza añadiendo tu primer ejercicio maestro.
+                {isUserAdmin ? "Comienza añadiendo tu primer ejercicio maestro." : "Actualmente no hay ejercicios en la biblioteca."}
               </p>
-              <Button className="mt-6" onClick={() => setIsAddExerciseDialogOpen(true)}>
-                <Icons.plus className="mr-2 h-4 w-4" />
-                 Crear Primer Ejercicio
-              </Button>
+              {isUserAdmin && (
+                <Button className="mt-6" onClick={() => setIsAddExerciseDialogOpen(true)}>
+                  <Icons.plus className="mr-2 h-4 w-4" />
+                  Crear Primer Ejercicio
+                </Button>
+              )}
             </div>
           ) : filteredExercises.length === 0 && searchTerm ? (
              <div className="flex flex-col items-center justify-center rounded-lg border border-dashed p-10 text-center">
@@ -230,16 +237,18 @@ export default function ExerciseLibraryPage() {
                         </div>
                     )}
                   </CardContent>
-                  <CardFooter className="flex justify-end gap-2 border-t pt-4">
-                    <Button variant="outline" size="sm" onClick={() => openEditDialog(exercise)}>
-                      <Icons.edit className="mr-1 h-3.5 w-3.5" />
-                      Editar
-                    </Button>
-                    <Button variant="destructive" size="sm" onClick={() => openDeleteConfirmation(exercise.id)}>
-                      <Icons.trash className="mr-1 h-3.5 w-3.5" />
-                      Eliminar
-                    </Button>
-                  </CardFooter>
+                  {isUserAdmin && (
+                    <CardFooter className="flex justify-end gap-2 border-t pt-4">
+                        <Button variant="outline" size="sm" onClick={() => openEditDialog(exercise)}>
+                        <Icons.edit className="mr-1 h-3.5 w-3.5" />
+                        Editar
+                        </Button>
+                        <Button variant="destructive" size="sm" onClick={() => openDeleteConfirmation(exercise.id)}>
+                        <Icons.trash className="mr-1 h-3.5 w-3.5" />
+                        Eliminar
+                        </Button>
+                    </CardFooter>
+                  )}
                 </Card>
               ))}
             </div>
@@ -247,68 +256,70 @@ export default function ExerciseLibraryPage() {
         </CardContent>
       </Card>
 
-      {/* Dialog para Añadir Ejercicio */}
-      <Dialog open={isAddExerciseDialogOpen} onOpenChange={setIsAddExerciseDialogOpen}>
-        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Añadir Nuevo Ejercicio Maestro</DialogTitle>
-            <DialogDescription>
-              Define un nuevo ejercicio para tu biblioteca.
-            </DialogDescription>
-          </DialogHeader>
-          <AddMasterExerciseForm
-            onSuccess={handleAddSuccess}
-            onCancel={() => setIsAddExerciseDialogOpen(false)}
-          />
-        </DialogContent>
-      </Dialog>
+      {isUserAdmin && (
+        <>
+          {/* Dialog para Añadir Ejercicio */}
+          <Dialog open={isAddExerciseDialogOpen} onOpenChange={setIsAddExerciseDialogOpen}>
+            <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Añadir Nuevo Ejercicio Maestro</DialogTitle>
+                <DialogDescription>
+                  Define un nuevo ejercicio para tu biblioteca.
+                </DialogDescription>
+              </DialogHeader>
+              <AddMasterExerciseForm
+                onSuccess={handleAddSuccess}
+                onCancel={() => setIsAddExerciseDialogOpen(false)}
+              />
+            </DialogContent>
+          </Dialog>
 
-      {/* Dialog para Editar Ejercicio */}
-      {editingExercise && (
-        <Dialog open={isEditExerciseDialogOpen} onOpenChange={(open) => {
-            if (!open) setEditingExercise(null);
-            setIsEditExerciseDialogOpen(open);
-        }}>
-          <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Editar Ejercicio Maestro</DialogTitle>
-              <DialogDescription>
-                Modifica los detalles de &quot;{editingExercise.title}&quot;.
-              </DialogDescription>
-            </DialogHeader>
-            <EditMasterExerciseForm
-              exercise={editingExercise}
-              onSuccess={handleEditSuccess}
-              onCancel={() => {
-                setIsEditExerciseDialogOpen(false);
-                setEditingExercise(null);
-              }}
-            />
-          </DialogContent>
-        </Dialog>
+          {/* Dialog para Editar Ejercicio */}
+          {editingExercise && (
+            <Dialog open={isEditExerciseDialogOpen} onOpenChange={(open) => {
+                if (!open) setEditingExercise(null);
+                setIsEditExerciseDialogOpen(open);
+            }}>
+              <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Editar Ejercicio Maestro</DialogTitle>
+                  <DialogDescription>
+                    Modifica los detalles de &quot;{editingExercise.title}&quot;.
+                  </DialogDescription>
+                </DialogHeader>
+                <EditMasterExerciseForm
+                  exercise={editingExercise}
+                  onSuccess={handleEditSuccess}
+                  onCancel={() => {
+                    setIsEditExerciseDialogOpen(false);
+                    setEditingExercise(null);
+                  }}
+                />
+              </DialogContent>
+            </Dialog>
+          )}
+
+          {/* AlertDialog para Eliminar Ejercicio */}
+          <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>¿Estás realmente seguro?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Esta acción no se puede deshacer. Esto eliminará permanentemente el ejercicio maestro de la biblioteca.
+                  Si este ejercicio está siendo usado en algún plan, la referencia quedará rota (el ejercicio no aparecerá en la etapa).
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={isProcessingDelete}>Cancelar</AlertDialogCancel>
+                <AlertDialogAction onClick={handleDeleteConfirm} disabled={isProcessingDelete} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
+                  {isProcessingDelete ? <Icons.spinner className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  Sí, eliminar ejercicio
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </>
       )}
-
-      {/* AlertDialog para Eliminar Ejercicio */}
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>¿Estás realmente seguro?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Esta acción no se puede deshacer. Esto eliminará permanentemente el ejercicio maestro de la biblioteca.
-              Si este ejercicio está siendo usado en algún plan, la referencia quedará rota (el ejercicio no aparecerá en la etapa).
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isProcessingDelete}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteConfirm} disabled={isProcessingDelete} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
-              {isProcessingDelete ? <Icons.spinner className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Sí, eliminar ejercicio
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
     </div>
   );
 }
-

@@ -6,6 +6,7 @@ export interface UserProfile {
     email?: string | null;
     displayName?: string | null;
     photoURL?: string | null;
+    role?: 'admin' | 'customer'; // Added role
     // Add any other user-specific fields here
 }
 
@@ -29,6 +30,7 @@ export interface TrainingPlan {
     updatedAt?: Timestamp;
     template: boolean; // True if this is a base template, false if it's a customized plan for a horse
     horseId?: string; // Optional: if this plan instance is specifically for one horse
+    // ownerUid?: string; // Consider adding if non-template plans are specific to an admin
 }
 
 export interface ExerciseReference {
@@ -70,6 +72,7 @@ export interface MasterExercise {
 // This type can be used when displaying exercises within a block, merging MasterExercise with its reference data
 export interface BlockExerciseDisplay extends MasterExercise {
   orderInBlock: number;
+  blockId: string; // Added blockId for context
 }
 
 
@@ -135,6 +138,7 @@ export interface TrainingPlanInput {
   title: string;
   template?: boolean;
   horseId?: string;
+  // ownerUid?: string;
 }
 
 export interface TrainingBlockInput {

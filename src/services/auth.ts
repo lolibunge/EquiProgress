@@ -24,8 +24,9 @@ export async function signUpWithEmail(email: string, password: string): Promise<
     await setDoc(doc(db, "users", user.uid), {
       uid: user.uid,
       email: user.email,
-      displayName: user.displayName || '',
+      displayName: user.displayName || user.email?.split('@')[0] || 'Usuario', // Provide a fallback display name
       photoURL: user.photoURL || '',
+      role: 'customer', // Default role
       createdAt: serverTimestamp(),
     });
     return user;
@@ -38,7 +39,22 @@ export async function signUpWithEmail(email: string, password: string): Promise<
 export async function signInWithEmail(email: string, password: string): Promise<User | null> {
   try {
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
-    return userCredential.user;
+    // Ensure user profile exists, or create/update it (especially if role was added later)
+    const user = userCredential.user;
+    const userDocRef = doc(db, "users", user.uid);
+    const userDoc = await getDoc(userDocRef);
+    if (!userDoc.exists() || !userDoc.data()?.role) {
+      await setDoc(userDocRef, {
+        uid: user.uid,
+        email: user.email,
+        displayName: user.displayName || user.email?.split('@')[0] || 'Usuario',
+        photoURL: user.photoURL || '',
+        role: userDoc.data()?.role || 'customer', // Preserve existing role if present, else default
+        createdAt: userDoc.exists() ? userDoc.data()?.createdAt : serverTimestamp(),
+        updatedAt: serverTimestamp() // Mark as updated
+      }, { merge: true }); // Merge to avoid overwriting other fields if they exist
+    }
+    return user;
   } catch (error) {
     console.error("Error signing in with email and password", error);
     throw error;
@@ -52,14 +68,16 @@ export async function signInWithGoogle(): Promise<User | null> {
     // Check if user profile exists, if not create one
     const userDocRef = doc(db, "users", user.uid);
     const userDoc = await getDoc(userDocRef);
-    if (!userDoc.exists()) {
+    if (!userDoc.exists() || !userDoc.data()?.role) {
       await setDoc(userDocRef, {
         uid: user.uid,
         email: user.email,
-        displayName: user.displayName || '',
+        displayName: user.displayName || 'Usuario',
         photoURL: user.photoURL || '',
-        createdAt: serverTimestamp(),
-      });
+        role: userDoc.data()?.role || 'customer', // Preserve existing role if present, else default
+        createdAt: userDoc.exists() ? userDoc.data()?.createdAt : serverTimestamp(),
+        updatedAt: serverTimestamp() // Mark as updated
+      }, { merge: true }); // Merge to avoid overwriting other fields if they exist
     }
     return user;
   } catch (error) {

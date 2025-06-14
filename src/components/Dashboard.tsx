@@ -137,9 +137,10 @@ interface SortableExerciseItemProps {
   blockId: string;
   planId: string;
   onRemove: (planId: string, blockId: string, masterExerciseId: string) => void;
+  canEdit: boolean;
 }
 
-function SortableExerciseItem({ exercise, blockId, planId, onRemove }: SortableExerciseItemProps) {
+function SortableExerciseItem({ exercise, blockId, planId, onRemove, canEdit }: SortableExerciseItemProps) {
   const {
     attributes,
     listeners,
@@ -147,21 +148,21 @@ function SortableExerciseItem({ exercise, blockId, planId, onRemove }: SortableE
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: exercise.id });
+  } = useSortable({ id: exercise.id, disabled: !canEdit });
 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
-    cursor: isDragging ? 'grabbing' : 'grab',
+    cursor: canEdit ? (isDragging ? 'grabbing' : 'grab') : 'default',
   };
 
   return (
     <li
       ref={setNodeRef}
       style={style}
-      {...attributes}
-      {...listeners}
+      {...(canEdit ? attributes : {})}
+      {...(canEdit ? listeners : {})}
       className="flex items-center justify-between group p-2 rounded-md hover:bg-muted/70 active:bg-muted bg-card border mx-2.5"
     >
       <div>
@@ -170,18 +171,20 @@ function SortableExerciseItem({ exercise, blockId, planId, onRemove }: SortableE
         {exercise.description && <p className="text-xs text-muted-foreground pl-2">- Desc: {exercise.description}</p>}
         {exercise.objective && <p className="text-xs text-muted-foreground pl-2">- Obj: {exercise.objective}</p>}
       </div>
-       <Button
-        variant="ghost"
-        size="icon"
-        className="ml-2 h-7 w-7 opacity-0 group-hover:opacity-100 flex-shrink-0"
-        onClick={(e) => {
-            e.stopPropagation();
-            onRemove(planId, blockId, exercise.id);
-        }}
-       >
-        <Icons.trash className="h-4 w-4 text-destructive" />
-        <span className="sr-only">Quitar Ejercicio de la Etapa</span>
-      </Button>
+      {canEdit && (
+        <Button
+            variant="ghost"
+            size="icon"
+            className="ml-2 h-7 w-7 opacity-0 group-hover:opacity-100 flex-shrink-0"
+            onClick={(e) => {
+                e.stopPropagation();
+                onRemove(planId, blockId, exercise.id);
+            }}
+        >
+            <Icons.trash className="h-4 w-4 text-destructive" />
+            <span className="sr-only">Quitar Ejercicio de la Etapa</span>
+        </Button>
+      )}
     </li>
   );
 }
@@ -190,9 +193,10 @@ interface SortableBlockAccordionItemProps {
   block: TrainingBlock;
   children: ReactNode;
   onEditBlock: (block: TrainingBlock) => void;
+  canEdit: boolean;
 }
 
-function SortableBlockAccordionItem({ block, children, onEditBlock }: SortableBlockAccordionItemProps) {
+function SortableBlockAccordionItem({ block, children, onEditBlock, canEdit }: SortableBlockAccordionItemProps) {
   const {
     attributes,
     listeners,
@@ -200,12 +204,13 @@ function SortableBlockAccordionItem({ block, children, onEditBlock }: SortableBl
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: block.id });
+  } = useSortable({ id: block.id, disabled: !canEdit });
 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
+    cursor: canEdit ? (isDragging ? 'grabbing' : 'grab') : 'default',
   };
 
   return (
@@ -216,7 +221,12 @@ function SortableBlockAccordionItem({ block, children, onEditBlock }: SortableBl
       className="bg-card border mx-2.5 rounded-md shadow-sm"
     >
        <div className="flex items-center justify-between w-full group text-left">
-        <AccordionTrigger {...attributes} {...listeners} className="flex-grow p-4 hover:no-underline">
+        <AccordionTrigger 
+          {...(canEdit ? attributes : {})}
+          {...(canEdit ? listeners : {})}
+          className="flex-grow p-4 hover:no-underline"
+          disabled={!canEdit && !children} // Disable trigger if cannot edit and no children to show
+        >
             <span className="flex-grow">
               {block.title}
               {block.notes && <span className="block sm:inline text-xs text-muted-foreground ml-0 sm:ml-2">- {block.notes}</span>}
@@ -224,21 +234,23 @@ function SortableBlockAccordionItem({ block, children, onEditBlock }: SortableBl
               {block.goal && <span className="block sm:inline text-xs text-muted-foreground ml-0 sm:ml-2">- Meta: {block.goal}</span>}
             </span>
         </AccordionTrigger>
-        <Button
-            asChild
-            variant="ghost"
-            size="icon"
-            className="ml-2 mr-2 h-7 w-7 flex-shrink-0 opacity-0 group-hover:opacity-100 hover:bg-muted/70 hover:text-muted-foreground"
-            onClick={(e) => {
-                e.stopPropagation();
-                onEditBlock(block);
-            }}
-        >
-            <span>
-            <Icons.edit className="h-4 w-4" />
-            <span className="sr-only">Editar Etapa</span>
-            </span>
-        </Button>
+        {canEdit && (
+            <Button
+                asChild
+                variant="ghost"
+                size="icon"
+                className="ml-2 mr-2 h-7 w-7 flex-shrink-0 opacity-0 group-hover:opacity-100 hover:bg-muted/70 hover:text-muted-foreground"
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onEditBlock(block);
+                }}
+            >
+                <span>
+                <Icons.edit className="h-4 w-4" />
+                <span className="sr-only">Editar Etapa</span>
+                </span>
+            </Button>
+        )}
       </div>
       {children}
     </AccordionItem>
@@ -247,7 +259,7 @@ function SortableBlockAccordionItem({ block, children, onEditBlock }: SortableBl
 
 
 const Dashboard = () => {
-  const { currentUser } = useAuth();
+  const { currentUser, userProfile } = useAuth(); // Added userProfile
   const { toast } = useToast();
   const router = useRouter();
   const [isAddHorseDialogOpen, setIsAddHorseDialogOpen] = useState(false);
@@ -287,6 +299,8 @@ const Dashboard = () => {
   const [isLoadingMasterExercises, setIsLoadingMasterExercises] = useState(false);
   const [selectedMasterExercisesForBlock, setSelectedMasterExercisesForBlock] = useState<Set<string>>(new Set());
   const [exerciseSearchTerm, setExerciseSearchTerm] = useState("");
+
+  const isUserAdmin = userProfile?.role === 'admin';
 
 
   const sensors = useSensors(
@@ -336,7 +350,7 @@ const Dashboard = () => {
     console.log("[Dashboard] performFetchPlans triggered.");
     setIsLoadingPlans(true);
     try {
-      const plans = await getTrainingPlans();
+      const plans = await getTrainingPlans(); // This fetches all plans, admin will see all, customer might see all for selection
       setTrainingPlans(plans);
       console.log(`[Dashboard] performFetchPlans: ${plans.length} plans fetched.`);
     } catch (error) {
@@ -483,7 +497,7 @@ const Dashboard = () => {
   };
 
   const handleDeleteSelectedPlan = async () => {
-    if (!selectedPlan) return;
+    if (!selectedPlan || !isUserAdmin) return; // Added admin check
     setIsDeletingPlan(true);
     console.log(`[Dashboard] handleDeleteSelectedPlan: Deleting plan ${selectedPlan.id} - "${selectedPlan.title}"`);
     try {
@@ -525,11 +539,13 @@ const Dashboard = () => {
   };
 
   const openEditBlockDialog = (block: TrainingBlock) => {
+    if (!isUserAdmin) return; // Added admin check
     setEditingBlock(block);
     setIsEditBlockDialogOpen(true);
   };
 
   const openSelectExerciseDialog = async (blockId: string) => {
+    if (!isUserAdmin) return; // Added admin check
     console.log(`[Dashboard] openSelectExerciseDialog: Opening select exercise dialog for block ${blockId}.`);
     setCurrentBlockIdForNewExercise(blockId);
     setExerciseSearchTerm(""); // Reset search term
@@ -550,9 +566,9 @@ const Dashboard = () => {
   };
 
   const handleAddSelectedExercisesToBlock = async () => {
-    if (!selectedPlan?.id || !currentBlockIdForNewExercise || selectedMasterExercisesForBlock.size === 0) {
+    if (!selectedPlan?.id || !currentBlockIdForNewExercise || selectedMasterExercisesForBlock.size === 0 || !isUserAdmin) { // Added admin check
       toast({ title: "Nada Seleccionado", description: "Por favor, selecciona al menos un ejercicio.", variant: "default" });
-      console.warn("[Dashboard] handleAddSelectedExercisesToBlock: Aborted - missing plan, block, or no exercises selected.");
+      console.warn("[Dashboard] handleAddSelectedExercisesToBlock: Aborted - missing plan, block, no exercises selected, or not admin.");
       return;
     }
     setIsLoadingExercises(true);
@@ -577,6 +593,7 @@ const Dashboard = () => {
   };
 
   const handleRemoveExerciseFromBlock = async (planId: string, blockId: string, masterExerciseId: string) => {
+    if (!isUserAdmin) return; // Added admin check
     console.log(`[Dashboard] handleRemoveExerciseFromBlock: Removing exercise ${masterExerciseId} from block ${blockId} in plan ${planId}.`);
     setIsLoadingExercises(true);
     try {
@@ -677,7 +694,7 @@ const handleSaveSessionAndNavigate = async () => {
         toast({
             variant: "destructive",
             title: "Sin Ejercicios",
-            description: "La etapa seleccionada para la sesión no tiene ejercicios. Añade ejercicios a esta etapa en la pestaña 'Plan'.",
+            description: "La etapa seleccionada para la sesión no tiene ejercicios. Si eres administrador, añade ejercicios a esta etapa en la pestaña 'Plan'.",
         });
         console.warn(`[Dashboard] handleSaveSession: Cannot save session - block ${selectedBlock.id} has no exercises.`);
         return;
@@ -766,6 +783,7 @@ const handleSaveSessionAndNavigate = async () => {
   };
 
   const handleDragEndExercises = async (event: DragEndEvent) => {
+    if (!isUserAdmin) return; // Added admin check
     const { active, over } = event;
     console.log(`[Dashboard] handleDragEndExercises: Active ID - ${active?.id}, Over ID - ${over?.id}`);
 
@@ -833,18 +851,23 @@ const handleSaveSessionAndNavigate = async () => {
         toast({ title: "Orden de ejercicios actualizado", description: "El nuevo orden ha sido guardado." });
         console.log(`[Dashboard] handleDragEndExercises: Order updated in DB for block ${blockIdOfDraggedItem}. Re-fetching exercises for plan ${selectedPlan.id} for full consistency.`);
         // Full re-fetch to ensure data integrity after optimistic update
-        await performFetchExercisesForPlan(selectedPlan.id, blocks);
+        if (selectedPlan?.id && blocks.length > 0) { // Ensure blocks is not empty
+            await performFetchExercisesForPlan(selectedPlan.id, blocks);
+        }
       } catch (err) {
         console.error("[Dashboard] handleDragEndExercises: Error updating exercises order in DB:", err);
         toast({ variant: "destructive", title: "Error", description: "No se pudo guardar el nuevo orden." });
         console.log(`[Dashboard] handleDragEndExercises: Error in DB, re-fetching exercises for plan ${selectedPlan.id} to revert UI.`);
         // Revert optimistic update by re-fetching
-        await performFetchExercisesForPlan(selectedPlan.id, blocks);
+        if (selectedPlan?.id && blocks.length > 0) { // Ensure blocks is not empty
+           await performFetchExercisesForPlan(selectedPlan.id, blocks);
+        }
       }
     }
   };
 
   const handleDragEndBlocks = async (event: DragEndEvent) => {
+    if (!isUserAdmin) return; // Added admin check
     const { active, over } = event;
     console.log(`[Dashboard] handleDragEndBlocks: Active ID - ${active?.id}, Over ID - ${over?.id}`);
 
@@ -903,40 +926,45 @@ const handleSaveSessionAndNavigate = async () => {
               <CardDescription>Elige un caballo para ver sus detalles o añade uno nuevo.</CardDescription>
             </CardHeader>
             <CardContent>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="w-full justify-between">
-                    {isLoadingHorses ? "Cargando caballos..." : selectedHorse ? selectedHorse.name : "Seleccionar Caballo"}
-                    {!isLoadingHorses && <Icons.chevronDown className="ml-2 h-4 w-4" />}
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-[var(--radix-dropdown-menu-trigger-width)]">
-                  <DropdownMenuLabel>Mis Caballos</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  {isLoadingHorses ? (
-                     <DropdownMenuItem disabled>Cargando caballos...</DropdownMenuItem>
-                  ) : horses.length > 0 ? (
-                    horses.map((horse) => (
-                      <DropdownMenuItem
-                        key={horse.id}
-                        onSelect={() => {
-                          console.log("[Dashboard] Horse selected from dropdown:", horse.name);
-                          setSelectedHorse(horse);
-                        }}
-                      >
-                        {horse.name}
-                      </DropdownMenuItem>
-                    ))
-                  ) : (
-                    <DropdownMenuItem disabled>No hay caballos registrados</DropdownMenuItem>
-                  )}
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onSelect={() => setIsAddHorseDialogOpen(true)}>
-                    <Icons.plus className="mr-2 h-4 w-4" />
-                    Añadir Caballo Nuevo
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="w-full sm:flex-grow justify-between">
+                      {isLoadingHorses ? "Cargando caballos..." : selectedHorse ? selectedHorse.name : "Seleccionar Caballo"}
+                      {!isLoadingHorses && <Icons.chevronDown className="ml-2 h-4 w-4" />}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="w-[var(--radix-dropdown-menu-trigger-width)]">
+                    <DropdownMenuLabel>Mis Caballos</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {isLoadingHorses ? (
+                      <DropdownMenuItem disabled>Cargando caballos...</DropdownMenuItem>
+                    ) : horses.length > 0 ? (
+                      horses.map((horse) => (
+                        <DropdownMenuItem
+                          key={horse.id}
+                          onSelect={() => {
+                            console.log("[Dashboard] Horse selected from dropdown:", horse.name);
+                            setSelectedHorse(horse);
+                          }}
+                        >
+                          {horse.name}
+                        </DropdownMenuItem>
+                      ))
+                    ) : (
+                      <DropdownMenuItem disabled>No hay caballos registrados</DropdownMenuItem>
+                    )}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onSelect={() => setIsAddHorseDialogOpen(true)}>
+                      <Icons.plus className="mr-2 h-4 w-4" />
+                      Añadir Caballo Nuevo
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <Button onClick={() => setIsAddHorseDialogOpen(true)} className="w-full sm:w-auto mt-2 sm:mt-0">
+                  <Icons.plus className="mr-2 h-4 w-4" /> Añadir Nuevo Caballo
+                </Button>
+              </div>
             </CardContent>
           </Card>
 
@@ -989,11 +1017,13 @@ const handleSaveSessionAndNavigate = async () => {
                                     )}
                                     </DropdownMenuContent>
                                 </DropdownMenu>
-                                <Button onClick={() => setIsCreatePlanDialogOpen(true)} className="w-full sm:w-auto flex-shrink-0">
-                                    <Icons.plus className="mr-2 h-4 w-4" /> Crear Plan
-                                </Button>
+                                {isUserAdmin && (
+                                    <Button onClick={() => setIsCreatePlanDialogOpen(true)} className="w-full sm:w-auto flex-shrink-0">
+                                        <Icons.plus className="mr-2 h-4 w-4" /> Crear Plan
+                                    </Button>
+                                )}
                             </div>
-                            {selectedPlan && (
+                            {selectedPlan && isUserAdmin && (
                                 <AlertDialog open={isDeletePlanDialogOpen} onOpenChange={setIsDeletePlanDialogOpen}>
                                 <AlertDialogTrigger asChild>
                                     <Button
@@ -1033,12 +1063,12 @@ const handleSaveSessionAndNavigate = async () => {
                         <div className="flex items-center justify-center p-4"><Icons.spinner className="h-5 w-5 animate-spin mr-2" /> Cargando información del plan...</div>
                       ) : selectedPlan ? (
                         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndBlocks}>
-                            <SortableContext items={blocks.map(b => b.id)} strategy={verticalListSortingStrategy}>
+                            <SortableContext items={blocks.map(b => b.id)} strategy={verticalListSortingStrategy} disabled={!isUserAdmin}>
                                 <Accordion type="single" collapsible className="w-full space-y-2">
                                 {(isLoadingBlocks && blocks.length === 0) ? (
                                   <div className="flex items-center justify-center p-4"><Icons.spinner className="h-5 w-5 animate-spin mr-2" /> Cargando etapas...</div>
                                 ) : blocks.length === 0 && !isLoadingBlocks ? (
-                                    <p className="text-sm text-muted-foreground p-2 text-center">Este plan no tiene etapas. ¡Añade la primera!</p>
+                                    <p className="text-sm text-muted-foreground p-2 text-center">Este plan no tiene etapas. {isUserAdmin ? "¡Añade la primera!" : ""}</p>
                                 ) : (
                                   blocks.map((block) => {
                                       const exercisesForThisBlock = exercisesInPlan.filter(ex => ex.blockId === block.id).sort((a,b) => (a.orderInBlock ?? Infinity) - (b.orderInBlock ?? Infinity));
@@ -1047,6 +1077,7 @@ const handleSaveSessionAndNavigate = async () => {
                                           key={block.id}
                                           block={block}
                                           onEditBlock={openEditBlockDialog}
+                                          canEdit={isUserAdmin}
                                       >
                                           <AccordionContent className="px-1 sm:px-2.5">
                                           {block.goal && (
@@ -1060,7 +1091,7 @@ const handleSaveSessionAndNavigate = async () => {
                                               </div>
                                           ) : exercisesForThisBlock.length > 0 ? (
                                           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndExercises}>
-                                              <SortableContext items={exercisesForThisBlock.map(e => e.id)} strategy={verticalListSortingStrategy}>
+                                              <SortableContext items={exercisesForThisBlock.map(e => e.id)} strategy={verticalListSortingStrategy} disabled={!isUserAdmin}>
                                                   <ul className="list-none pl-0 space-y-1 text-sm">
                                                   {exercisesForThisBlock.map((exercise) => (
                                                       <SortableExerciseItem
@@ -1069,6 +1100,7 @@ const handleSaveSessionAndNavigate = async () => {
                                                         blockId={block.id}
                                                         planId={selectedPlan.id}
                                                         onRemove={handleRemoveExerciseFromBlock}
+                                                        canEdit={isUserAdmin}
                                                       />
                                                   ))}
                                                   </ul>
@@ -1079,20 +1111,24 @@ const handleSaveSessionAndNavigate = async () => {
                                             Esta etapa no tiene ejercicios.
                                           </p>
                                           )}
-                                          <Button size="sm" variant="outline" className="mt-2" onClick={() => openSelectExerciseDialog(block.id)}>
-                                            <Icons.plus className="mr-2 h-4 w-4" /> Añadir Ejercicio
-                                          </Button>
+                                          {isUserAdmin && (
+                                            <Button size="sm" variant="outline" className="mt-2" onClick={() => openSelectExerciseDialog(block.id)}>
+                                                <Icons.plus className="mr-2 h-4 w-4" /> Añadir Ejercicio
+                                            </Button>
+                                          )}
                                       </AccordionContent>
                                       </SortableBlockAccordionItem>
                                   )})
                                 )}
                                 </Accordion>
                             </SortableContext>
-                          <div className="flex flex-wrap justify-end mt-4 gap-2">
-                              <Button onClick={() => setIsAddBlockDialogOpen(true)} disabled={!selectedPlan || isLoadingBlocks}>
-                                  <Icons.plus className="mr-2 h-4 w-4" /> Añadir Etapa
-                              </Button>
-                          </div>
+                          {isUserAdmin && (
+                            <div className="flex flex-wrap justify-end mt-4 gap-2">
+                                <Button onClick={() => setIsAddBlockDialogOpen(true)} disabled={!selectedPlan || isLoadingBlocks}>
+                                    <Icons.plus className="mr-2 h-4 w-4" /> Añadir Etapa
+                                </Button>
+                            </div>
+                          )}
                          </DndContext>
                         ) : (
                           <p className="text-sm text-muted-foreground p-2 text-center">Selecciona o crea un plan de entrenamiento para ver sus detalles y gestionarlo.</p>
@@ -1245,7 +1281,7 @@ const handleSaveSessionAndNavigate = async () => {
                                 <p className="text-sm text-muted-foreground p-2 text-center">
                                     { selectedBlock.exerciseReferences && selectedBlock.exerciseReferences.length > 0 && isLoadingExercises ?
                                         'Cargando ejercicios...' :
-                                        'Selecciona una etapa con ejercicios para registrar la sesión, o añade ejercicios a esta etapa en la pestaña "Plan".'
+                                        'Selecciona una etapa con ejercicios para registrar la sesión. Si eres administrador, puedes añadir ejercicios en la pestaña "Plan".'
                                     }
                                 </p>
                             )}
@@ -1323,130 +1359,133 @@ const handleSaveSessionAndNavigate = async () => {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isCreatePlanDialogOpen} onOpenChange={setIsCreatePlanDialogOpen}>
-        <DialogContent className="sm:max-w-[480px]">
-          <DialogHeader>
-            <DialogTitle>Crear Nuevo Plan de Entrenamiento</DialogTitle>
-            <DialogDescription>Define un nuevo plan para tus caballos.</DialogDescription>
-          </DialogHeader>
-          <AddPlanForm onSuccess={handlePlanAdded} onCancel={() => setIsCreatePlanDialogOpen(false)} />
-        </DialogContent>
-      </Dialog>
+    {isUserAdmin && (
+        <>
+            <Dialog open={isCreatePlanDialogOpen} onOpenChange={setIsCreatePlanDialogOpen}>
+                <DialogContent className="sm:max-w-[480px]">
+                <DialogHeader>
+                    <DialogTitle>Crear Nuevo Plan de Entrenamiento</DialogTitle>
+                    <DialogDescription>Define un nuevo plan para tus caballos.</DialogDescription>
+                </DialogHeader>
+                <AddPlanForm onSuccess={handlePlanAdded} onCancel={() => setIsCreatePlanDialogOpen(false)} />
+                </DialogContent>
+            </Dialog>
 
-      <Dialog open={isAddBlockDialogOpen} onOpenChange={setIsAddBlockDialogOpen}>
-        <DialogContent className="sm:max-w-[480px]">
-          <DialogHeader>
-            <DialogTitle>Añadir Nueva Etapa al Plan</DialogTitle>
-            <DialogDescription>Añade una etapa a "{selectedPlan?.title}".</DialogDescription>
-          </DialogHeader>
-          {selectedPlan && (
-            <AddBlockForm
-              planId={selectedPlan.id}
-              onSuccess={handleBlockAdded}
-              onCancel={() => setIsAddBlockDialogOpen(false)}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
+            <Dialog open={isAddBlockDialogOpen} onOpenChange={setIsAddBlockDialogOpen}>
+                <DialogContent className="sm:max-w-[480px]">
+                <DialogHeader>
+                    <DialogTitle>Añadir Nueva Etapa al Plan</DialogTitle>
+                    <DialogDescription>Añade una etapa a "{selectedPlan?.title}".</DialogDescription>
+                </DialogHeader>
+                {selectedPlan && (
+                    <AddBlockForm
+                    planId={selectedPlan.id}
+                    onSuccess={handleBlockAdded}
+                    onCancel={() => setIsAddBlockDialogOpen(false)}
+                    />
+                )}
+                </DialogContent>
+            </Dialog>
 
-      <Dialog open={isEditBlockDialogOpen} onOpenChange={setIsEditBlockDialogOpen}>
-        <DialogContent className="sm:max-w-[480px]">
-          <DialogHeader>
-            <DialogTitle>Editar Etapa</DialogTitle>
-            <DialogDescription>Modifica los detalles de la etapa "{editingBlock?.title}".</DialogDescription>
-          </DialogHeader>
-          {selectedPlan && editingBlock && (
-            <EditBlockForm
-              planId={selectedPlan.id}
-              block={editingBlock}
-              onSuccess={handleBlockUpdated}
-              onCancel={() => setIsEditBlockDialogOpen(false)}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
+            <Dialog open={isEditBlockDialogOpen} onOpenChange={setIsEditBlockDialogOpen}>
+                <DialogContent className="sm:max-w-[480px]">
+                <DialogHeader>
+                    <DialogTitle>Editar Etapa</DialogTitle>
+                    <DialogDescription>Modifica los detalles de la etapa "{editingBlock?.title}".</DialogDescription>
+                </DialogHeader>
+                {selectedPlan && editingBlock && (
+                    <EditBlockForm
+                    planId={selectedPlan.id}
+                    block={editingBlock}
+                    onSuccess={handleBlockUpdated}
+                    onCancel={() => setIsEditBlockDialogOpen(false)}
+                    />
+                )}
+                </DialogContent>
+            </Dialog>
 
-      <Dialog open={isSelectExerciseDialogOpen} onOpenChange={(open) => {
-        if (!open) {
-          setCurrentBlockIdForNewExercise(null);
-          setExerciseSearchTerm(""); // Reset search term when dialog closes
-        }
-        setIsSelectExerciseDialogOpen(open);
-      }}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Añadir Ejercicios a la Etapa</DialogTitle>
-            <DialogDescription>
-              Selecciona ejercicios de la biblioteca para añadir a la etapa: {blocks.find(b => b.id === currentBlockIdForNewExercise)?.title || ""}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="my-4">
-            <Input
-              type="search"
-              placeholder="Buscar ejercicios por título..."
-              value={exerciseSearchTerm}
-              onChange={(e) => setExerciseSearchTerm(e.target.value)}
-              className="w-full"
-            />
-          </div>
-          <div className="space-y-4 max-h-[50vh] overflow-y-auto">
-            {isLoadingMasterExercises ? (
-              <div className="flex justify-center"><Icons.spinner className="h-6 w-6 animate-spin" /></div>
-            ) : filteredMasterExercises.length === 0 && availableMasterExercises.length > 0 ? (
-                 <p className="text-center text-muted-foreground">No se encontraron ejercicios con &quot;{exerciseSearchTerm}&quot;.</p>
-            ) : filteredMasterExercises.length === 0 && availableMasterExercises.length === 0 ? (
-              <p className="text-center text-muted-foreground">No hay ejercicios en la biblioteca. <Link href="/library/exercises" className="text-primary hover:underline" onClick={() => setIsSelectExerciseDialogOpen(false)}>Añade algunos primero.</Link></p>
-            ) : (
-              filteredMasterExercises.map(masterEx => (
-                <div key={masterEx.id} className="flex items-center space-x-3 rounded-md border p-3 hover:bg-accent/50">
-                  <Checkbox
-                    id={`master-ex-${masterEx.id}`}
-                    checked={selectedMasterExercisesForBlock.has(masterEx.id)}
-                    onCheckedChange={(checked) => {
-                      setSelectedMasterExercisesForBlock(prev => {
-                        const newSet = new Set(prev);
-                        if (checked) {
-                          newSet.add(masterEx.id);
-                        } else {
-                          newSet.delete(masterEx.id);
-                        }
-                        return newSet;
-                      });
-                    }}
-                  />
-                  <div className="grid gap-1.5 leading-none">
-                    <label
-                      htmlFor={`master-ex-${masterEx.id}`}
-                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                    >
-                      {masterEx.title}
-                    </label>
-                    {masterEx.description && (
-                      <p className="text-xs text-muted-foreground">{masterEx.description}</p>
-                    )}
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-          <div className="flex justify-end space-x-2 pt-4 border-t">
-            <Button variant="outline" onClick={() => {
-              setIsSelectExerciseDialogOpen(false);
-              setCurrentBlockIdForNewExercise(null);
-              setExerciseSearchTerm("");
+            <Dialog open={isSelectExerciseDialogOpen} onOpenChange={(open) => {
+                if (!open) {
+                setCurrentBlockIdForNewExercise(null);
+                setExerciseSearchTerm(""); 
+                }
+                setIsSelectExerciseDialogOpen(open);
             }}>
-              Cancelar
-            </Button>
-            <Button onClick={handleAddSelectedExercisesToBlock} disabled={isLoadingMasterExercises || selectedMasterExercisesForBlock.size === 0}>
-              Añadir Seleccionados ({selectedMasterExercisesForBlock.size})
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+                <DialogContent className="sm:max-w-lg">
+                <DialogHeader>
+                    <DialogTitle>Añadir Ejercicios a la Etapa</DialogTitle>
+                    <DialogDescription>
+                    Selecciona ejercicios de la biblioteca para añadir a la etapa: {blocks.find(b => b.id === currentBlockIdForNewExercise)?.title || ""}
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="my-4">
+                    <Input
+                    type="search"
+                    placeholder="Buscar ejercicios por título..."
+                    value={exerciseSearchTerm}
+                    onChange={(e) => setExerciseSearchTerm(e.target.value)}
+                    className="w-full"
+                    />
+                </div>
+                <div className="space-y-4 max-h-[50vh] overflow-y-auto">
+                    {isLoadingMasterExercises ? (
+                    <div className="flex justify-center"><Icons.spinner className="h-6 w-6 animate-spin" /></div>
+                    ) : filteredMasterExercises.length === 0 && availableMasterExercises.length > 0 ? (
+                        <p className="text-center text-muted-foreground">No se encontraron ejercicios con &quot;{exerciseSearchTerm}&quot;.</p>
+                    ) : filteredMasterExercises.length === 0 && availableMasterExercises.length === 0 ? (
+                    <p className="text-center text-muted-foreground">No hay ejercicios en la biblioteca. <Link href="/library/exercises" className="text-primary hover:underline" onClick={() => setIsSelectExerciseDialogOpen(false)}>Añade algunos primero.</Link></p>
+                    ) : (
+                    filteredMasterExercises.map(masterEx => (
+                        <div key={masterEx.id} className="flex items-center space-x-3 rounded-md border p-3 hover:bg-accent/50">
+                        <Checkbox
+                            id={`master-ex-${masterEx.id}`}
+                            checked={selectedMasterExercisesForBlock.has(masterEx.id)}
+                            onCheckedChange={(checked) => {
+                            setSelectedMasterExercisesForBlock(prev => {
+                                const newSet = new Set(prev);
+                                if (checked) {
+                                newSet.add(masterEx.id);
+                                } else {
+                                newSet.delete(masterEx.id);
+                                }
+                                return newSet;
+                            });
+                            }}
+                        />
+                        <div className="grid gap-1.5 leading-none">
+                            <label
+                            htmlFor={`master-ex-${masterEx.id}`}
+                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                            >
+                            {masterEx.title}
+                            </label>
+                            {masterEx.description && (
+                            <p className="text-xs text-muted-foreground">{masterEx.description}</p>
+                            )}
+                        </div>
+                        </div>
+                    ))
+                    )}
+                </div>
+                <div className="flex justify-end space-x-2 pt-4 border-t">
+                    <Button variant="outline" onClick={() => {
+                    setIsSelectExerciseDialogOpen(false);
+                    setCurrentBlockIdForNewExercise(null);
+                    setExerciseSearchTerm("");
+                    }}>
+                    Cancelar
+                    </Button>
+                    <Button onClick={handleAddSelectedExercisesToBlock} disabled={isLoadingMasterExercises || selectedMasterExercisesForBlock.size === 0}>
+                    Añadir Seleccionados ({selectedMasterExercisesForBlock.size})
+                    </Button>
+                </div>
+                </DialogContent>
+            </Dialog>
+        </>
+    )}
 
     </div>
   );
 };
 
 export default Dashboard;
-
