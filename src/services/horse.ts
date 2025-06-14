@@ -2,7 +2,7 @@
 import { auth, db } from '@/firebase';
 import { collection, addDoc, getDocs, serverTimestamp, query, where, orderBy, Timestamp, doc, getDoc, updateDoc, setDoc } from 'firebase/firestore';
 import type { Horse, TrainingBlock } from '@/types/firestore';
-import { getTrainingBlocks, getBlockById } from './firestore';
+import { getTrainingBlocks, getBlockById } from './firestore'; // Assuming getBlockById is also exported
 
 
 // Interface for the data collected from the form
@@ -99,8 +99,8 @@ export async function startPlanForHorse(horseId: string, planId: string, firstBl
     activePlanId: planId,
     activePlanStartDate: serverTimestamp() as Timestamp,
     currentBlockId: firstBlockId,
-    currentBlockStartDate: serverTimestamp() as Timestamp, // Set start date for the first block
-    planProgress: {}, // Reset progress for the new plan
+    currentBlockStartDate: serverTimestamp() as Timestamp,
+    planProgress: {}, 
     updatedAt: serverTimestamp() as Timestamp,
   };
   try {
@@ -129,14 +129,13 @@ export async function updateDayCompletionStatus(horseId: string, currentBlockId:
         currentPlanProgress[currentBlockId] = {};
     }
     if (!currentPlanProgress[currentBlockId][dayExerciseId]) {
-        currentPlanProgress[currentBlockId][dayExerciseId] = { completed: false }; // Initialize if not present
+        currentPlanProgress[currentBlockId][dayExerciseId] = { completed: false };
     }
     
     currentPlanProgress[currentBlockId][dayExerciseId].completed = completed;
     if (completed) {
         currentPlanProgress[currentBlockId][dayExerciseId].completedAt = serverTimestamp() as Timestamp;
     } else {
-        // If unchecking, remove the completedAt timestamp
         delete currentPlanProgress[currentBlockId][dayExerciseId].completedAt;
     }
 
@@ -154,15 +153,14 @@ export async function updateDayCompletionStatus(horseId: string, currentBlockId:
 
 function parseDurationToDays(durationString?: string | null): number | null {
   if (!durationString) return null;
-  const match = durationString.match(/(\d+)\s*d[íi]as?/i); // Matches "5 días", "5dias", "1 dia"
+  const match = durationString.match(/(\d+)\s*d[íi]as?/i); 
   if (match && match[1]) {
     return parseInt(match[1], 10);
   }
-  // Could add more parsing for "semana", "mes", etc. later
   return null;
 }
 
-export async function advanceHorseToNextBlock(horseId: string): Promise<{ advanced: boolean; newBlockId?: string; planCompleted: boolean; reason?: 'duration_not_met' | 'no_next_block'; daysRemaining?: number }> {
+export async function advanceHorseToNextBlock(horseId: string): Promise<{ advanced: boolean; newBlockId?: string; planCompleted: boolean; reason?: 'duration_not_met' | 'no_next_block' | 'not_all_days_completed'; daysRemaining?: number }> {
   console.log(`[HorseService] advanceHorseToNextBlock called for horseId: ${horseId}`);
   const horseDocRef = doc(db, 'horses', horseId);
 
@@ -176,26 +174,34 @@ export async function advanceHorseToNextBlock(horseId: string): Promise<{ advanc
     const horseData = horseSnap.data() as Horse;
     if (!horseData.activePlanId || !horseData.currentBlockId) {
       console.warn(`[HorseService] advanceHorseToNextBlock: Horse ${horseId} does not have an active plan or current block.`);
-      return { advanced: false, planCompleted: false };
+      return { advanced: false, planCompleted: false, reason: 'no_next_block' };
     }
 
-    // Check duration of the current block
-    const currentBlockData = await getBlockById(horseData.currentBlockId);
-    if (!currentBlockData) {
+    const currentBlockDetails = await getBlockById(horseData.currentBlockId);
+    if (!currentBlockDetails) {
         console.error(`[HorseService] advanceHorseToNextBlock: Current block data for ${horseData.currentBlockId} not found.`);
-        return { advanced: false, planCompleted: false, reason: 'no_next_block' }; // Or a more specific error
+        return { advanced: false, planCompleted: false, reason: 'no_next_block' };
     }
 
-    const requiredDurationDays = parseDurationToDays(currentBlockData.duration);
+    // Check if all days in the current block are completed
+    const currentBlockProgress = horseData.planProgress?.[horseData.currentBlockId];
+    const daysInCurrentBlock = currentBlockDetails.exerciseReferences || [];
+    const allDaysCompleted = daysInCurrentBlock.every(dayRef => currentBlockProgress?.[dayRef.exerciseId]?.completed);
+
+    if (!allDaysCompleted) {
+        console.log(`[HorseService] advanceHorseToNextBlock: Not all days completed for block ${horseData.currentBlockId}.`);
+        return { advanced: false, planCompleted: false, reason: 'not_all_days_completed' };
+    }
+
+    const requiredDurationDays = parseDurationToDays(currentBlockDetails.duration);
     if (requiredDurationDays && horseData.currentBlockStartDate) {
       const startDate = horseData.currentBlockStartDate.toDate();
       const currentDate = new Date();
-      // Ensure start date is not in the future (can happen with serverTimestamp and local clock differences briefly)
       const safeStartDate = startDate > currentDate ? currentDate : startDate;
       const elapsedMilliseconds = currentDate.getTime() - safeStartDate.getTime();
       const elapsedDays = elapsedMilliseconds / (1000 * 3600 * 24);
       
-      console.log(`[HorseService] Duration check: Required=${requiredDurationDays}, StartDate=${safeStartDate.toISOString()}, CurrentDate=${currentDate.toISOString()}, ElapsedDays=${elapsedDays}`);
+      console.log(`[HorseService] Duration check for block ${currentBlockDetails.id} (${currentBlockDetails.title}): Required=${requiredDurationDays}, StartDate=${safeStartDate.toISOString()}, CurrentDate=${currentDate.toISOString()}, ElapsedDays=${elapsedDays.toFixed(2)}`);
 
       if (elapsedDays < requiredDurationDays) {
         const daysRemaining = Math.ceil(requiredDurationDays - elapsedDays);
@@ -203,37 +209,40 @@ export async function advanceHorseToNextBlock(horseId: string): Promise<{ advanc
         return { advanced: false, reason: 'duration_not_met', daysRemaining: daysRemaining, planCompleted: false };
       }
     } else if (requiredDurationDays) {
-        console.warn(`[HorseService] advanceHorseToNextBlock: Block ${horseData.currentBlockId} has duration ${currentBlockData.duration} but horse has no currentBlockStartDate. Advancing based on day completion only.`);
+        console.warn(`[HorseService] advanceHorseToNextBlock: Block ${horseData.currentBlockId} has duration ${currentBlockDetails.duration} but horse has no currentBlockStartDate. Duration check skipped.`);
     }
 
-
     const allBlocksForPlan = await getTrainingBlocks(horseData.activePlanId);
-    if (allBlocksForPlan.length === 0) {
+     const sortedAllBlocks = allBlocksForPlan.sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity));
+
+    if (sortedAllBlocks.length === 0) {
         console.warn(`[HorseService] advanceHorseToNextBlock: No blocks found for plan ${horseData.activePlanId}.`);
         return { advanced: false, planCompleted: false, reason: 'no_next_block' };
     }
 
-    const currentBlockIndex = allBlocksForPlan.findIndex(block => block.id === horseData.currentBlockId);
+    const currentBlockIndex = sortedAllBlocks.findIndex(block => block.id === horseData.currentBlockId);
 
     if (currentBlockIndex === -1) {
       console.error(`[HorseService] advanceHorseToNextBlock: Current block ${horseData.currentBlockId} not found in plan ${horseData.activePlanId}.`);
       return { advanced: false, planCompleted: false, reason: 'no_next_block' };
     }
 
-    if (currentBlockIndex < allBlocksForPlan.length - 1) {
-      const nextBlock = allBlocksForPlan[currentBlockIndex + 1];
+    if (currentBlockIndex < sortedAllBlocks.length - 1) {
+      const nextBlock = sortedAllBlocks[currentBlockIndex + 1];
       await updateDoc(horseDocRef, {
         currentBlockId: nextBlock.id,
-        currentBlockStartDate: serverTimestamp() as Timestamp, // Set start date for the new block
+        currentBlockStartDate: serverTimestamp() as Timestamp, 
         updatedAt: serverTimestamp() as Timestamp,
       });
       console.log(`[HorseService] advanceHorseToNextBlock: Horse ${horseId} advanced to block ${nextBlock.id} (${nextBlock.title}).`);
       return { advanced: true, newBlockId: nextBlock.id, planCompleted: false };
     } else {
       console.log(`[HorseService] advanceHorseToNextBlock: Horse ${horseId} has completed the last block of plan ${horseData.activePlanId}.`);
-      // Consider clearing activePlanId, currentBlockId, currentBlockStartDate or setting a planCompleted flag on the horse
-      // For now, we indicate planCompleted is true.
-      // await updateDoc(horseDocRef, { activePlanId: null, currentBlockId: null, currentBlockStartDate: null, updatedAt: serverTimestamp() });
+      await updateDoc(horseDocRef, { 
+        // Consider how to mark plan as "completed" vs just no active block
+        // For now, let's keep currentBlockId as the last one, but indicate completion
+        updatedAt: serverTimestamp() as Timestamp,
+       });
       return { advanced: false, planCompleted: true, reason: 'no_next_block' };
     }
   } catch (error) {
@@ -241,3 +250,4 @@ export async function advanceHorseToNextBlock(horseId: string): Promise<{ advanc
     throw error;
   }
 }
+
