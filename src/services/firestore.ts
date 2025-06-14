@@ -25,6 +25,30 @@ export async function getTrainingPlans(): Promise<TrainingPlan[]> {
   }
 }
 
+export async function getPlanById(planId: string): Promise<TrainingPlan | null> {
+  console.log(`[FirestoreService] getPlanById called for planId: ${planId}`);
+  if (!planId) {
+    console.warn("[FirestoreService] getPlanById: planId is required. Returning null.");
+    return null;
+  }
+  try {
+    const planDocRef = doc(db, 'trainingPlans', planId);
+    const planDocSnap = await getDoc(planDocRef);
+    if (planDocSnap.exists()) {
+      const planData = { id: planDocSnap.id, ...planDocSnap.data() } as TrainingPlan;
+      console.log(`[FirestoreService] getPlanById: Found plan for ID ${planId}:`, planData);
+      return planData;
+    } else {
+      console.log(`[FirestoreService] getPlanById: No plan document found for ID: ${planId}`);
+      return null;
+    }
+  } catch (e) {
+    console.error(`[FirestoreService] getPlanById: Error fetching plan document ID ${planId}:`, e);
+    throw e;
+  }
+}
+
+
 export async function addTrainingPlan(planData: TrainingPlanInput): Promise<string> {
   console.log("[FirestoreService] addTrainingPlan called with data:", planData);
   const planCollectionRef = collection(db, "trainingPlans");
@@ -158,9 +182,9 @@ export async function addTrainingBlock(planId: string, blockData: Omit<TrainingB
       exerciseReferences: ExerciseReference[];
       createdAt: Timestamp;
       updatedAt: Timestamp;
-      notes?: string;
-      duration?: string;
-      goal?: string;
+      notes?: string | null;
+      duration?: string | null;
+      goal?: string | null;
     } = {
       planId: planId,
       title: blockData.title,
@@ -171,13 +195,13 @@ export async function addTrainingBlock(planId: string, blockData: Omit<TrainingB
     };
 
     if (blockData.notes !== undefined) {
-      dataForFirestore.notes = blockData.notes;
+      dataForFirestore.notes = blockData.notes === "" ? null : blockData.notes;
     }
     if (blockData.duration !== undefined) {
-      dataForFirestore.duration = blockData.duration;
+      dataForFirestore.duration = blockData.duration === "" ? null : blockData.duration;
     }
     if (blockData.goal !== undefined) {
-      dataForFirestore.goal = blockData.goal;
+      dataForFirestore.goal = blockData.goal === "" ? null : blockData.goal;
     }
 
     console.log(`[FirestoreService] addTrainingBlock: Attempting to add new block with data:`, dataForFirestore);
@@ -197,13 +221,12 @@ export async function updateTrainingBlock(planId: string, blockId: string, block
   console.log(`[FirestoreService] updateTrainingBlock called for blockId: ${blockId}, planId: ${planId}, data:`, blockData);
   const blockDocRef = doc(db, "trainingBlocks", blockId);
   
-  // Construct the data to update, omitting undefined fields
   const dataToUpdate: { [key: string]: any } = {
     updatedAt: serverTimestamp() as Timestamp,
   };
 
   if (blockData.title !== undefined) dataToUpdate.title = blockData.title;
-  if (blockData.notes !== undefined) dataToUpdate.notes = blockData.notes === "" ? null : blockData.notes; // Store "" as null or as "" based on preference
+  if (blockData.notes !== undefined) dataToUpdate.notes = blockData.notes === "" ? null : blockData.notes;
   if (blockData.duration !== undefined) dataToUpdate.duration = blockData.duration === "" ? null : blockData.duration;
   if (blockData.goal !== undefined) dataToUpdate.goal = blockData.goal === "" ? null : blockData.goal;
 
@@ -360,6 +383,7 @@ export async function getExercisesForBlock(blockId: string): Promise<BlockExerci
         exercises.push({
           ...masterEx,
           orderInBlock: ref.order,
+          blockId: blockId, // Add blockId here
         });
       } else {
         console.warn(`[FirestoreService] getExercisesForBlock: MasterExercise with ID ${ref.exerciseId} referenced in block ${blockId} not found.`);
@@ -370,7 +394,7 @@ export async function getExercisesForBlock(blockId: string): Promise<BlockExerci
     return sortedExercises;
   } catch (error) {
     console.error(`[FirestoreService] getExercisesForBlock: Error fetching exercises for block ${blockId}:`, error);
-    throw error; // Re-throw to be caught by the caller
+    throw error; 
   }
 }
 

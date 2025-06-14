@@ -25,7 +25,7 @@ import {
   SheetClose,
 } from "@/components/ui/sheet"
 import { Icons } from './icons';
-import { Menu, LogOut, UserCircle, Library, History, LogIn, UserPlus, Home } from 'lucide-react'; // Added Home icon
+import { Menu, LogOut, UserCircle, Library, History, LogIn, UserPlus, Home, BookOpen } from 'lucide-react';
 
 export default function Navbar() {
   const { currentUser, userProfile, loading } = useAuth();
@@ -59,6 +59,12 @@ export default function Navbar() {
       </Button>
       {currentUser && (
         <>
+          <Button variant={isMobile ? "outline" : "ghost"} asChild className={isMobile ? "w-full justify-start" : ""}>
+            <Link href="/plans">
+              <BookOpen className="mr-2 h-4 w-4" />
+              Planes
+            </Link>
+          </Button>
           {userProfile?.role === 'admin' && (
             <Button variant={isMobile ? "outline" : "ghost"} asChild className={isMobile ? "w-full justify-start" : ""}>
               <Link href="/library/exercises">
@@ -116,10 +122,6 @@ export default function Navbar() {
                     </p>
                 </div>
             </div>
-            {/* <Button variant="outline" onClick={() => router.push('/profile')} className="w-full justify-start">
-              <UserCircle className="mr-2 h-4 w-4" />
-              <span>Perfil</span>
-            </Button> */}
             <Button variant="outline" onClick={handleLogout} className="w-full justify-start text-destructive hover:text-destructive">
               <LogOut className="mr-2 h-4 w-4" />
               <span>Cerrar Sesión</span>
@@ -145,11 +147,6 @@ export default function Navbar() {
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              {/* <DropdownMenuItem onClick={() => router.push('/profile')}>
-                <UserCircle className="mr-2 h-4 w-4" />
-                <span>Perfil</span>
-              </DropdownMenuItem> */}
-              <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleLogout}>
                 <LogOut className="mr-2 h-4 w-4" />
                 <span>Cerrar Sesión</span>
@@ -158,7 +155,7 @@ export default function Navbar() {
           </DropdownMenu>
         )
       )}
-      {currentUser && !userProfile && !loading && ( // User logged in but profile not loaded yet or failed
+      {currentUser && !userProfile && !loading && ( 
         <Button variant={isMobile ? "outline" : "ghost"} onClick={handleLogout} className={isMobile ? "w-full justify-start text-destructive hover:text-destructive" : ""}>
           <LogOut className="mr-2 h-4 w-4" />
           Cerrar Sesión
@@ -190,14 +187,12 @@ export default function Navbar() {
           EquiProgress
         </Link>
 
-        {/* Desktop Navigation */}
         <div className="hidden md:flex items-center gap-1">
           <NavLinks />
           <AuthButtons />
           <UserProfileSection />
         </div>
 
-        {/* Mobile Navigation */}
         <div className="md:hidden">
           <Sheet>
             <SheetTrigger asChild>

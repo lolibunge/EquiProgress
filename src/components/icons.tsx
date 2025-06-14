@@ -1,6 +1,7 @@
 
 import type { SVGProps } from 'react';
 import {
+  AlertTriangle, // Added AlertTriangle
   ArrowRight,
   Check,
   ChevronDown,
@@ -30,7 +31,8 @@ import {
   Workflow,
   PanelLeft,
   BookMarked,
-  CalendarDays, // Added CalendarDays
+  CalendarDays,
+  BookOpen, // Added BookOpen
 } from 'lucide-react';
 
 const LogoIcon = (props: SVGProps<SVGSVGElement>) => (
@@ -64,6 +66,7 @@ const LogoIcon = (props: SVGProps<SVGSVGElement>) => (
 
 
 const Icons = {
+  alert: AlertTriangle, // Added AlertTriangle
   arrowRight: ArrowRight,
   check: Check,
   chevronDown: ChevronDown, 
@@ -95,7 +98,8 @@ const Icons = {
   panelLeft: PanelLeft,
   logo: LogoIcon,
   bookMarked: BookMarked,
-  calendar: CalendarDays, // Changed to CalendarDays
+  calendar: CalendarDays,
+  bookOpen: BookOpen, // Added BookOpen
 };
 
 export {Icons};
