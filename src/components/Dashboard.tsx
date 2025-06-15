@@ -39,7 +39,7 @@ import {
   type ExerciseReference,
   type TrainingBlock as TrainingBlockType,
 } from "@/services/firestore";
-import type { Horse, TrainingPlan, ExerciseResult, SessionDataInput, ExerciseResultInput, ExerciseResultObservations } from "@/types/firestore";
+import type { Horse, TrainingPlan, ExerciseResult, SessionDataInput, ExerciseResultInput, ExerciseResultObservations, UserProfile } from "@/types/firestore";
 import HorseHistory from "./HorseHistory";
 
  import {
@@ -377,7 +377,8 @@ const Dashboard = () => {
   const performFetchAllPlans = useCallback(async () => {
     setIsLoadingPlans(true);
     try {
-      const plans = await getTrainingPlans();
+      const userCtx = currentUser ? { uid: currentUser.uid, role: userProfile?.role } : null;
+      const plans = await getTrainingPlans(userCtx);
       setTrainingPlans(plans);
       console.log(`[Dashboard - performFetchAllPlans] Fetched plans raw from service:`, JSON.parse(JSON.stringify(plans)));
     } catch (error) {
@@ -386,7 +387,7 @@ const Dashboard = () => {
     } finally {
       setIsLoadingPlans(false);
     }
-  }, [toast]);
+  }, [toast, currentUser, userProfile]);
 
   useEffect(() => {
     if (currentUser) performFetchAllPlans();
@@ -609,7 +610,7 @@ const Dashboard = () => {
          console.log(`%c[Dashboard fetchDetailsForViewedBlock - END] VIEWED Block ID: ${currentActiveBlock?.id}`, "color: teal; font-weight: bold;");
     };
     fetchDetailsForViewedBlock();
-  }, [currentActiveBlock?.id, toast]);
+  }, [currentActiveBlock?.id, toast, selectedHorse /* Added selectedHorse dependency */]);
 
 
   const currentNumberedDayForDisplay: NumberedDay | null = useMemo(() => {
@@ -632,7 +633,7 @@ const Dashboard = () => {
           setSessionOverallNote("");
           setSessionDayResult({
               plannedReps: "1 sesión",
-              rating: 5,
+              rating: 5, // Default rating 0-10
               observations: { nostrils: null, lips: null, ears: null, eyes: null, neck: null, back: null, croup: null, limbs: null, tail: null, additionalNotes: "" }
           });
       } else {
@@ -683,7 +684,8 @@ const Dashboard = () => {
   const handlePlanAdded = (newPlanId: string) => {
     setIsCreatePlanDialogOpen(false);
     performFetchAllPlans().then(() => {
-      getTrainingPlans().then(refreshedPlans => {
+      const userCtx = currentUser ? { uid: currentUser.uid, role: userProfile?.role } : null;
+      getTrainingPlans(userCtx).then(refreshedPlans => { // Pass user context
         setTrainingPlans(refreshedPlans);
         const newPlan = refreshedPlans.find(p => p.id === newPlanId);
         if (newPlan) setSelectedPlanForAdmin(newPlan);
@@ -811,7 +813,7 @@ const Dashboard = () => {
     setSessionDayResult(prev => {
         const currentDayData = prev || {
             plannedReps: "1 sesión",
-            rating: 5,
+            rating: 5, // Default for 0-10
             observations: { nostrils: null, lips: null, ears: null, eyes: null, neck: null, back: null, croup: null, limbs: null, tail: null, additionalNotes: "" }
         };
         let updatedDayData = { ...currentDayData };
@@ -843,7 +845,7 @@ const handleSaveSessionAndNavigate = async () => {
         date: Timestamp.fromDate(date),
         blockId: currentActiveBlock.id,
         dayNumberInBlock: currentNumberedDayForDisplay.dayNumber,
-        selectedDayExerciseId: currentActiveBlock.id,
+        selectedDayExerciseId: currentActiveBlock.id, // Day "Card" is the block itself now
         selectedDayExerciseTitle: `Día de Trabajo ${currentNumberedDayForDisplay.dayNumber}`,
         overallNote: sessionOverallNote,
       };
@@ -851,7 +853,7 @@ const handleSaveSessionAndNavigate = async () => {
 
       if (sessionId) {
         const dayResultInput: ExerciseResultInput = {
-            exerciseId: currentActiveBlock.id,
+            exerciseId: currentActiveBlock.id, // Day "Card" ID
             plannedReps: sessionDayResult.plannedReps,
             doneReps: 1,
             rating: sessionDayResult.rating,
@@ -1007,20 +1009,24 @@ const handleSaveSessionAndNavigate = async () => {
         return;
     }
 
-    if (currentActiveBlock?.duration && selectedHorse.currentBlockStartDate) {
-        const requiredDays = parseDurationToDays(currentActiveBlock.duration);
+    const requiredDurationDays = parseDurationToDays(currentActiveBlock.duration);
+    if (requiredDurationDays > 0 && selectedHorse.currentBlockStartDate) {
         const startDate = selectedHorse.currentBlockStartDate.toDate();
-        const elapsedDays = Math.floor((new Date().getTime() - startDate.getTime()) / (1000 * 3600 * 24));
-        if (elapsedDays < requiredDays) {
+        const currentDate = new Date();
+        const safeStartDate = startDate > currentDate ? currentDate : startDate;
+        const elapsedMilliseconds = currentDate.getTime() - safeStartDate.getTime();
+        const elapsedDays = Math.floor(elapsedMilliseconds / (1000 * 3600 * 24));
+        if (elapsedDays < requiredDurationDays) {
+            const daysRemaining = requiredDurationDays - elapsedDays;
             toast({
                 title: "Duración Pendiente",
-                description: `La duración de esta etapa (${currentActiveBlock.duration || 'N/A'}) aún no ha finalizado. Faltan aproximadamente ${Math.max(0, requiredDays - elapsedDays)} día(s).`,
+                description: `La duración de esta etapa (${currentActiveBlock.duration || 'N/A'}) aún no ha finalizado. Faltan aproximadamente ${Math.max(0, daysRemaining)} día(s).`,
                 variant: "default",
                 duration: 7000
             });
             return;
         }
-    } else if (currentActiveBlock?.duration && !selectedHorse.currentBlockStartDate) {
+    } else if (requiredDurationDays > 0 && !selectedHorse.currentBlockStartDate) {
         toast({
             title: "Fecha de Inicio Faltante",
             description: `No se puede verificar la duración de la etapa actual porque falta la fecha de inicio. Contacta al administrador.`,
@@ -1071,6 +1077,7 @@ const handleSaveSessionAndNavigate = async () => {
             setIsLoadingNumberedDays(true);
             setIsLoadingSuggestedExercises(true);
             setCurrentActiveBlock(prevBlock);
+             // The useEffect watching currentActiveBlock.id will set displayedDayIndex to the last day of prevBlock.
         } else {
             toast({title: "Inicio del Plan", description: "Ya estás en el primer día de la primera etapa del plan.", duration: 3000});
         }
@@ -1091,6 +1098,7 @@ const handleSaveSessionAndNavigate = async () => {
             setIsLoadingNumberedDays(true);
             setIsLoadingSuggestedExercises(true);
             setCurrentActiveBlock(nextBlock);
+             // The useEffect watching currentActiveBlock.id will set displayedDayIndex to 0 for nextBlock.
         } else {
              if (currentActiveBlock.id === selectedHorse?.currentBlockId && allDaysInBlockCompleted) {
                 toast({title: "¡Etapa Finalizada!", description: "Este es el último día de la etapa actual. Considera avanzar a la siguiente etapa si la duración se ha cumplido.", duration: 5000});
@@ -1393,7 +1401,3 @@ const handleSaveSessionAndNavigate = async () => {
   );
 };
 export default Dashboard;
-
-    
-
-    

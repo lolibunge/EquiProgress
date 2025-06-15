@@ -1,21 +1,40 @@
 
 import { collection, getDocs, query, where, addDoc, serverTimestamp, Timestamp, doc, getDoc, orderBy, limit, writeBatch, updateDoc, deleteDoc, runTransaction, arrayUnion, arrayRemove, FieldValue } from "firebase/firestore";
 import { db } from "@/firebase";
-import type { TrainingPlan, TrainingBlock, TrainingPlanInput, TrainingBlockInput, MasterExercise, MasterExerciseInput, ExerciseReference, BlockExerciseDisplay } from "@/types/firestore";
+import type { TrainingPlan, TrainingBlock, TrainingPlanInput, TrainingBlockInput, MasterExercise, MasterExerciseInput, ExerciseReference, BlockExerciseDisplay, UserProfile } from "@/types/firestore";
+
+interface UserContext {
+  uid: string | null;
+  role?: 'admin' | 'customer' | null;
+}
 
 // --- TrainingPlan Functions ---
-export async function getTrainingPlans(): Promise<TrainingPlan[]> {
-  console.log("[FirestoreService] getTrainingPlans called");
+export async function getTrainingPlans(userContext?: UserContext | null): Promise<TrainingPlan[]> {
+  console.log("[FirestoreService] getTrainingPlans called with userContext:", userContext);
   try {
     const trainingPlansRef = collection(db, "trainingPlans");
     const q = query(trainingPlansRef, orderBy("createdAt", "desc"));
     const querySnapshot = await getDocs(q);
-    const trainingPlans: TrainingPlan[] = [];
+    let trainingPlans: TrainingPlan[] = [];
     querySnapshot.forEach((doc) => {
       trainingPlans.push({ id: doc.id, ...doc.data() } as TrainingPlan);
     });
-    console.log(`[FirestoreService] getTrainingPlans: Fetched ${trainingPlans.length} training plans.`);
-    return trainingPlans;
+
+    if (userContext?.role === 'admin') {
+      console.log(`[FirestoreService] getTrainingPlans: User is admin. Returning all ${trainingPlans.length} plans.`);
+      return trainingPlans;
+    }
+
+    // Filter for non-admin users
+    const filteredPlans = trainingPlans.filter(plan => {
+      const isPublic = !plan.allowedUserIds || plan.allowedUserIds.length === 0;
+      const isAllowed = userContext?.uid && plan.allowedUserIds && plan.allowedUserIds.includes(userContext.uid);
+      return isPublic || isAllowed;
+    });
+    
+    console.log(`[FirestoreService] getTrainingPlans: User is not admin. Filtered ${trainingPlans.length} plans down to ${filteredPlans.length} visible plans.`);
+    return filteredPlans;
+
   } catch (error: any) {
     console.error("[FirestoreService] getTrainingPlans: Error fetching training plans:", error);
      if (error.code === 'failed-precondition' && error.message.includes('index')) {
@@ -57,6 +76,7 @@ export async function addTrainingPlan(planData: TrainingPlanInput): Promise<stri
     createdAt: serverTimestamp() as Timestamp,
     updatedAt: serverTimestamp() as Timestamp,
     template: planData.template ?? false,
+    allowedUserIds: planData.allowedUserIds || [], // Initialize as public
   };
   try {
     const docRef = await addDoc(planCollectionRef, newPlanData);
@@ -565,7 +585,7 @@ export async function debugGetBlocksForPlan(planId: string): Promise<void> {
   } catch (error: any) {
     console.error(`[DEBUG FirestoreService] Error in debugGetBlocksForPlan for plan ${planId}:`, error);
     if (error.code === 'failed-precondition') {
-        console.error(`[DEBUG FirestoreService] INDEX REQUIRED for debugGetBlocksForPlan (planId: ${planId}, orderBy: order). Please create an index on 'planId' (asc) and 'order' (asc) in the 'trainingBlocks' collection.`);
+        console.error(`[DEBUG FirestoreService] INDEX_REQUIRED for debugGetBlocksForPlan (planId: ${planId}, orderBy: order). Please create an index on 'planId' (asc) and 'order' (asc) in the 'trainingBlocks' collection.`);
     }
   }
 }

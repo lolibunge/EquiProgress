@@ -18,7 +18,7 @@ interface PlanWithWeekCount extends TrainingPlan {
 }
 
 export default function PlansPage() {
-  const { currentUser, loading: authLoading } = useAuth();
+  const { currentUser, userProfile, loading: authLoading } = useAuth(); // Added userProfile
   const router = useRouter();
   const { toast } = useToast();
 
@@ -26,9 +26,14 @@ export default function PlansPage() {
   const [isLoadingPlans, setIsLoadingPlans] = useState(true);
 
   const fetchPlansAndWeekCounts = useCallback(async () => {
+    if (!currentUser) { // Ensure currentUser is available before fetching
+      setIsLoadingPlans(false);
+      return;
+    }
     setIsLoadingPlans(true);
     try {
-      const fetchedPlans = await getTrainingPlans();
+      const userCtx = { uid: currentUser.uid, role: userProfile?.role };
+      const fetchedPlans = await getTrainingPlans(userCtx);
       const plansWithCounts: PlanWithWeekCount[] = await Promise.all(
         fetchedPlans.map(async (plan) => {
           const blocks = await getTrainingBlocks(plan.id);
@@ -42,13 +47,16 @@ export default function PlansPage() {
     } finally {
       setIsLoadingPlans(false);
     }
-  }, [toast]);
+  }, [currentUser, userProfile, toast]); // Added userProfile to dependencies
 
   useEffect(() => {
-    if (currentUser) {
+    if (currentUser && !authLoading) { // Ensure authLoading is false
       fetchPlansAndWeekCounts();
+    } else if (!authLoading && !currentUser) { // Handle case where user is not logged in
+        setIsLoadingPlans(false);
+        setPlansWithWeeks([]);
     }
-  }, [currentUser, fetchPlansAndWeekCounts]);
+  }, [currentUser, authLoading, fetchPlansAndWeekCounts]);
 
   if (authLoading || (currentUser && isLoadingPlans)) {
     return (
@@ -116,7 +124,7 @@ export default function PlansPage() {
           <Icons.bookMarked className="h-16 w-16 text-muted-foreground mb-4" data-ai-hint="empty book list" />
           <h3 className="text-xl font-semibold">No Hay Planes Disponibles</h3>
           <p className="text-muted-foreground">
-            Actualmente no hay planes de entrenamiento para mostrar. Los administradores pueden crear nuevos planes.
+            Actualmente no hay planes de entrenamiento para mostrar. {userProfile?.role === 'admin' ? 'Crea uno en el Dashboard.' : 'Contacta a un administrador.'}
           </p>
         </div>
       ) : (

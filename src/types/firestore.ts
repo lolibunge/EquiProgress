@@ -42,6 +42,7 @@ export interface TrainingPlan {
     updatedAt?: Timestamp;
     template: boolean;
     horseId?: string;
+    allowedUserIds?: string[]; // New field: list of user UIDs allowed to see this plan
 }
 
 export interface ExerciseReference {
@@ -120,7 +121,7 @@ export interface ExerciseResult {
     exerciseId: string; 
     plannedReps?: string; // What was planned for the day
     doneReps: number; // Kept for consistency, may always be 1 if session is logged for a day
-    rating: number; // 1-5, overall rating for the day's work
+    rating: number; // 0-10, overall rating for the day's work
     createdAt: Timestamp;
     updatedAt?: Timestamp;
     observations?: ExerciseResultObservations | null;
@@ -151,6 +152,7 @@ export interface TrainingPlanInput {
   title: string;
   template?: boolean;
   horseId?: string;
+  allowedUserIds?: string[]; // Added for completeness, though UI to set this is future
 }
 
 export interface TrainingBlockInput {
@@ -188,7 +190,7 @@ export interface ExerciseResultInput {
     exerciseId: string; // Can be blockId or a specific MasterExercise ID if applicable
     plannedReps?: string;
     doneReps: number; 
-    rating: number;
+    rating: number; // 0-10
     observations?: ExerciseResultObservations | null;
 }
 
