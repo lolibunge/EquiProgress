@@ -24,13 +24,11 @@ export async function getTrainingPlans(userContext?: UserContext | null): Promis
       console.log(`[FirestoreService] getTrainingPlans: User is admin. Returning all ${trainingPlans.length} plans.`);
       return trainingPlans;
     }
-
-    // Filter for non-admin users
+    
     const filteredPlans = trainingPlans.filter(plan => {
-      const isConsideredPublic = plan.allowedUserIds === null || plan.allowedUserIds === undefined; // Public if allowedUserIds is null/undefined
+      const isPublicPlan = plan.allowedUserIds === null || plan.allowedUserIds === undefined;
       const isExplicitlyAllowed = Array.isArray(plan.allowedUserIds) && userContext?.uid && plan.allowedUserIds.includes(userContext.uid);
-      
-      return isConsideredPublic || isExplicitlyAllowed;
+      return isPublicPlan || isExplicitlyAllowed;
     });
     
     console.log(`[FirestoreService] getTrainingPlans: User is not admin. Filtered ${trainingPlans.length} plans down to ${filteredPlans.length} visible plans.`);
@@ -75,7 +73,7 @@ export async function addTrainingPlan(planData: TrainingPlanInput): Promise<stri
   const newPlanData = {
     title: planData.title,
     template: planData.template ?? false,
-    allowedUserIds: null, // New plans are public by default (null)
+    allowedUserIds: null, 
     createdAt: serverTimestamp() as Timestamp,
     updatedAt: serverTimestamp() as Timestamp,
   };
@@ -98,7 +96,7 @@ export async function updatePlanAllowedUsers(planId: string, newUserIds: string[
   const planDocRef = doc(db, "trainingPlans", planId);
   try {
     await updateDoc(planDocRef, {
-      allowedUserIds: newUserIds, // This can be an array or null
+      allowedUserIds: newUserIds, 
       updatedAt: serverTimestamp() as Timestamp,
     });
     console.log(`[FirestoreService] updatePlanAllowedUsers: Plan ${planId} allowedUserIds updated successfully.`);
@@ -139,9 +137,9 @@ export async function deleteTrainingPlan(planId: string): Promise<void> {
 
 
 // --- TrainingBlock Functions ---
-export async function getTrainingBlocks(planId: string): Promise<TrainingBlock[]> {
+export async function getTrainingBlocks(planId: string, userContext?: UserContext | null): Promise<TrainingBlock[]> {
   const trimmedPlanId = planId.trim();
-  console.log(`[FirestoreService] getTrainingBlocks called for planId: "${trimmedPlanId}" (ordering by 'order' asc)`);
+  console.log(`[FirestoreService] getTrainingBlocks called for planId: "${trimmedPlanId}" (ordering by 'order' asc), userContext:`, userContext);
   if (!trimmedPlanId) {
     console.warn("[FirestoreService] getTrainingBlocks: planId is null or empty. Returning empty array.");
     return [];
@@ -150,14 +148,28 @@ export async function getTrainingBlocks(planId: string): Promise<TrainingBlock[]
     const trainingBlocksRef = collection(db, "trainingBlocks");
     const q = query(trainingBlocksRef, where("planId", "==", trimmedPlanId), orderBy("order", "asc"));
     const querySnapshot = await getDocs(q);
-    const trainingBlocks: TrainingBlock[] = [];
+    let trainingBlocks: TrainingBlock[] = [];
     
     querySnapshot.forEach((docSnap) => {
       trainingBlocks.push({ id: docSnap.id, ...docSnap.data() } as TrainingBlock);
     });
     
-    console.log(`[FirestoreService] getTrainingBlocks for planId "${trimmedPlanId}" fetched ${trainingBlocks.length} blocks.`);
-    return trainingBlocks;
+    console.log(`[FirestoreService] getTrainingBlocks for planId "${trimmedPlanId}" fetched ${trainingBlocks.length} raw blocks.`);
+
+    if (userContext?.role === 'admin') {
+      return trainingBlocks;
+    }
+
+    // Filter for non-admin users based on block's allowedUserIds
+    const filteredBlocks = trainingBlocks.filter(block => {
+        const isBlockPublic = block.allowedUserIds === null || block.allowedUserIds === undefined;
+        const isExplicitlyAllowed = Array.isArray(block.allowedUserIds) && userContext?.uid && block.allowedUserIds.includes(userContext.uid);
+        return isBlockPublic || isExplicitlyAllowed;
+    });
+
+    console.log(`[FirestoreService] getTrainingBlocks for planId "${trimmedPlanId}" filtered to ${filteredBlocks.length} blocks for user ${userContext?.uid}.`);
+    return filteredBlocks;
+
   } catch (error: any) {
     console.error(`[FirestoreService] getTrainingBlocks: Error fetching training blocks for plan ${trimmedPlanId}:`, error);
     if (error.code === 'failed-precondition' && error.message.includes('index')) {
@@ -190,7 +202,7 @@ export async function getBlockById(blockId: string): Promise<TrainingBlock | nul
   }
 }
 
-export async function addTrainingBlock(planId: string, blockData: Omit<TrainingBlockInput, 'exerciseReferences' | 'order'>): Promise<string> {
+export async function addTrainingBlock(planId: string, blockData: Omit<TrainingBlockInput, 'exerciseReferences' | 'order' | 'allowedUserIds'>): Promise<string> {
   console.log(`[FirestoreService] addTrainingBlock called for planId: "${planId}" with data:`, blockData);
   if (!planId || planId.trim() === "") {
     console.error("[FirestoreService] addTrainingBlock: planId is missing or empty.");
@@ -216,21 +228,12 @@ export async function addTrainingBlock(planId: string, blockData: Omit<TrainingB
       console.log(`[FirestoreService] addTrainingBlock: No existing blocks found for planId "${planId}". New order will be 0.`);
     }
 
-    const dataForFirestore: {
-      planId: string;
-      title: string;
-      order: number;
-      exerciseReferences: ExerciseReference[];
-      createdAt: Timestamp;
-      updatedAt: Timestamp;
-      notes?: string | null;
-      duration?: string | null;
-      goal?: string | null;
-    } = {
+    const dataForFirestore: TrainingBlockInput & { planId: string, createdAt: Timestamp, updatedAt: Timestamp} = {
       planId: planId,
       title: blockData.title,
       order: newOrder,
       exerciseReferences: [],
+      allowedUserIds: null, // Default to null (inherit from plan)
       createdAt: serverTimestamp() as Timestamp,
       updatedAt: serverTimestamp() as Timestamp,
     };
@@ -258,7 +261,7 @@ export async function addTrainingBlock(planId: string, blockData: Omit<TrainingB
   }
 }
 
-export async function updateTrainingBlock(planId: string, blockId: string, blockData: Partial<Omit<TrainingBlockInput, 'planId' | 'order' | 'exerciseReferences'>>): Promise<void> {
+export async function updateTrainingBlock(planId: string, blockId: string, blockData: Partial<Omit<TrainingBlockInput, 'planId' | 'order' | 'exerciseReferences' | 'allowedUserIds'>>): Promise<void> {
   console.log(`[FirestoreService] updateTrainingBlock called for blockId: ${blockId}, planId: ${planId}, data:`, blockData);
   const blockDocRef = doc(db, "trainingBlocks", blockId);
   
@@ -280,6 +283,26 @@ export async function updateTrainingBlock(planId: string, blockId: string, block
     throw error;
   }
 }
+
+export async function updateBlockUserPermissions(blockId: string, newUserIds: string[] | null): Promise<void> {
+  console.log(`[FirestoreService] updateBlockUserPermissions: Updating block ${blockId} with allowedUserIds:`, newUserIds);
+  if (!blockId) {
+    console.error("[FirestoreService] updateBlockUserPermissions: blockId is required.");
+    throw new Error("blockId is required to update block permissions.");
+  }
+  const blockDocRef = doc(db, "trainingBlocks", blockId);
+  try {
+    await updateDoc(blockDocRef, {
+      allowedUserIds: newUserIds,
+      updatedAt: serverTimestamp() as Timestamp,
+    });
+    console.log(`[FirestoreService] updateBlockUserPermissions: Block ${blockId} allowedUserIds updated successfully.`);
+  } catch (error) {
+    console.error(`[FirestoreService] updateBlockUserPermissions: Error updating allowedUserIds for block ${blockId}:`, error);
+    throw error;
+  }
+}
+
 
 export async function deleteTrainingBlock(planId: string, blockId: string): Promise<void> {
   console.log(`[FirestoreService] deleteTrainingBlock: Attempting to delete block ${blockId} from plan ${planId}.`);
@@ -402,8 +425,8 @@ export async function deleteMasterExercise(exerciseId: string): Promise<void> {
 
 // --- Functions for Managing Exercises within Blocks (using references) ---
 
-export async function getExercisesForBlock(blockId: string): Promise<BlockExerciseDisplay[]> {
-  console.log(`[FirestoreService] getExercisesForBlock called for blockId: ${blockId}`);
+export async function getExercisesForBlock(blockId: string, userContext?: UserContext | null): Promise<BlockExerciseDisplay[]> {
+  console.log(`[FirestoreService] getExercisesForBlock called for blockId: ${blockId}, userContext:`, userContext);
   const block = await getBlockById(blockId);
   if (!block) {
     console.warn(`[FirestoreService] getExercisesForBlock: Block ${blockId} not found. Returning empty array.`);
@@ -415,7 +438,7 @@ export async function getExercisesForBlock(blockId: string): Promise<BlockExerci
   }
   console.log(`[FirestoreService] getExercisesForBlock: Block ${blockId} has ${block.exerciseReferences.length} references.`);
 
-  const exercises: BlockExerciseDisplay[] = [];
+  let exercises: BlockExerciseDisplay[] = [];
   try {
     for (const ref of block.exerciseReferences) {
       console.log(`[FirestoreService] getExercisesForBlock: Fetching master exercise for ref: ${ref.exerciseId} (order: ${ref.order})`);
@@ -424,14 +447,27 @@ export async function getExercisesForBlock(blockId: string): Promise<BlockExerci
         exercises.push({
           ...masterEx,
           orderInBlock: ref.order,
-          blockId: blockId, // Add blockId here
+          blockId: blockId, 
+          allowedUserIds: ref.allowedUserIds // Carry over allowedUserIds from reference
         });
       } else {
         console.warn(`[FirestoreService] getExercisesForBlock: MasterExercise with ID ${ref.exerciseId} referenced in block ${blockId} not found.`);
       }
     }
+
+    if (userContext?.role === 'admin') {
+        // Admins see all exercises within an allowed block
+    } else {
+        // Filter exercises for non-admins based on exercise reference's allowedUserIds
+        exercises = exercises.filter(exDisplay => {
+            const isExercisePublic = exDisplay.allowedUserIds === null || exDisplay.allowedUserIds === undefined;
+            const isExplicitlyAllowed = Array.isArray(exDisplay.allowedUserIds) && userContext?.uid && exDisplay.allowedUserIds.includes(userContext.uid);
+            return isExercisePublic || isExplicitlyAllowed;
+        });
+    }
+
     const sortedExercises = exercises.sort((a, b) => (a.orderInBlock ?? Infinity) - (b.orderInBlock ?? Infinity));
-    console.log(`[FirestoreService] getExercisesForBlock: Fetched and sorted ${sortedExercises.length} exercises for block ${blockId}.`);
+    console.log(`[FirestoreService] getExercisesForBlock: Fetched and sorted/filtered ${sortedExercises.length} exercises for block ${blockId}.`);
     return sortedExercises;
   } catch (error) {
     console.error(`[FirestoreService] getExercisesForBlock: Error fetching exercises for block ${blockId}:`, error);
@@ -466,6 +502,7 @@ export async function addExerciseToBlockReference(planId: string, blockId: strin
       const newReference: ExerciseReference = {
         exerciseId: masterExerciseId,
         order: newOrder,
+        allowedUserIds: null, // Default to null (inherit from block/plan)
       };
       
       transaction.update(blockDocRef, {
@@ -479,6 +516,36 @@ export async function addExerciseToBlockReference(planId: string, blockId: strin
     throw error;
   }
 }
+
+export async function updateExerciseUserPermissions(blockId: string, masterExerciseId: string, newUserIds: string[] | null): Promise<void> {
+  console.log(`[FirestoreService] updateExerciseUserPermissions for block ${blockId}, exercise ${masterExerciseId} to users:`, newUserIds);
+  const blockDocRef = doc(db, "trainingBlocks", blockId);
+  try {
+    await runTransaction(db, async (transaction) => {
+      const blockDoc = await transaction.get(blockDocRef);
+      if (!blockDoc.exists()) {
+        throw new Error(`Block ${blockId} not found`);
+      }
+      const blockData = blockDoc.data() as TrainingBlock;
+      const currentReferences = blockData.exerciseReferences || [];
+      const updatedReferences = currentReferences.map(ref => {
+        if (ref.exerciseId === masterExerciseId) {
+          return { ...ref, allowedUserIds: newUserIds };
+        }
+        return ref;
+      });
+      transaction.update(blockDocRef, {
+        exerciseReferences: updatedReferences,
+        updatedAt: serverTimestamp(),
+      });
+    });
+    console.log(`[FirestoreService] updateExerciseUserPermissions: Successfully updated permissions for exercise ${masterExerciseId} in block ${blockId}.`);
+  } catch (error) {
+    console.error(`[FirestoreService] updateExerciseUserPermissions: Error updating permissions for exercise ${masterExerciseId} in block ${blockId}:`, error);
+    throw error;
+  }
+}
+
 
 export async function removeExerciseFromBlockReference(planId: string, blockId: string, masterExerciseIdToRemove: string): Promise<void> {
   console.log(`[FirestoreService] removeExerciseFromBlockReference called for planId: ${planId}, blockId: ${blockId}, masterExerciseIdToRemove: ${masterExerciseIdToRemove}`);

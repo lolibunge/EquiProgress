@@ -42,12 +42,13 @@ export interface TrainingPlan {
     updatedAt?: Timestamp;
     template: boolean;
     horseId?: string;
-    allowedUserIds?: string[] | null; // Changed: null means public, [] means restricted to none (except admin)
+    allowedUserIds?: string[] | null; 
 }
 
 export interface ExerciseReference {
   exerciseId: string; // ID of a MasterExercise
   order: number; // Order of this suggested exercise within the block's list
+  allowedUserIds?: string[] | null; // User-specific visibility for this exercise in this block
 }
 
 export interface TrainingBlock {
@@ -59,6 +60,7 @@ export interface TrainingBlock {
     goal?: string;
     order?: number;
     exerciseReferences?: ExerciseReference[]; // Suggested exercises for this block
+    allowedUserIds?: string[] | null; // User-specific visibility for this block
     createdAt?: Timestamp;
     updatedAt?: Timestamp;
 }
@@ -79,6 +81,7 @@ export interface MasterExercise {
 export interface BlockExerciseDisplay extends MasterExercise {
   orderInBlock: number; // order of the suggestion in the list
   blockId: string;
+  allowedUserIds?: string[] | null; // From the ExerciseReference
 }
 
 
@@ -162,6 +165,7 @@ export interface TrainingBlockInput {
   goal?: string;
   order?: number;
   exerciseReferences?: ExerciseReference[];
+  allowedUserIds?: string[] | null;
 }
 
 export interface MasterExerciseInput {
@@ -233,4 +237,3 @@ export interface ExerciseInput {
   objective?: string;
   order?: number;
 }
-
