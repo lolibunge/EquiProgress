@@ -21,7 +21,7 @@ interface WeekWithDays extends TrainingBlock {
 function PlanDetailPageContent() {
   const params = useParams();
   const router = useRouter();
-  const { currentUser, loading: authLoading } = useAuth();
+  const { currentUser, userProfile, loading: authLoading } = useAuth(); // Added userProfile
   const { toast } = useToast();
 
   const planId = params.planId as string;
@@ -32,7 +32,7 @@ function PlanDetailPageContent() {
   const [error, setError] = useState<string | null>(null);
 
   const fetchPlanDetails = useCallback(async () => {
-    if (!planId) return;
+    if (!planId || !currentUser) return; // Ensure currentUser is available
     setIsLoading(true);
     setError(null);
     try {
@@ -44,12 +44,13 @@ function PlanDetailPageContent() {
       }
       setPlan(fetchedPlan);
 
-      const fetchedBlocks = await getTrainingBlocks(planId);
+      const userCtx = { uid: currentUser.uid, role: userProfile?.role };
+      const fetchedBlocks = await getTrainingBlocks(planId, userCtx);
       const sortedBlocks = fetchedBlocks.sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity));
       
       const blocksWithExercises: WeekWithDays[] = await Promise.all(
         sortedBlocks.map(async (block) => {
-          const days = await getExercisesForBlock(block.id);
+          const days = await getExercisesForBlock(block.id, userCtx);
           return { ...block, days: days.sort((a,b) => (a.orderInBlock ?? Infinity) - (b.orderInBlock ?? Infinity)) };
         })
       );
@@ -62,13 +63,16 @@ function PlanDetailPageContent() {
     } finally {
       setIsLoading(false);
     }
-  }, [planId, toast]);
+  }, [planId, toast, currentUser, userProfile]); // Added currentUser and userProfile
 
   useEffect(() => {
-    if (currentUser) {
+    if (currentUser) { // Fetch only if user is available
       fetchPlanDetails();
+    } else if (!authLoading && !currentUser) { // If auth is done and no user, stop loading
+        setIsLoading(false);
+        setError("Debes iniciar sesión para ver los detalles del plan.");
     }
-  }, [currentUser, fetchPlanDetails]);
+  }, [currentUser, authLoading, fetchPlanDetails]);
 
   if (authLoading || (currentUser && isLoading)) {
     return (
@@ -79,7 +83,7 @@ function PlanDetailPageContent() {
     );
   }
 
-  if (!currentUser) {
+  if (!currentUser && !authLoading) { // Ensure authLoading is also false
      return (
       <div className="container mx-auto flex flex-col items-center justify-center py-10 text-center">
         <Card className="w-full max-w-md">
@@ -118,16 +122,18 @@ function PlanDetailPageContent() {
     );
   }
 
-  if (!plan) {
+  if (!plan && !isLoading) { // Also check isLoading to avoid premature "not found"
     return (
       <div className="container mx-auto py-6 sm:py-10 text-center">
-        <p>Plan no encontrado.</p>
+        <p>Plan no encontrado o no tienes acceso.</p>
          <Button variant="outline" onClick={() => router.push('/plans')} className="mt-4">
             <Icons.arrowRight className="mr-2 h-4 w-4 rotate-180" /> Volver a Planes
         </Button>
       </div>
     );
   }
+  
+  if (!plan) return null; // Should be covered by loading state or error state
 
   return (
     <div className="container mx-auto py-6 sm:py-10">
@@ -138,14 +144,13 @@ function PlanDetailPageContent() {
                 <CardTitle className="text-2xl md:text-3xl">{plan.title}</CardTitle>
                 <CardDescription>
                 {plan.template && <Badge variant="secondary" className="mr-2 my-1">Plantilla</Badge>}
-                Total: {weeksWithDays.length} {weeksWithDays.length === 1 ? "semana" : "semanas"}
+                Total: {weeksWithDays.length} {weeksWithDays.length === 1 ? "etapa" : "etapas"}
                 </CardDescription>
             </div>
             <div className="flex gap-2 w-full sm:w-auto">
                 <Button variant="outline" onClick={() => router.back()} className="flex-grow sm:flex-grow-0">
                     <Icons.arrowRight className="mr-2 h-4 w-4 rotate-180" /> Volver
                 </Button>
-                {/* Future: "Start this plan" or "Assign to horse" button */}
             </div>
           </div>
         </CardHeader>
@@ -159,13 +164,13 @@ function PlanDetailPageContent() {
                         <span className="text-lg font-semibold">{week.title}</span>
                         <span className="text-sm text-muted-foreground mt-1 sm:mt-0">
                             {week.duration && `Duración: ${week.duration} | `}
-                            {week.days.length} {week.days.length === 1 ? "día" : "días"}
+                            {week.days.length} {week.days.length === 1 ? "ejercicio sugerido" : "ejercicios sugeridos"}
                         </span>
                     </div>
                   </AccordionTrigger>
                   <AccordionContent className="px-4 pb-4">
-                    {week.goal && <p className="text-sm text-primary mb-3"><strong>Meta de la Semana:</strong> {week.goal}</p>}
-                    {week.notes && <p className="text-sm text-muted-foreground mb-3 whitespace-pre-wrap"><strong>Notas de la Semana:</strong> {week.notes}</p>}
+                    {week.goal && <p className="text-sm text-primary mb-3"><strong>Meta de la Etapa:</strong> {week.goal}</p>}
+                    {week.notes && <p className="text-sm text-muted-foreground mb-3 whitespace-pre-wrap"><strong>Notas de la Etapa:</strong> {week.notes}</p>}
                     
                     {week.days.length > 0 ? (
                       <div className="space-y-3">
@@ -179,14 +184,14 @@ function PlanDetailPageContent() {
                         ))}
                       </div>
                     ) : (
-                      <p className="text-sm text-muted-foreground">Esta semana no tiene días de entrenamiento definidos.</p>
+                      <p className="text-sm text-muted-foreground">Esta etapa no tiene ejercicios sugeridos.</p>
                     )}
                   </AccordionContent>
                 </AccordionItem>
               ))}
             </Accordion>
           ) : (
-            <p className="text-muted-foreground text-center py-4">Este plan no tiene semanas de entrenamiento definidas.</p>
+            <p className="text-muted-foreground text-center py-4">Este plan no tiene etapas definidas o no tienes acceso a ninguna.</p>
           )}
         </CardContent>
       </Card>
