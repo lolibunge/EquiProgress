@@ -101,8 +101,7 @@ const Icons = {
   bookMarked: BookMarked,
   calendar: CalendarDays,
   bookOpen: BookOpen,
-  horse: LogoIcon,
+  horse: LogoIcon, // Corrected to use the existing LogoIcon
 };
 
 export {Icons};
-
