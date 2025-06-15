@@ -1,6 +1,6 @@
 
 import { auth, db } from '@/firebase';
-import { collection, addDoc, getDocs, serverTimestamp, query, where, orderBy, Timestamp, doc, getDoc, updateDoc, setDoc } from 'firebase/firestore';
+import { collection, addDoc, getDocs, serverTimestamp, query, where, orderBy, Timestamp, doc, getDoc, updateDoc, setDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 import type { Horse, TrainingBlock } from '@/types/firestore';
 import { getTrainingBlocks, getBlockById } from './firestore';
 
@@ -91,6 +91,59 @@ export const getHorseById = async (horseId: string): Promise<Horse | null> => {
   }
 };
 
+export async function updateHorse(horseId: string, horseData: Partial<HorseInputData>): Promise<void> {
+  console.log(`[HorseService] updateHorse called for horseId: ${horseId} with data:`, horseData);
+  if (!horseId) {
+    console.error("[HorseService] updateHorse: horseId is required.");
+    throw new Error("horseId es requerido para actualizar el caballo.");
+  }
+  const horseDocRef = doc(db, 'horses', horseId);
+  try {
+    await updateDoc(horseDocRef, {
+      ...horseData,
+      updatedAt: serverTimestamp() as Timestamp
+    });
+    console.log(`[HorseService] updateHorse: Horse ${horseId} updated successfully.`);
+  } catch (e) {
+    console.error(`[HorseService] updateHorse: Error updating horse ${horseId}:`, e);
+    throw e;
+  }
+}
+
+export async function deleteHorse(horseId: string): Promise<void> {
+  console.log(`[HorseService] deleteHorse called for horseId: ${horseId}`);
+  if (!horseId) {
+    console.error("[HorseService] deleteHorse: horseId is required.");
+    throw new Error("horseId es requerido para eliminar el caballo.");
+  }
+
+  const batch = writeBatch(db);
+  const horseDocRef = doc(db, 'horses', horseId);
+  batch.delete(horseDocRef);
+
+  // Also delete sessions subcollection for this horse
+  const sessionsRef = collection(db, 'horses', horseId, 'sessions');
+  try {
+    const sessionsSnapshot = await getDocs(sessionsRef);
+    sessionsSnapshot.forEach(async (sessionDoc) => {
+      // Delete exerciseResults subcollection for each session
+      const exerciseResultsRef = collection(db, 'horses', horseId, 'sessions', sessionDoc.id, 'exerciseResults');
+      const exerciseResultsSnapshot = await getDocs(exerciseResultsRef);
+      exerciseResultsSnapshot.forEach((erDoc) => {
+        batch.delete(erDoc.ref);
+      });
+      batch.delete(sessionDoc.ref);
+    });
+
+    await batch.commit();
+    console.log(`[HorseService] deleteHorse: Horse ${horseId} and all associated sessions and exercise results deleted successfully.`);
+  } catch (e) {
+    console.error(`[HorseService] deleteHorse: Error deleting horse ${horseId} or its subcollections:`, e);
+    throw e;
+  }
+}
+
+
 export async function startPlanForHorse(horseId: string, planId: string, firstBlockId: string): Promise<void> {
   console.log(`[HorseService] startPlanForHorse called for horseId: ${horseId}, planId: ${planId}, firstBlockId: ${firstBlockId}`);
   const horseDocRef = doc(db, 'horses', horseId);
@@ -98,7 +151,7 @@ export async function startPlanForHorse(horseId: string, planId: string, firstBl
     activePlanId: planId,
     activePlanStartDate: serverTimestamp() as Timestamp,
     currentBlockId: firstBlockId,
-    currentBlockStartDate: serverTimestamp() as Timestamp, // Set start date for the first block
+    currentBlockStartDate: serverTimestamp() as Timestamp,
     planProgress: {},
     updatedAt: serverTimestamp() as Timestamp,
   };
@@ -197,14 +250,12 @@ export async function advanceHorseToNextBlock(horseId: string): Promise<{ advanc
     console.log(`[HorseService advanceHorseToNextBlock DEBUG] Current Block Details (fetched): ID=${currentBlockDetails.id}, Title=${currentBlockDetails.title}, Duration=${currentBlockDetails.duration}, Order=${currentBlockDetails.order}`);
 
 
-    // Duration Check
     const requiredDurationDays = parseDurationToDays(currentBlockDetails.duration);
     console.log(`[HorseService advanceHorseToNextBlock DEBUG] Calculated Required Duration Days for current block: ${requiredDurationDays}`);
 
     if (requiredDurationDays > 0 && horseData.currentBlockStartDate) {
       const startDate = horseData.currentBlockStartDate.toDate();
       const currentDate = new Date();
-      // Ensure startDate is not in the future for calculation purposes
       const safeStartDate = startDate > currentDate ? currentDate : startDate;
       const elapsedMilliseconds = currentDate.getTime() - safeStartDate.getTime();
       const elapsedDays = Math.floor(elapsedMilliseconds / (1000 * 3600 * 24));
@@ -214,7 +265,7 @@ export async function advanceHorseToNextBlock(horseId: string): Promise<{ advanc
       if (elapsedDays < requiredDurationDays) {
         const daysRemaining = requiredDurationDays - elapsedDays;
         console.log(`%c[HorseService advanceHorseToNextBlock] Duration for block ${horseData.currentBlockId} NOT MET. ${daysRemaining} days remaining. Returning 'duration_not_met'.`, "color: orange;");
-        return { advanced: false, reason: 'duration_not_met', daysRemaining: Math.max(0, daysRemaining) , planCompleted: false }; // Ensure daysRemaining is not negative
+        return { advanced: false, reason: 'duration_not_met', daysRemaining: Math.max(0, daysRemaining) , planCompleted: false };
       }
       console.log(`%c[HorseService advanceHorseToNextBlock DEBUG] Duration check PASSED.`, "color: green;");
     } else if (requiredDurationDays > 0 && !horseData.currentBlockStartDate) {
@@ -223,9 +274,6 @@ export async function advanceHorseToNextBlock(horseId: string): Promise<{ advanc
         console.log(`[HorseService advanceHorseToNextBlock DEBUG] No specific duration > 0 required for this block (duration: ${currentBlockDetails.duration}), or start date missing. Duration check effectively PASSED or SKIPPED.`);
     }
 
-    // All Days Completed Check (already implicitly done by UI before calling this, but good for robustness if ever called directly)
-    // This check is primarily handled by the UI deciding to show the "Siguiente Etapa" button.
-    // The service trusts that if it's called, the user intends to advance if duration allows.
 
     const allBlocksForPlan = await getTrainingBlocks(horseData.activePlanId);
     const sortedAllBlocks = allBlocksForPlan.sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity));
@@ -262,19 +310,13 @@ export async function advanceHorseToNextBlock(horseId: string): Promise<{ advanc
       console.log(`%c[HorseService advanceHorseToNextBlock] Advancing to next block: ID=${nextBlock.id}, Title=${nextBlock.title}`, "color: green; font-weight: bold;");
       await updateDoc(horseDocRef, {
         currentBlockId: nextBlock.id,
-        currentBlockStartDate: serverTimestamp() as Timestamp, // Reset start date for the new block
+        currentBlockStartDate: serverTimestamp() as Timestamp, 
         updatedAt: serverTimestamp() as Timestamp,
       });
       return { advanced: true, newBlockId: nextBlock.id, planCompleted: false };
     } else {
       console.log(`%c[HorseService advanceHorseToNextBlock] Horse ${horseId} has completed the last block of plan ${horseData.activePlanId}. Plan is now considered complete.`, "color: green; font-weight: bold;");
-      // Optionally clear activePlanId, currentBlockId, or set a planCompleted flag on the horse
-      // For now, we'll just indicate completion.
       await updateDoc(horseDocRef, {
-        // activePlanId: null, // Example: if you want to mark plan as no longer active
-        // currentBlockId: null,
-        // currentBlockStartDate: null,
-        // activePlanStartDate: null, // Or keep for history
         updatedAt: serverTimestamp() as Timestamp,
        });
       return { advanced: false, planCompleted: true, reason: 'no_next_block' };
