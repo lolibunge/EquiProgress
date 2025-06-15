@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { getAllUserProfiles } from "@/services/auth";
-import { getTrainingPlans, updatePlanAllowedUsers } from "@/services/firestore";
+import { getTrainingPlans, updatePlanAllowedUsers, getTrainingBlocks, getExercisesForBlock, type TrainingBlock, type BlockExerciseDisplay } from "@/services/firestore";
 import type { UserProfile, TrainingPlan } from "@/types/firestore";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,9 +15,16 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useRouter } from "next/navigation";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+
 
 interface UserPlanPermissions {
   [planId: string]: boolean;
+}
+
+interface PlanDetails {
+  blocks: TrainingBlock[];
+  exercisesByBlock: Map<string, BlockExerciseDisplay[]>;
 }
 
 export default function AdminUsersPage() {
@@ -31,6 +38,9 @@ export default function AdminUsersPage() {
 
   const [allPlans, setAllPlans] = useState<TrainingPlan[]>([]);
   const [isLoadingPlans, setIsLoadingPlans] = useState(true);
+  const [planDetailsCache, setPlanDetailsCache] = useState<Map<string, PlanDetails>>(new Map());
+  const [isLoadingPlanDetails, setIsLoadingPlanDetails] = useState<Set<string>>(new Set());
+
 
   const [userPlanPermissions, setUserPlanPermissions] = useState<UserPlanPermissions>({});
   const [isSavingPermissions, setIsSavingPermissions] = useState(false);
@@ -54,7 +64,11 @@ export default function AdminUsersPage() {
     if (userProfile?.role === 'admin') {
       setIsLoadingPlans(true);
       getTrainingPlans({ uid: currentUser?.uid || null, role: 'admin' })
-        .then(setAllPlans)
+        .then(async (plans) => {
+          setAllPlans(plans);
+          // Optional: pre-fetch details for all plans
+          // plans.forEach(plan => fetchPlanDetails(plan.id)); 
+        })
         .catch(err => {
           console.error("Error fetching all plans:", err);
           toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar los planes." });
@@ -63,17 +77,39 @@ export default function AdminUsersPage() {
     }
   }, [userProfile, currentUser, toast]);
 
+
+  const fetchPlanDetails = useCallback(async (planId: string) => {
+    if (planDetailsCache.has(planId) || isLoadingPlanDetails.has(planId)) return;
+
+    setIsLoadingPlanDetails(prev => new Set(prev).add(planId));
+    try {
+      const blocks = (await getTrainingBlocks(planId)).sort((a,b) => (a.order ?? Infinity) - (b.order ?? Infinity));
+      const exercisesByBlock = new Map<string, BlockExerciseDisplay[]>();
+      for (const block of blocks) {
+        const exercises = (await getExercisesForBlock(block.id)).sort((a,b) => (a.orderInBlock ?? Infinity) - (b.orderInBlock ?? Infinity));
+        exercisesByBlock.set(block.id, exercises);
+      }
+      setPlanDetailsCache(prev => new Map(prev).set(planId, { blocks, exercisesByBlock }));
+    } catch (error) {
+      console.error(`Error fetching details for plan ${planId}:`, error);
+      toast({ variant: "destructive", title: "Error de Detalles", description: `No se pudieron cargar detalles para el plan ${planId}.` });
+    } finally {
+      setIsLoadingPlanDetails(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(planId);
+        return newSet;
+      });
+    }
+  }, [planDetailsCache, isLoadingPlanDetails, toast]);
+
+
   // Effect to update UI when selectedUser or allPlans change
   useEffect(() => {
     if (selectedUser && allPlans.length > 0) {
       const initialPermissions: UserPlanPermissions = {};
       allPlans.forEach(plan => {
-        // A user has access if:
-        // 1. The plan's allowedUserIds is undefined/null/empty (i.e., public for authenticated users)
-        // OR
-        // 2. The user's UID is explicitly in the plan's allowedUserIds list.
-        const isPublicPlan = !plan.allowedUserIds || plan.allowedUserIds.length === 0;
-        const isExplicitlyAllowed = plan.allowedUserIds?.includes(selectedUser.uid) || false;
+        const isPublicPlan = plan.allowedUserIds === null || plan.allowedUserIds === undefined;
+        const isExplicitlyAllowed = Array.isArray(plan.allowedUserIds) && plan.allowedUserIds.includes(selectedUser.uid);
         
         initialPermissions[plan.id] = isPublicPlan || isExplicitlyAllowed;
       });
@@ -88,7 +124,7 @@ export default function AdminUsersPage() {
   };
 
   const handleSavePermissions = async () => {
-    if (!selectedUser || !userProfile || userProfile.role !== 'admin') {
+    if (!selectedUser || !userProfile || userProfile.role !== 'admin' || !currentUser) {
       toast({ variant: "destructive", title: "Error", description: "No hay usuario seleccionado o no eres administrador." });
       return;
     }
@@ -96,29 +132,44 @@ export default function AdminUsersPage() {
     try {
       let changesMade = 0;
       for (const plan of allPlans) {
-        const currentAllowedUserIds = plan.allowedUserIds || [];
-        const userHasUiPermission = userPlanPermissions[plan.id] === true;
-        const userIsInDbAllowedList = currentAllowedUserIds.includes(selectedUser.uid);
+        const currentPlanUserAccessList = plan.allowedUserIds; // This can be null, undefined, or string[]
+        const adminWantsUserToHaveAccess = userPlanPermissions[plan.id] === true;
 
-        let newAllowedUserIds = [...currentAllowedUserIds];
-        let needsUpdate = false;
+        let newPlanUserAccessList: string[] | null = null; // To be determined
 
-        if (userHasUiPermission && !userIsInDbAllowedList) {
-          // Admin wants to grant access, and user is not currently in the list
-          newAllowedUserIds.push(selectedUser.uid);
-          needsUpdate = true;
-        } else if (!userHasUiPermission && userIsInDbAllowedList) {
-          // Admin wants to revoke access, and user is currently in the list
-          newAllowedUserIds = newAllowedUserIds.filter(uid => uid !== selectedUser.uid);
-          needsUpdate = true;
+        if (adminWantsUserToHaveAccess) {
+          // Admin wants user to have access
+          if (currentPlanUserAccessList === null || currentPlanUserAccessList === undefined) {
+            // Plan was public, user gets added to new explicit list
+            newPlanUserAccessList = [selectedUser.uid];
+          } else { // Plan was already explicit (Array)
+            if (!currentPlanUserAccessList.includes(selectedUser.uid)) {
+              newPlanUserAccessList = [...currentPlanUserAccessList, selectedUser.uid];
+            } else {
+              newPlanUserAccessList = currentPlanUserAccessList; // No change needed to the list itself
+            }
+          }
+        } else { // Admin does NOT want user to have access
+          if (currentPlanUserAccessList === null || currentPlanUserAccessList === undefined) {
+            // Plan was public, now restrict it by making it an empty list (denying this user, no one else explicitly allowed yet)
+            newPlanUserAccessList = [];
+          } else { // Plan was already explicit (Array)
+            if (currentPlanUserAccessList.includes(selectedUser.uid)) {
+              newPlanUserAccessList = currentPlanUserAccessList.filter(uid => uid !== selectedUser.uid);
+            } else {
+              newPlanUserAccessList = currentPlanUserAccessList; // No change needed to the list itself
+            }
+          }
         }
-        // If the plan was public (empty allowedUserIds) and admin wants to restrict it (unchecks for user),
-        // the list should only contain the current user IF they were granted access.
-        // This logic might need refinement if we want to differentiate "public" from "explicitly assigned".
-        // For now, checking/unchecking directly adds/removes.
+        
+        // Determine if an actual update to Firestore is needed by comparing states
+        // Normalize undefined to null for comparison to avoid unnecessary updates if backend stores null
+        const normalizedCurrentPermissions = currentPlanUserAccessList === undefined ? null : currentPlanUserAccessList;
+        const currentPermissionsString = normalizedCurrentPermissions === null ? "null" : JSON.stringify([...normalizedCurrentPermissions].sort());
+        const newPermissionsString = newPlanUserAccessList === null ? "null" : JSON.stringify([...newPlanUserAccessList].sort());
 
-        if (needsUpdate) {
-          await updatePlanAllowedUsers(plan.id, newAllowedUserIds);
+        if (currentPermissionsString !== newPermissionsString) {
+          await updatePlanAllowedUsers(plan.id, newPlanUserAccessList);
           changesMade++;
         }
       }
@@ -126,7 +177,7 @@ export default function AdminUsersPage() {
       if (changesMade > 0) {
         toast({ title: "Permisos Actualizados", description: `Se actualizaron los permisos para ${selectedUser.displayName || selectedUser.email}.` });
         // Re-fetch plans to get the updated allowedUserIds
-        getTrainingPlans({ uid: currentUser?.uid || null, role: 'admin' }).then(setAllPlans);
+        getTrainingPlans({ uid: currentUser.uid, role: 'admin' }).then(setAllPlans);
       } else {
         toast({ title: "Sin Cambios", description: "No se realizaron cambios en los permisos." });
       }
@@ -218,21 +269,58 @@ export default function AdminUsersPage() {
               ) : allPlans.length === 0 ? (
                 <p className="text-muted-foreground">No hay planes de entrenamiento creados.</p>
               ) : (
-                <div className="space-y-3">
+                <Accordion type="multiple" className="w-full space-y-2">
                   {allPlans.map(plan => (
-                    <div key={plan.id} className="flex items-center space-x-3 rounded-md border p-3 hover:bg-muted/50">
-                      <Checkbox
-                        id={`plan-perm-${plan.id}`}
-                        checked={userPlanPermissions[plan.id] || false}
-                        onCheckedChange={(checked) => handlePermissionChange(plan.id, !!checked)}
-                        disabled={isSavingPermissions}
-                      />
-                      <Label htmlFor={`plan-perm-${plan.id}`} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                        {plan.title} {plan.template && <span className="text-xs text-muted-foreground">(Plantilla)</span>}
-                      </Label>
-                    </div>
+                    <AccordionItem key={plan.id} value={plan.id} className="rounded-md border bg-card shadow-sm">
+                      <div className="flex items-center p-3 hover:bg-muted/50">
+                        <Checkbox
+                          id={`plan-perm-${plan.id}`}
+                          checked={userPlanPermissions[plan.id] || false}
+                          onCheckedChange={(checked) => handlePermissionChange(plan.id, !!checked)}
+                          disabled={isSavingPermissions}
+                          className="mr-3"
+                        />
+                        <AccordionTrigger 
+                          onClick={() => fetchPlanDetails(plan.id)}
+                          className="flex-1 py-0 text-left hover:no-underline"
+                        >
+                          <Label htmlFor={`plan-perm-${plan.id}`} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 flex-grow">
+                            {plan.title} {plan.template && <span className="text-xs text-muted-foreground">(Plantilla)</span>}
+                            {(plan.allowedUserIds === null || plan.allowedUserIds === undefined) && <span className="ml-2 text-xs text-blue-500">(Público por defecto)</span>}
+                            {(Array.isArray(plan.allowedUserIds) && plan.allowedUserIds.length === 0) && <span className="ml-2 text-xs text-orange-500">(Restringido a Nadie)</span>}
+                            {(Array.isArray(plan.allowedUserIds) && plan.allowedUserIds.length > 0) && <span className="ml-2 text-xs text-green-500">(Acceso Específico)</span>}
+                          </Label>
+                        </AccordionTrigger>
+                      </div>
+                      <AccordionContent className="px-4 pb-4 pl-10">
+                        {isLoadingPlanDetails.has(plan.id) ? (
+                          <div className="flex items-center text-sm text-muted-foreground">
+                            <Icons.spinner className="mr-2 h-4 w-4 animate-spin" /> Cargando detalles...
+                          </div>
+                        ) : planDetailsCache.has(plan.id) ? (
+                          <div className="space-y-2 mt-2">
+                            {(planDetailsCache.get(plan.id)?.blocks || []).length === 0 ? (
+                                <p className="text-xs text-muted-foreground">Este plan no tiene etapas definidas.</p>
+                            ) : (planDetailsCache.get(plan.id)?.blocks || []).map(block => (
+                              <div key={block.id} className="ml-4 p-2 border-l-2">
+                                <p className="text-xs font-semibold">{block.title}</p>
+                                <ul className="list-disc list-inside ml-4 space-y-0.5">
+                                  {(planDetailsCache.get(plan.id)?.exercisesByBlock.get(block.id) || []).length === 0 ? (
+                                      <li className="text-xs text-muted-foreground italic">Sin ejercicios definidos para esta etapa.</li>
+                                  ) : (planDetailsCache.get(plan.id)?.exercisesByBlock.get(block.id) || []).map(exercise => (
+                                    <li key={exercise.id} className="text-xs text-muted-foreground">{exercise.title}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-muted-foreground italic">Expande para cargar detalles.</p>
+                        )}
+                      </AccordionContent>
+                    </AccordionItem>
                   ))}
-                </div>
+                </Accordion>
               )}
               <Button onClick={handleSavePermissions} disabled={isLoadingPlans || isSavingPermissions || allPlans.length === 0}>
                 {isSavingPermissions && <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />}
@@ -245,3 +333,4 @@ export default function AdminUsersPage() {
     </div>
   );
 }
+

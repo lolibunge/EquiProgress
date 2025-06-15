@@ -27,9 +27,8 @@ export async function getTrainingPlans(userContext?: UserContext | null): Promis
 
     // Filter for non-admin users
     const filteredPlans = trainingPlans.filter(plan => {
-      // A plan is public if allowedUserIds is undefined, null, or an empty array
-      const isConsideredPublic = !plan.allowedUserIds || plan.allowedUserIds.length === 0;
-      const isExplicitlyAllowed = userContext?.uid && plan.allowedUserIds && plan.allowedUserIds.includes(userContext.uid);
+      const isConsideredPublic = plan.allowedUserIds === null || plan.allowedUserIds === undefined; // Public if allowedUserIds is null/undefined
+      const isExplicitlyAllowed = Array.isArray(plan.allowedUserIds) && userContext?.uid && plan.allowedUserIds.includes(userContext.uid);
       
       return isConsideredPublic || isExplicitlyAllowed;
     });
@@ -74,11 +73,11 @@ export async function addTrainingPlan(planData: TrainingPlanInput): Promise<stri
   console.log("[FirestoreService] addTrainingPlan called with data:", planData);
   const planCollectionRef = collection(db, "trainingPlans");
   const newPlanData = {
-    ...planData,
+    title: planData.title,
+    template: planData.template ?? false,
+    allowedUserIds: null, // New plans are public by default (null)
     createdAt: serverTimestamp() as Timestamp,
     updatedAt: serverTimestamp() as Timestamp,
-    template: planData.template ?? false,
-    allowedUserIds: planData.allowedUserIds || [], 
   };
   try {
     const docRef = await addDoc(planCollectionRef, newPlanData);
@@ -90,7 +89,7 @@ export async function addTrainingPlan(planData: TrainingPlanInput): Promise<stri
   }
 }
 
-export async function updatePlanAllowedUsers(planId: string, newUserIds: string[]): Promise<void> {
+export async function updatePlanAllowedUsers(planId: string, newUserIds: string[] | null): Promise<void> {
   console.log(`[FirestoreService] updatePlanAllowedUsers: Updating plan ${planId} with allowedUserIds:`, newUserIds);
   if (!planId) {
     console.error("[FirestoreService] updatePlanAllowedUsers: planId is required.");
@@ -99,7 +98,7 @@ export async function updatePlanAllowedUsers(planId: string, newUserIds: string[
   const planDocRef = doc(db, "trainingPlans", planId);
   try {
     await updateDoc(planDocRef, {
-      allowedUserIds: newUserIds,
+      allowedUserIds: newUserIds, // This can be an array or null
       updatedAt: serverTimestamp() as Timestamp,
     });
     console.log(`[FirestoreService] updatePlanAllowedUsers: Plan ${planId} allowedUserIds updated successfully.`);

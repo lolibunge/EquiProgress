@@ -42,7 +42,7 @@ export interface TrainingPlan {
     updatedAt?: Timestamp;
     template: boolean;
     horseId?: string;
-    allowedUserIds?: string[]; // New field: list of user UIDs allowed to see this plan
+    allowedUserIds?: string[] | null; // Changed: null means public, [] means restricted to none (except admin)
 }
 
 export interface ExerciseReference {
@@ -87,11 +87,11 @@ export interface SessionData {
     horseId: string;
     userId: string;
     date: Timestamp;
-    blockId: string; 
+    blockId: string;
     // For numbered days, selectedDayExerciseId might store the blockId or a generic "day_X" identifier
     // and selectedDayExerciseTitle stores "Día de Trabajo X"
-    selectedDayExerciseId?: string; 
-    selectedDayExerciseTitle?: string; 
+    selectedDayExerciseId?: string;
+    selectedDayExerciseTitle?: string;
     dayNumberInBlock?: number; // The specific numbered day (1, 2, etc.) this session refers to
     overallNote?: string;
     createdAt: Timestamp;
@@ -118,7 +118,7 @@ export interface ExerciseResult {
     id: string;
     // exerciseId might store the MasterExercise ID if one was specifically chosen for logging,
     // or could be null/blockId if it's a general log for the numbered day.
-    exerciseId: string; 
+    exerciseId: string;
     plannedReps?: string; // What was planned for the day
     doneReps: number; // Kept for consistency, may always be 1 if session is logged for a day
     rating: number; // 0-10, overall rating for the day's work
@@ -152,11 +152,11 @@ export interface TrainingPlanInput {
   title: string;
   template?: boolean;
   horseId?: string;
-  allowedUserIds?: string[]; // Added for completeness, though UI to set this is future
+  allowedUserIds?: string[] | null;
 }
 
 export interface TrainingBlockInput {
-  title: string; 
+  title: string;
   notes?: string;
   duration?: string;
   goal?: string;
@@ -176,10 +176,10 @@ export interface MasterExerciseInput {
 export interface SessionDataInput {
     horseId: string;
     date: Timestamp;
-    blockId: string; 
+    blockId: string;
     dayNumberInBlock: number; // The numbered day (1, 2, etc.)
     // selectedDayExerciseId will be blockId, title will be "Día de Trabajo X"
-    selectedDayExerciseId: string; 
+    selectedDayExerciseId: string;
     selectedDayExerciseTitle: string;
     overallNote?: string;
 }
@@ -189,7 +189,7 @@ export type SessionUpdateData = Partial<Pick<SessionData, 'date' | 'overallNote'
 export interface ExerciseResultInput {
     exerciseId: string; // Can be blockId or a specific MasterExercise ID if applicable
     plannedReps?: string;
-    doneReps: number; 
+    doneReps: number;
     rating: number; // 0-10
     observations?: ExerciseResultObservations | null;
 }
@@ -233,3 +233,4 @@ export interface ExerciseInput {
   objective?: string;
   order?: number;
 }
+
