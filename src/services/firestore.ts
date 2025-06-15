@@ -10,7 +10,7 @@ interface UserContext {
 
 // --- TrainingPlan Functions ---
 export async function getTrainingPlans(userContext?: UserContext | null): Promise<TrainingPlan[]> {
-  console.log("[FirestoreService] getTrainingPlans called with userContext:", userContext);
+  console.log("[FirestoreService] getTrainingPlans called with userContext:", JSON.stringify(userContext));
   try {
     const trainingPlansRef = collection(db, "trainingPlans");
     const q = query(trainingPlansRef, orderBy("createdAt", "desc"));
@@ -21,25 +21,38 @@ export async function getTrainingPlans(userContext?: UserContext | null): Promis
     });
 
     if (userContext?.role === 'admin') {
-      console.log(`[FirestoreService] getTrainingPlans: User is admin. Returning all ${trainingPlans.length} plans.`);
+      console.log(`[FirestoreService] getTrainingPlans: User is ADMIN. Returning all ${trainingPlans.length} plans.`);
       return trainingPlans;
     }
     
     // Filter for non-admin users
+    console.log(`[FirestoreService] getTrainingPlans: User is NOT ADMIN (UID: ${userContext?.uid}, Role: ${userContext?.role}). Filtering ${trainingPlans.length} plans.`);
     const filteredPlans = trainingPlans.filter(plan => {
-      if (plan.allowedUserIds === null || plan.allowedUserIds === undefined) {
-        return true; // Public plan
+      const planIdForLog = plan.id;
+      const allowedIdsForLog = plan.allowedUserIds;
+
+      if (allowedIdsForLog === null || allowedIdsForLog === undefined) {
+        console.log(`[FirestoreService] Plan ${planIdForLog} (Title: ${plan.title}): ALLOWED (public - allowedUserIds is null/undefined). User: ${userContext?.uid}`);
+        return true; 
       }
-      if (Array.isArray(plan.allowedUserIds)) {
-        if (plan.allowedUserIds.length === 0) {
-          return false; // Explicitly restricted to no one (except admin)
+      if (Array.isArray(allowedIdsForLog)) {
+        if (allowedIdsForLog.length === 0) {
+          console.log(`[FirestoreService] Plan ${planIdForLog} (Title: ${plan.title}): DENIED (explicitly restricted - allowedUserIds is []). User: ${userContext?.uid}`);
+          return false; 
         }
-        return userContext?.uid ? plan.allowedUserIds.includes(userContext.uid) : false; // Allow if user is in the list
+        if (userContext?.uid && allowedIdsForLog.includes(userContext.uid)) {
+          console.log(`[FirestoreService] Plan ${planIdForLog} (Title: ${plan.title}): ALLOWED (user ${userContext.uid} in list [${allowedIdsForLog.join(', ')}]).`);
+          return true; 
+        } else {
+          console.log(`[FirestoreService] Plan ${planIdForLog} (Title: ${plan.title}): DENIED (user ${userContext?.uid} NOT in explicit list [${allowedIdsForLog.join(', ')}]).`);
+          return false;
+        }
       }
-      return false; // Default to deny if malformed
+      console.log(`[FirestoreService] Plan ${planIdForLog} (Title: ${plan.title}): DENIED (malformed allowedUserIds: ${JSON.stringify(allowedIdsForLog)}). User: ${userContext?.uid}`);
+      return false; 
     });
     
-    console.log(`[FirestoreService] getTrainingPlans: User is not admin. Filtered ${trainingPlans.length} plans down to ${filteredPlans.length} visible plans.`);
+    console.log(`[FirestoreService] getTrainingPlans: Non-admin user (UID: ${userContext?.uid}) will see ${filteredPlans.length} plans.`);
     return filteredPlans;
 
   } catch (error: any) {
@@ -62,7 +75,7 @@ export async function getPlanById(planId: string): Promise<TrainingPlan | null> 
     const planDocSnap = await getDoc(planDocRef);
     if (planDocSnap.exists()) {
       const planData = { id: planDocSnap.id, ...planDocSnap.data() } as TrainingPlan;
-      console.log(`[FirestoreService] getPlanById: Found plan for ID ${planId}:`, planData);
+      console.log(`[FirestoreService] getPlanById: Found plan for ID ${planId}:`, JSON.stringify(planData));
       return planData;
     } else {
       console.log(`[FirestoreService] getPlanById: No plan document found for ID: ${planId}`);
@@ -147,7 +160,7 @@ export async function deleteTrainingPlan(planId: string): Promise<void> {
 // --- TrainingBlock Functions ---
 export async function getTrainingBlocks(planId: string, userContext?: UserContext | null): Promise<TrainingBlock[]> {
   const trimmedPlanId = planId.trim();
-  console.log(`[FirestoreService] getTrainingBlocks called for planId: "${trimmedPlanId}" (ordering by 'order' asc), userContext:`, userContext);
+  console.log(`[FirestoreService] getTrainingBlocks called for planId: "${trimmedPlanId}", userContext:`, JSON.stringify(userContext));
   if (!trimmedPlanId) {
     console.warn("[FirestoreService] getTrainingBlocks: planId is null or empty. Returning empty array.");
     return [];
@@ -165,22 +178,34 @@ export async function getTrainingBlocks(planId: string, userContext?: UserContex
     console.log(`[FirestoreService] getTrainingBlocks for planId "${trimmedPlanId}" fetched ${trainingBlocks.length} raw blocks.`);
 
     if (userContext?.role === 'admin') {
-      console.log(`[FirestoreService] getTrainingBlocks: User is admin. Returning all ${trainingBlocks.length} blocks for plan ${trimmedPlanId}.`);
+      console.log(`[FirestoreService] getTrainingBlocks: User is ADMIN. Returning all ${trainingBlocks.length} blocks for plan ${trimmedPlanId}.`);
       return trainingBlocks;
     }
 
-    // Filter for non-admin users
+    console.log(`[FirestoreService] getTrainingBlocks: User is NOT ADMIN (UID: ${userContext?.uid}, Role: ${userContext?.role}). Filtering ${trainingBlocks.length} blocks for plan ${trimmedPlanId}.`);
     const filteredBlocks = trainingBlocks.filter(block => {
-        if (block.allowedUserIds === null || block.allowedUserIds === undefined) {
-          return true; // Inherits from plan (assumed plan is visible if we got here)
+        const blockIdForLog = block.id;
+        const allowedIdsForLog = block.allowedUserIds;
+
+        if (allowedIdsForLog === null || allowedIdsForLog === undefined) {
+          console.log(`[FirestoreService] Block ${blockIdForLog} (Title: ${block.title}): ALLOWED (public/inherit - allowedUserIds is null/undefined). User: ${userContext?.uid}`);
+          return true; 
         }
-        if (Array.isArray(block.allowedUserIds)) {
-          if (block.allowedUserIds.length === 0) {
-            return false; // Explicitly restricted to no one (except admin)
+        if (Array.isArray(allowedIdsForLog)) {
+          if (allowedIdsForLog.length === 0) {
+            console.log(`[FirestoreService] Block ${blockIdForLog} (Title: ${block.title}): DENIED (explicitly restricted - allowedUserIds is []). User: ${userContext?.uid}`);
+            return false; 
           }
-          return userContext?.uid ? block.allowedUserIds.includes(userContext.uid) : false; // Allow if user is in the list
+          if (userContext?.uid && allowedIdsForLog.includes(userContext.uid)) {
+             console.log(`[FirestoreService] Block ${blockIdForLog} (Title: ${block.title}): ALLOWED (user ${userContext.uid} in list [${allowedIdsForLog.join(', ')}]).`);
+            return true; 
+          } else {
+            console.log(`[FirestoreService] Block ${blockIdForLog} (Title: ${block.title}): DENIED (user ${userContext?.uid} NOT in explicit list [${allowedIdsForLog.join(', ')}]).`);
+            return false;
+          }
         }
-        return false; // Default to deny if malformed
+        console.log(`[FirestoreService] Block ${blockIdForLog} (Title: ${block.title}): DENIED (malformed allowedUserIds: ${JSON.stringify(allowedIdsForLog)}). User: ${userContext?.uid}`);
+        return false;
     });
 
     console.log(`[FirestoreService] getTrainingBlocks for planId "${trimmedPlanId}" filtered to ${filteredBlocks.length} blocks for user ${userContext?.uid}.`);
@@ -206,7 +231,7 @@ export async function getBlockById(blockId: string): Promise<TrainingBlock | nul
     const blockDocSnap = await getDoc(blockDocRef);
     if (blockDocSnap.exists()) {
       const blockData = { id: blockDocSnap.id, ...blockDocSnap.data() } as TrainingBlock;
-      console.log(`[FirestoreService] getBlockById: Found block for ID ${blockId}:`, blockData);
+      console.log(`[FirestoreService] getBlockById: Found block for ID ${blockId}:`, JSON.stringify(blockData));
       return blockData;
     } else {
       console.log(`[FirestoreService] getBlockById: No block document found for ID: ${blockId}`);
@@ -249,7 +274,7 @@ export async function addTrainingBlock(planId: string, blockData: Omit<TrainingB
       title: blockData.title,
       order: newOrder,
       exerciseReferences: [],
-      allowedUserIds: null, // Default to null (inherit from plan)
+      allowedUserIds: null, 
       createdAt: serverTimestamp() as Timestamp,
       updatedAt: serverTimestamp() as Timestamp,
     };
@@ -264,7 +289,7 @@ export async function addTrainingBlock(planId: string, blockData: Omit<TrainingB
       dataForFirestore.goal = blockData.goal === "" ? null : blockData.goal;
     }
 
-    console.log(`[FirestoreService] addTrainingBlock: Attempting to add new block with data:`, dataForFirestore);
+    console.log(`[FirestoreService] addTrainingBlock: Attempting to add new block with data:`, JSON.stringify(dataForFirestore));
     const docRef = await addDoc(blockCollectionRef, dataForFirestore);
     console.log("[FirestoreService] addTrainingBlock: Training block added with ID:", docRef.id, "and order:", newOrder);
     return docRef.id;
@@ -404,7 +429,7 @@ export async function getMasterExerciseById(exerciseId: string): Promise<MasterE
     const docSnap = await getDoc(docRef);
     if (docSnap.exists()) {
       const exerciseData = { id: docSnap.id, ...docSnap.data() } as MasterExercise;
-      console.log(`[FirestoreService] getMasterExerciseById: Found exercise for ID ${exerciseId}:`, exerciseData);
+      console.log(`[FirestoreService] getMasterExerciseById: Found exercise for ID ${exerciseId}:`, JSON.stringify(exerciseData));
       return exerciseData;
     }
     console.log(`[FirestoreService] getMasterExerciseById: No master exercise found for ID ${exerciseId}.`);
@@ -442,7 +467,7 @@ export async function deleteMasterExercise(exerciseId: string): Promise<void> {
 // --- Functions for Managing Exercises within Blocks (using references) ---
 
 export async function getExercisesForBlock(blockId: string, userContext?: UserContext | null): Promise<BlockExerciseDisplay[]> {
-  console.log(`[FirestoreService] getExercisesForBlock called for blockId: ${blockId}, userContext:`, userContext);
+  console.log(`[FirestoreService] getExercisesForBlock called for blockId: ${blockId}, userContext:`, JSON.stringify(userContext));
   const block = await getBlockById(blockId);
   if (!block) {
     console.warn(`[FirestoreService] getExercisesForBlock: Block ${blockId} not found. Returning empty array.`);
@@ -452,19 +477,19 @@ export async function getExercisesForBlock(blockId: string, userContext?: UserCo
     console.log(`[FirestoreService] getExercisesForBlock: Block ${blockId} has no exercise references. Returning empty array.`);
     return [];
   }
-  console.log(`[FirestoreService] getExercisesForBlock: Block ${blockId} has ${block.exerciseReferences.length} references.`);
+  console.log(`[FirestoreService] getExercisesForBlock: Block ${blockId} (Title: ${block.title}) has ${block.exerciseReferences.length} raw references.`);
 
   let exercises: BlockExerciseDisplay[] = [];
   try {
     for (const ref of block.exerciseReferences) {
-      console.log(`[FirestoreService] getExercisesForBlock: Fetching master exercise for ref: ${ref.exerciseId} (order: ${ref.order})`);
+      console.log(`[FirestoreService] getExercisesForBlock (Block ${blockId}): Processing reference for MasterExerciseId: ${ref.exerciseId}, OrderInBlock: ${ref.order}, RefAllowedUsers: ${JSON.stringify(ref.allowedUserIds)}`);
       const masterEx = await getMasterExerciseById(ref.exerciseId);
       if (masterEx) {
         exercises.push({
           ...masterEx,
           orderInBlock: ref.order,
           blockId: blockId, 
-          allowedUserIds: ref.allowedUserIds // Carry over allowedUserIds from reference
+          allowedUserIds: ref.allowedUserIds 
         });
       } else {
         console.warn(`[FirestoreService] getExercisesForBlock: MasterExercise with ID ${ref.exerciseId} referenced in block ${blockId} not found.`);
@@ -472,22 +497,36 @@ export async function getExercisesForBlock(blockId: string, userContext?: UserCo
     }
 
     if (userContext?.role === 'admin') {
-        console.log(`[FirestoreService] getExercisesForBlock: User is admin. Returning all ${exercises.length} exercises for block ${blockId}.`);
+        console.log(`[FirestoreService] getExercisesForBlock (Block ${blockId}): User is ADMIN. Returning all ${exercises.length} resolved exercises.`);
     } else {
         const originalCount = exercises.length;
+        console.log(`[FirestoreService] getExercisesForBlock (Block ${blockId}): User is NOT ADMIN (UID: ${userContext?.uid}, Role: ${userContext?.role}). Filtering ${originalCount} exercises.`);
+        
         exercises = exercises.filter(exDisplay => {
-            if (exDisplay.allowedUserIds === null || exDisplay.allowedUserIds === undefined) {
-              return true; // Inherits from block (assumed block is visible)
+            const exerciseIdForLog = exDisplay.id;
+            const allowedIdsForLog = exDisplay.allowedUserIds; // These are from the ExerciseReference
+
+            if (allowedIdsForLog === null || allowedIdsForLog === undefined) {
+              console.log(`[FirestoreService] Exercise ${exerciseIdForLog} (Title: ${exDisplay.title}) in Block ${blockId}: ALLOWED (public/inherit - ref.allowedUserIds is null/undefined). User: ${userContext?.uid}`);
+              return true; 
             }
-            if (Array.isArray(exDisplay.allowedUserIds)) {
-              if (exDisplay.allowedUserIds.length === 0) {
-                return false; // Explicitly restricted to no one (except admin)
+            if (Array.isArray(allowedIdsForLog)) {
+              if (allowedIdsForLog.length === 0) {
+                console.log(`[FirestoreService] Exercise ${exerciseIdForLog} (Title: ${exDisplay.title}) in Block ${blockId}: DENIED (explicitly restricted - ref.allowedUserIds is []). User: ${userContext?.uid}`);
+                return false; 
               }
-              return userContext?.uid ? exDisplay.allowedUserIds.includes(userContext.uid) : false; // Allow if user is in the list
+              if (userContext?.uid && allowedIdsForLog.includes(userContext.uid)) {
+                console.log(`[FirestoreService] Exercise ${exerciseIdForLog} (Title: ${exDisplay.title}) in Block ${blockId}: ALLOWED (user ${userContext.uid} in ref list [${allowedIdsForLog.join(', ')}]).`);
+                return true; 
+              } else {
+                 console.log(`[FirestoreService] Exercise ${exerciseIdForLog} (Title: ${exDisplay.title}) in Block ${blockId}: DENIED (user ${userContext?.uid} NOT in explicit ref list [${allowedIdsForLog.join(', ')}]).`);
+                return false;
+              }
             }
-            return false; // Default to deny if malformed
+            console.log(`[FirestoreService] Exercise ${exerciseIdForLog} (Title: ${exDisplay.title}) in Block ${blockId}: DENIED (malformed ref.allowedUserIds: ${JSON.stringify(allowedIdsForLog)}). User: ${userContext?.uid}`);
+            return false;
         });
-        console.log(`[FirestoreService] getExercisesForBlock: User is not admin. Filtered ${originalCount} exercises down to ${exercises.length} for block ${blockId}.`);
+        console.log(`[FirestoreService] getExercisesForBlock (Block ${blockId}): Non-admin user (UID: ${userContext?.uid}) will see ${exercises.length} exercises out of ${originalCount}.`);
     }
 
     const sortedExercises = exercises.sort((a, b) => (a.orderInBlock ?? Infinity) - (b.orderInBlock ?? Infinity));
@@ -526,7 +565,7 @@ export async function addExerciseToBlockReference(planId: string, blockId: strin
       const newReference: ExerciseReference = {
         exerciseId: masterExerciseId,
         order: newOrder,
-        allowedUserIds: null, // Default to null (inherit from block/plan)
+        allowedUserIds: null, 
       };
       
       transaction.update(blockDocRef, {
@@ -594,7 +633,7 @@ export async function removeExerciseFromBlockReference(planId: string, blockId: 
         .filter(ref => ref.exerciseId !== masterExerciseIdToRemove)
         .sort((a, b) => a.order - b.order) 
         .map((ref, index) => ({ ...ref, order: index })); 
-      console.log(`[FirestoreService] removeExerciseFromBlockReference: Updated references for block ${blockId}:`, updatedReferences);
+      console.log(`[FirestoreService] removeExerciseFromBlockReference: Updated references for block ${blockId}:`, JSON.stringify(updatedReferences));
 
       transaction.update(blockDocRef, {
         exerciseReferences: updatedReferences, 
