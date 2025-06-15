@@ -10,7 +10,7 @@ import {
   signOut,
   type User,
 } from 'firebase/auth';
-import { doc, setDoc, getDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { doc, setDoc, getDoc, serverTimestamp, Timestamp, collection, getDocs, query, orderBy } from 'firebase/firestore'; // Added collection, getDocs, query, orderBy
 import { auth, db } from '@/firebase';
 import type { UserProfile } from '@/types/firestore';
 
@@ -175,7 +175,14 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
     const userDoc = await getDoc(userDocRef);
     if (userDoc.exists()) {
       console.log("[AuthService] getUserProfile: Profile found for UID:", uid);
-      return userDoc.data() as UserProfile;
+      const data = userDoc.data();
+      return {
+        uid: data.uid,
+        email: data.email || null,
+        displayName: data.displayName || null,
+        photoURL: data.photoURL || null,
+        role: data.role || 'customer', // default to customer if role is missing
+      } as UserProfile;
     }
     console.warn(`[AuthService] getUserProfile: No user profile found in Firestore for UID: ${uid}`);
     return null;
@@ -184,3 +191,36 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
     return null;
   }
 }
+
+export async function getAllUserProfiles(): Promise<UserProfile[]> {
+  console.log("[AuthService] getAllUserProfiles: Attempting to fetch all user profiles.");
+  if (!db) {
+    console.error("[AuthService] getAllUserProfiles: Firestore db service is NOT available.");
+    throw new Error("Servicio de base de datos no disponible.");
+  }
+  try {
+    const usersCollectionRef = collection(db, "users");
+    const q = query(usersCollectionRef, orderBy("displayName", "asc")); // Order by displayName or email
+    const querySnapshot = await getDocs(q);
+    const users: UserProfile[] = [];
+    querySnapshot.forEach((docSnap) => {
+      const data = docSnap.data();
+      users.push({
+        uid: data.uid,
+        email: data.email || null,
+        displayName: data.displayName || data.email?.split('@')[0] || 'Usuario Desconocido',
+        photoURL: data.photoURL || null,
+        role: data.role || 'customer', // Default to 'customer' if role is missing
+      } as UserProfile);
+    });
+    console.log(`[AuthService] getAllUserProfiles: Fetched ${users.length} user profiles.`);
+    return users;
+  } catch (error: any) {
+    console.error(`[AuthService] getAllUserProfiles: Error fetching all user profiles: Code: ${error.code}, Message: ${error.message}`, error);
+    if (error.code === 'failed-precondition' && error.message.includes('index')) {
+        console.error(`[AuthService] INDEX_REQUIRED: Firestore query for getAllUserProfiles (orderBy: displayName asc) likely needs an index. Please check the Firebase console. Error: ${error.message}`);
+    }
+    throw error;
+  }
+}
+

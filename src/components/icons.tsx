@@ -27,18 +27,18 @@ import {
   Sun,
   Trash,
   User,
+  Users, // Added Users icon
   X,
   Workflow,
   PanelLeft,
   BookMarked,
   CalendarDays,
-  BookOpen, // Added BookOpen
-  // Horse, // Removed as it doesn't exist in lucide-react
+  BookOpen,
 } from 'lucide-react';
 
 const LogoIcon = (props: SVGProps<SVGSVGElement>) => (
   <svg
-    xmlns="http://www.w.org/2000/svg"
+    xmlns="http://www.w3.org/2000/svg"
     width="24"
     height="24"
     viewBox="0 0 24 24"
@@ -67,7 +67,7 @@ const LogoIcon = (props: SVGProps<SVGSVGElement>) => (
 
 
 const Icons = {
-  alert: AlertTriangle, // Added AlertTriangle
+  alert: AlertTriangle,
   arrowRight: ArrowRight,
   check: Check,
   chevronDown: ChevronDown,
@@ -95,12 +95,14 @@ const Icons = {
   spinner: Loader2,
   trash: Trash,
   user: User,
+  users: Users, // Added Users icon
   panelLeft: PanelLeft,
   logo: LogoIcon,
   bookMarked: BookMarked,
   calendar: CalendarDays,
   bookOpen: BookOpen,
-  horse: LogoIcon, // Use the existing LogoIcon for the horse icon
+  horse: LogoIcon,
 };
 
 export {Icons};
+

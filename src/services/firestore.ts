@@ -27,9 +27,11 @@ export async function getTrainingPlans(userContext?: UserContext | null): Promis
 
     // Filter for non-admin users
     const filteredPlans = trainingPlans.filter(plan => {
-      const isPublic = !plan.allowedUserIds || plan.allowedUserIds.length === 0;
-      const isAllowed = userContext?.uid && plan.allowedUserIds && plan.allowedUserIds.includes(userContext.uid);
-      return isPublic || isAllowed;
+      // A plan is public if allowedUserIds is undefined, null, or an empty array
+      const isConsideredPublic = !plan.allowedUserIds || plan.allowedUserIds.length === 0;
+      const isExplicitlyAllowed = userContext?.uid && plan.allowedUserIds && plan.allowedUserIds.includes(userContext.uid);
+      
+      return isConsideredPublic || isExplicitlyAllowed;
     });
     
     console.log(`[FirestoreService] getTrainingPlans: User is not admin. Filtered ${trainingPlans.length} plans down to ${filteredPlans.length} visible plans.`);
@@ -76,7 +78,7 @@ export async function addTrainingPlan(planData: TrainingPlanInput): Promise<stri
     createdAt: serverTimestamp() as Timestamp,
     updatedAt: serverTimestamp() as Timestamp,
     template: planData.template ?? false,
-    allowedUserIds: planData.allowedUserIds || [], // Initialize as public
+    allowedUserIds: planData.allowedUserIds || [], 
   };
   try {
     const docRef = await addDoc(planCollectionRef, newPlanData);
@@ -87,6 +89,26 @@ export async function addTrainingPlan(planData: TrainingPlanInput): Promise<stri
     throw error;
   }
 }
+
+export async function updatePlanAllowedUsers(planId: string, newUserIds: string[]): Promise<void> {
+  console.log(`[FirestoreService] updatePlanAllowedUsers: Updating plan ${planId} with allowedUserIds:`, newUserIds);
+  if (!planId) {
+    console.error("[FirestoreService] updatePlanAllowedUsers: planId is required.");
+    throw new Error("planId is required to update allowed users.");
+  }
+  const planDocRef = doc(db, "trainingPlans", planId);
+  try {
+    await updateDoc(planDocRef, {
+      allowedUserIds: newUserIds,
+      updatedAt: serverTimestamp() as Timestamp,
+    });
+    console.log(`[FirestoreService] updatePlanAllowedUsers: Plan ${planId} allowedUserIds updated successfully.`);
+  } catch (error) {
+    console.error(`[FirestoreService] updatePlanAllowedUsers: Error updating allowedUserIds for plan ${planId}:`, error);
+    throw error;
+  }
+}
+
 
 export async function deleteTrainingPlan(planId: string): Promise<void> {
   console.log(`[FirestoreService] deleteTrainingPlan: Attempting to delete plan ${planId} and its blocks.`);
@@ -589,3 +611,4 @@ export async function debugGetBlocksForPlan(planId: string): Promise<void> {
     }
   }
 }
+

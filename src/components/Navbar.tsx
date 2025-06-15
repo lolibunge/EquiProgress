@@ -25,7 +25,7 @@ import {
   SheetClose,
 } from "@/components/ui/sheet"
 import { Icons } from './icons';
-import { Menu, LogOut, UserCircle, Library, History, LogIn, UserPlus, Home, BookOpen, Horse } from 'lucide-react'; // Added Horse
+import { Menu, LogOut, UserCircle, Library, History, LogIn, UserPlus, Home, BookOpen, Horse, Users } from 'lucide-react'; // Added Users
 
 export default function Navbar() {
   const { currentUser, userProfile, loading } = useAuth();
@@ -50,101 +50,48 @@ export default function Navbar() {
   }
 
   const NavLinks = ({ isMobile = false }: { isMobile?: boolean }) => {
-    const linksContent = (
-      <>
-        <Button variant={isMobile ? "outline" : "ghost"} asChild className={isMobile ? "w-full justify-start" : ""}>
-          <Link href="/">
-            <Home className="mr-2 h-4 w-4" />
-            Inicio
-          </Link>
-        </Button>
-        {currentUser && (
-          <>
-            <Button variant={isMobile ? "outline" : "ghost"} asChild className={isMobile ? "w-full justify-start" : ""}>
-              <Link href="/horses">
-                <Icons.horse className="mr-2 h-4 w-4" /> {/* Updated Icon */}
-                Caballos
-              </Link>
-            </Button>
-            <Button variant={isMobile ? "outline" : "ghost"} asChild className={isMobile ? "w-full justify-start" : ""}>
-              <Link href="/plans">
-                <BookOpen className="mr-2 h-4 w-4" />
-                Planes
-              </Link>
-            </Button>
-            {userProfile?.role === 'admin' && (
-              <Button variant={isMobile ? "outline" : "ghost"} asChild className={isMobile ? "w-full justify-start" : ""}>
-                <Link href="/library/exercises">
-                  <Library className="mr-2 h-4 w-4" />
-                  Ejercicios
-                </Link>
-              </Button>
-            )}
-            <Button variant={isMobile ? "outline" : "ghost"} asChild className={isMobile ? "w-full justify-start" : ""}>
-              <Link href="/horse-history">
-                <History className="mr-2 h-4 w-4" />
-                Historial
-              </Link>
-            </Button>
-          </>
-        )}
-      </>
+    const commonButtonClass = isMobile ? "w-full justify-start" : "";
+    const commonVariant = isMobile ? "outline" : "ghost";
+
+    const links = [
+      { href: "/", icon: <Home className="mr-2 h-4 w-4" />, label: "Inicio", authRequired: false },
+      { href: "/horses", icon: <Icons.horse className="mr-2 h-4 w-4" />, label: "Caballos", authRequired: true },
+      { href: "/plans", icon: <BookOpen className="mr-2 h-4 w-4" />, label: "Planes", authRequired: true },
+      { href: "/library/exercises", icon: <Library className="mr-2 h-4 w-4" />, label: "Ejercicios", authRequired: true, adminOnly: true },
+      { href: "/horse-history", icon: <History className="mr-2 h-4 w-4" />, label: "Historial", authRequired: true },
+      { href: "/admin/users", icon: <Users className="mr-2 h-4 w-4" />, label: "Usuarios", authRequired: true, adminOnly: true },
+    ];
+
+    const renderLink = (link: any) => (
+      <Button variant={commonVariant} asChild className={commonButtonClass}>
+        <Link href={link.href}>
+          {link.icon}
+          {link.label}
+        </Link>
+      </Button>
+    );
+    
+    const renderSheetLink = (link: any) => (
+      <SheetClose asChild>
+        {renderLink(link)}
+      </SheetClose>
     );
 
-    if (isMobile) {
-      return (
-        <>
-          <SheetClose asChild>
-            <Button variant="outline" asChild className="w-full justify-start">
-              <Link href="/">
-                <Home className="mr-2 h-4 w-4" />
-                Inicio
-              </Link>
-            </Button>
-          </SheetClose>
-          {currentUser && (
-            <>
-              <SheetClose asChild>
-                <Button variant="outline" asChild className="w-full justify-start">
-                  <Link href="/horses">
-                    <Icons.horse className="mr-2 h-4 w-4" /> {/* Updated Icon */}
-                    Caballos
-                  </Link>
-                </Button>
-              </SheetClose>
-              <SheetClose asChild>
-                <Button variant="outline" asChild className="w-full justify-start">
-                  <Link href="/plans">
-                    <BookOpen className="mr-2 h-4 w-4" />
-                    Planes
-                  </Link>
-                </Button>
-              </SheetClose>
-              {userProfile?.role === 'admin' && (
-                <SheetClose asChild>
-                  <Button variant="outline" asChild className="w-full justify-start">
-                    <Link href="/library/exercises">
-                      <Library className="mr-2 h-4 w-4" />
-                      Ejercicios
-                    </Link>
-                  </Button>
-                </SheetClose>
-              )}
-              <SheetClose asChild>
-                <Button variant="outline" asChild className="w-full justify-start">
-                  <Link href="/horse-history">
-                    <History className="mr-2 h-4 w-4" />
-                    Historial
-                  </Link>
-                </Button>
-              </SheetClose>
-            </>
-          )}
-        </>
-      );
-    }
-    return linksContent;
+    return (
+      <>
+        {links.map((link) => {
+          if (link.adminOnly && userProfile?.role !== 'admin') return null;
+          if (link.authRequired && !currentUser) return null;
+          return (
+            <React.Fragment key={link.href}>
+              {isMobile ? renderSheetLink(link) : renderLink(link)}
+            </React.Fragment>
+          );
+        })}
+      </>
+    );
   };
+
 
   const AuthButtons = ({ isMobile = false }: { isMobile?: boolean }) => {
     const buttonsContent = (
