@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
-import { useState, useEffect, useCallback, ReactNode, useMemo, useRef } from "react"; 
+import { useState, useEffect, useCallback, ReactNode, useMemo, useRef } from "react";
 import type { User } from 'firebase/auth';
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -278,16 +278,16 @@ const Dashboard = () => {
   const [selectedPlanForSessionStart, setSelectedPlanForSessionStart] = useState<TrainingPlan | null>(null);
 
   const [allBlocksInActivePlan, setAllBlocksInActivePlan] = useState<TrainingBlockType[]>([]);
-  const [currentActiveBlock, setCurrentActiveBlock] = useState<TrainingBlockType | null>(null); 
+  const [currentActiveBlock, setCurrentActiveBlock] = useState<TrainingBlockType | null>(null);
   const [isLoadingCurrentBlock, setIsLoadingCurrentBlock] = useState(false);
-  
+
   const [suggestedExercisesForBlock, setSuggestedExercisesForBlock] = useState<BlockExerciseDisplay[]>([]);
   const [isLoadingSuggestedExercises, setIsLoadingSuggestedExercises] = useState(false);
 
   const [numberedDaysForCurrentBlock, setNumberedDaysForCurrentBlock] = useState<NumberedDay[]>([]);
   const [isLoadingNumberedDays, setIsLoadingNumberedDays] = useState(false);
 
-  const [displayedDayIndex, setDisplayedDayIndex] = useState<number>(0); 
+  const [displayedDayIndex, setDisplayedDayIndex] = useState<number>(0);
 
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [sessionOverallNote, setSessionOverallNote] = useState("");
@@ -298,7 +298,7 @@ const Dashboard = () => {
   const [selectedPlanForAdmin, setSelectedPlanForAdmin] = useState<TrainingPlan | null>(null);
   const [blocksForAdminPlan, setBlocksForAdminPlan] = useState<TrainingBlockType[]>([]);
   const [isLoadingBlocksForAdmin, setIsLoadingBlocksForAdmin] = useState(false);
-  const [exercisesForAdminPlan, setExercisesForAdminPlan] = useState<BlockExerciseDisplay[]>([]); 
+  const [exercisesForAdminPlan, setExercisesForAdminPlan] = useState<BlockExerciseDisplay[]>([]);
   const [isLoadingExercisesForAdmin, setIsLoadingExercisesForAdmin] = useState(false);
 
   const [isCreatePlanDialogOpen, setIsCreatePlanDialogOpen] = useState(false);
@@ -351,7 +351,7 @@ const Dashboard = () => {
   useEffect(() => {
     if (currentUser?.uid) {
         performFetchHorses(currentUser.uid);
-        previousHorseDataRef.current = null; 
+        previousHorseDataRef.current = null;
     } else {
       setHorses([]);
       setSelectedHorse(null);
@@ -361,12 +361,15 @@ const Dashboard = () => {
   }, [currentUser?.uid, performFetchHorses]);
 
   useEffect(() => {
-    if (!isLoadingHorses) { 
+    console.log(`%c[Dashboard useEffect horses,selectedHorse,isLoadingHorses] isLoadingHorses: ${isLoadingHorses}, horses.length: ${horses.length}, selectedHorse: ${selectedHorse?.id}`, "color: #FFD700;");
+    if (!isLoadingHorses) {
         if (horses.length > 0 && !selectedHorse) {
             const newSelectedHorse = horses[0];
+            console.log(`%c[Dashboard useEffect horses,selectedHorse,isLoadingHorses] Auto-selecting first horse: ${newSelectedHorse.id} (${newSelectedHorse.name})`, "color: #FFD700;");
             setSelectedHorse(newSelectedHorse);
             previousHorseDataRef.current = { currentBlockId: newSelectedHorse.currentBlockId, activePlanId: newSelectedHorse.activePlanId };
         } else if (horses.length === 0) {
+            console.log(`%c[Dashboard useEffect horses,selectedHorse,isLoadingHorses] No horses available. Setting selectedHorse to null.`, "color: #FFD700;");
             setSelectedHorse(null);
             previousHorseDataRef.current = null;
         }
@@ -400,9 +403,9 @@ const Dashboard = () => {
 
 
   const fetchHorseActivePlanDetails = useCallback(async (horse: Horse) => {
-    console.log(`%c[Dashboard fetchHorseActivePlanDetails V4] Called for Horse ID: ${horse.id}, ActivePlanID: ${horse.activePlanId}`, "color: purple; font-weight: bold;");
+    console.log(`%c[Dashboard fetchHorseActivePlanDetails V5] Called for Horse ID: ${horse.id}, ActivePlanID: ${horse.activePlanId}`, "color: purple; font-weight: bold;");
     if (!horse.activePlanId) {
-      console.log(`%c[Dashboard fetchHorseActivePlanDetails V4] Horse ${horse.id} has NO active plan. Clearing block states.`, "color: orange;");
+      console.log(`%c[Dashboard fetchHorseActivePlanDetails V5] Horse ${horse.id} has NO active plan. Clearing block states.`, "color: orange;");
       setCurrentActiveBlock(null);
       setAllBlocksInActivePlan([]);
       setIsLoadingCurrentBlock(false);
@@ -414,27 +417,27 @@ const Dashboard = () => {
       const allPlanBlocks = await getTrainingBlocks(horse.activePlanId);
       const sortedAllPlanBlocks = allPlanBlocks.sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity));
       setAllBlocksInActivePlan(sortedAllPlanBlocks);
-      console.log(`%c[Dashboard fetchHorseActivePlanDetails V4] Fetched ${sortedAllPlanBlocks.length} total blocks for plan ${horse.activePlanId}. Blocks:`, "color: purple;", sortedAllPlanBlocks.map(b => ({id: b.id, title: b.title, order: b.order})));
+      console.log(`%c[Dashboard fetchHorseActivePlanDetails V5] Fetched ${sortedAllPlanBlocks.length} total blocks for plan ${horse.activePlanId}. Blocks:`, "color: purple;", sortedAllPlanBlocks.map(b => ({id: b.id, title: b.title, order: b.order})));
 
       let blockToDisplay: TrainingBlockType | null = null;
 
       if (sortedAllPlanBlocks.length > 0) {
-        // Default to the FIRST block of the plan, overriding horse.currentBlockId for initial view
+        // DEFAULT TO FIRST BLOCK OF THE PLAN FOR VIEWING
         blockToDisplay = sortedAllPlanBlocks[0];
-        console.log(`%c[Dashboard fetchHorseActivePlanDetails V4] Defaulting view to FIRST block of plan: ${blockToDisplay.id} (${blockToDisplay.title}). Horse's actual currentBlockId in DB is ${horse.currentBlockId}.`, "color: green; font-weight: bold;");
+        console.log(`%c[Dashboard fetchHorseActivePlanDetails V5] Defaulting VIEW to FIRST block of plan: ${blockToDisplay.id} (${blockToDisplay.title}). Horse's actual currentBlockId in DB is ${horse.currentBlockId}.`, "color: green; font-weight: bold;");
       } else {
-        console.log(`%c[Dashboard fetchHorseActivePlanDetails V4] No blocks in active plan ${horse.activePlanId}. Cannot set a block to display.`, "color: orange;");
+        console.log(`%c[Dashboard fetchHorseActivePlanDetails V5] No blocks in active plan ${horse.activePlanId}. Cannot set a block to display.`, "color: orange;");
       }
-      
+
       if (!blockToDisplay) {
-         console.log(`%c[Dashboard fetchHorseActivePlanDetails V4] FINAL: Could not determine a block to display. Setting active block to null.`, "color: red;");
+         console.log(`%c[Dashboard fetchHorseActivePlanDetails V5] FINAL: Could not determine a block to display. Setting active block to null.`, "color: red;");
          setCurrentActiveBlock(null);
       } else {
-        console.log(`%c[Dashboard fetchHorseActivePlanDetails V4] FINAL: Setting currentActiveBlock (view) to ID: ${blockToDisplay.id}, Title: ${blockToDisplay.title}`, "color: green; font-weight: bold;");
-        setCurrentActiveBlock(blockToDisplay); 
+        console.log(`%c[Dashboard fetchHorseActivePlanDetails V5] FINAL: Setting currentActiveBlock (view) to ID: ${blockToDisplay.id}, Title: ${blockToDisplay.title}`, "color: green; font-weight: bold;");
+        setCurrentActiveBlock(blockToDisplay);
       }
     } catch (error) {
-      console.error(`%c[Dashboard fetchHorseActivePlanDetails V4] Error:`, "color: red;", error);
+      console.error(`%c[Dashboard fetchHorseActivePlanDetails V5] Error:`, "color: red;", error);
       toast({ variant: "destructive", title: "Error", description: "No se pudo cargar la etapa activa del caballo." });
       setCurrentActiveBlock(null);
       setAllBlocksInActivePlan([]);
@@ -443,14 +446,14 @@ const Dashboard = () => {
     }
   }, [toast]);
 
-  useEffect(() => {
+ useEffect(() => {
     const currentHorseId = selectedHorse?.id;
-    const currentHorseDbBlockId = selectedHorse?.currentBlockId; // Horse's actual current block in DB
-    const currentHorseDbPlanId = selectedHorse?.activePlanId; // Horse's actual active plan in DB
-    const currentViewedBlockId = currentActiveBlock?.id; // Block currently displayed in UI
+    const currentHorseDbBlockId = selectedHorse?.currentBlockId;
+    const currentHorseDbPlanId = selectedHorse?.activePlanId;
+    const currentViewedBlockId = currentActiveBlock?.id;
 
-    console.log(`%c[Dashboard useEffect for selectedHorse - START V3]
-    Selected Horse ID: ${currentHorseId}
+    console.log(`%c[Dashboard useEffect selectedHorse V5 - START]
+    Selected Horse ID: ${currentHorseId} (Name: ${selectedHorse?.name})
     Horse's currentBlockId (DB): ${currentHorseDbBlockId}
     Horse's activePlanId (DB): ${currentHorseDbPlanId}
     Currently Viewed Block ID (UI): ${currentViewedBlockId}
@@ -460,64 +463,77 @@ const Dashboard = () => {
     if (selectedHorse) {
         const prevData = previousHorseDataRef.current;
         const horseActivePlanIdChanged = prevData?.activePlanId !== selectedHorse.activePlanId;
-        const horseCurrentBlockIdChangedInDb = prevData?.currentBlockId !== selectedHorse.currentBlockId;
+        const horseCurrentBlockIdChangedInDb = prevData?.currentBlockId !== selectedHorse.currentBlockId; // This is the horse's actual current block in DB
 
-        if (!prevData || horseActivePlanIdChanged || horseCurrentBlockIdChangedInDb) { 
-            console.log(`%c[Dashboard useEffect selectedHorse V3 - ACTION: CRITICAL CHANGE DETECTED] Reason: ${!prevData ? "Initial load/horse change" : horseActivePlanIdChanged ? "Horse's active plan ID changed" : "Horse's DB currentBlockId changed"}. Calling fetchHorseActivePlanDetails.`, "color: #28a745; font-weight:bold;");
+        // CRITICAL CHANGE: If selectedHorse ID itself changes, or plan ID changes, or horse's actual current block ID changes
+        if (!prevData || prevData.activePlanId !== selectedHorse.activePlanId || prevData.currentBlockId !== selectedHorse.currentBlockId) {
+            console.log(`%c[Dashboard useEffect selectedHorse V5 - ACTION: CRITICAL CHANGE DETECTED]
+            Reason: ${!prevData ? "Initial load or horse switched" :
+                       prevData.activePlanId !== selectedHorse.activePlanId ? `Horse's active plan ID changed (Prev: ${prevData.activePlanId}, New: ${selectedHorse.activePlanId})` :
+                       `Horse's DB currentBlockId changed (Prev: ${prevData.currentBlockId}, New: ${selectedHorse.currentBlockId})`}.
+            Calling fetchHorseActivePlanDetails to reset view to horse's (new) current state.`,
+            "color: #28a745; font-weight:bold;");
             fetchHorseActivePlanDetails(selectedHorse);
         } else if (selectedHorse.activePlanId) {
-            console.log(`%c[Dashboard useEffect selectedHorse V3 - ACTION: REFRESHING PLAN BLOCKS] Plan ID ${selectedHorse.activePlanId} and DB currentBlockId ${selectedHorse.currentBlockId} unchanged. Refreshing allBlocksInActivePlan. Viewed block: ${currentActiveBlock?.id}`, "color: #17a2b8;");
+            // MINOR CHANGE: Horse's active plan and current block in DB are the same, but other horse data might have changed (e.g., planProgress).
+            // Refresh list of all blocks, keep current view if valid.
+            console.log(`%c[Dashboard useEffect selectedHorse V5 - ACTION: MINOR REFRESH] Horse details (like planProgress) might have changed, but activePlanId and currentBlockId in DB are stable.
+            Refreshing allBlocksInActivePlan. Current VIEWED block: ${currentActiveBlock?.id} (${currentActiveBlock?.title}). Horse's actual DB currentBlock: ${selectedHorse.currentBlockId}.`,
+            "color: #17a2b8;");
+
             const refreshAllBlocksOnly = async () => {
-                setIsLoadingCurrentBlock(true); 
+                setIsLoadingCurrentBlock(true); // Briefly show loading for block list refresh
                 try {
                     if (!selectedHorse.activePlanId) {
-                         console.warn("[Dashboard useEffect selectedHorse V3 - refreshAllBlocksOnly] Horse activePlanId is null, cannot refresh blocks.");
+                         console.warn("[Dashboard useEffect selectedHorse V5 - refreshAllBlocksOnly] Horse activePlanId is null, cannot refresh blocks.");
                          setIsLoadingCurrentBlock(false);
                          return;
                     }
                     const allPlanBlocks = await getTrainingBlocks(selectedHorse.activePlanId);
                     const sortedAllPlanBlocks = allPlanBlocks.sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity));
                     setAllBlocksInActivePlan(sortedAllPlanBlocks);
-                    console.log(`[Dashboard useEffect selectedHorse V3 - refreshAllBlocksOnly] Refreshed allBlocksInActivePlan. Count: ${sortedAllPlanBlocks.length}`);
+                    console.log(`[Dashboard useEffect selectedHorse V5 - refreshAllBlocksOnly] Refreshed allBlocksInActivePlan. Count: ${sortedAllPlanBlocks.length}`);
 
+                    // If the currently VIEWED block is no longer in the plan's blocks (e.g., admin deleted it), reset view.
                     if (currentActiveBlock && !sortedAllPlanBlocks.find(b => b.id === currentActiveBlock.id)) {
-                        console.log(`%c[Dashboard useEffect selectedHorse V3 - refreshAllBlocksOnly] Current viewed block ${currentActiveBlock?.id} is no longer in the active plan's blocks. Resetting view (will default to first block of plan via fetchHorseActivePlanDetails).`, "color: #FFA500;");
-                        fetchHorseActivePlanDetails(selectedHorse); 
-                    } else if (!currentActiveBlock && sortedAllPlanBlocks.length > 0) {
-                        console.log(`%c[Dashboard useEffect selectedHorse V3 - refreshAllBlocksOnly] No block currently viewed, but plan has blocks. Resetting view.`, "color: #FFA500;");
-                        fetchHorseActivePlanDetails(selectedHorse);
+                        console.log(`%c[Dashboard useEffect selectedHorse V5 - refreshAllBlocksOnly] Current VIEWED block ${currentActiveBlock?.id} is no longer in the active plan's blocks. Resetting view (will default to first block of plan via fetchHorseActivePlanDetails).`, "color: #FFA500;");
+                        fetchHorseActivePlanDetails(selectedHorse); // This will default to first block of plan
+                    } else if (!currentActiveBlock && sortedAllPlanBlocks.length > 0) { // If no block is viewed, but plan has blocks
+                        console.log(`%c[Dashboard useEffect selectedHorse V5 - refreshAllBlocksOnly] No block currently viewed, but plan has blocks. Resetting view.`, "color: #FFA500;");
+                        fetchHorseActivePlanDetails(selectedHorse); // This will default to first block of plan
                     } else {
-                        console.log(`%c[Dashboard useEffect selectedHorse V3 - refreshAllBlocksOnly] Viewed block ${currentActiveBlock?.id} is still valid or no blocks to show. View preserved or handled by fetchHorseActivePlanDetails.`, "color: #ADFF2F;");
+                        // Current view is still valid or no blocks to show anyway.
+                        console.log(`%c[Dashboard useEffect selectedHorse V5 - refreshAllBlocksOnly] VIEWED block ${currentActiveBlock?.id} is still valid or no blocks. View preserved.`, "color: #ADFF2F;");
                     }
                 } catch (e) {
-                    console.error("[Dashboard useEffect selectedHorse V3 - refreshAllBlocksOnly] Error refreshing all blocks:", e);
+                    console.error("[Dashboard useEffect selectedHorse V5 - refreshAllBlocksOnly] Error refreshing all blocks:", e);
                     toast({ variant: "destructive", title: "Error", description: "No se pudo actualizar la lista de etapas del plan." });
-                    fetchHorseActivePlanDetails(selectedHorse);
+                    fetchHorseActivePlanDetails(selectedHorse); // Fallback to reset
                 } finally {
                     setIsLoadingCurrentBlock(false);
                 }
             };
             refreshAllBlocksOnly();
-        } else if (!selectedHorse.activePlanId) { 
-            console.log(`%c[Dashboard useEffect selectedHorse V3 - ACTION: NO ACTIVE PLAN] Horse has no active plan. Clearing active block states.`, "color: #dc3545;");
+        } else if (!selectedHorse.activePlanId) {
+            console.log(`%c[Dashboard useEffect selectedHorse V5 - ACTION: NO ACTIVE PLAN] Horse has no active plan. Clearing active block states.`, "color: #dc3545;");
             setCurrentActiveBlock(null);
             setAllBlocksInActivePlan([]);
             setDisplayedDayIndex(0);
             setIsLoadingCurrentBlock(false);
         }
-        
+
         previousHorseDataRef.current = { currentBlockId: selectedHorse.currentBlockId, activePlanId: selectedHorse.activePlanId };
 
-    } else { 
-      console.log(`%c[Dashboard useEffect selectedHorse V3 - ACTION: NO SELECTED HORSE] No selectedHorse. Resetting active plan states.`, "color: #6c757d;");
+    } else {
+      console.log(`%c[Dashboard useEffect selectedHorse V5 - ACTION: NO SELECTED HORSE] No selectedHorse. Resetting active plan states.`, "color: #6c757d;");
       setCurrentActiveBlock(null);
       setAllBlocksInActivePlan([]);
       setDisplayedDayIndex(0);
       setIsLoadingCurrentBlock(false);
       previousHorseDataRef.current = null;
     }
-    console.log(`%c[Dashboard useEffect selectedHorse V3 - END]
-    Selected Horse ID: ${currentHorseId}
+    console.log(`%c[Dashboard useEffect selectedHorse V5 - END]
+    Selected Horse ID: ${currentHorseId} (Name: ${selectedHorse?.name})
     Horse's currentBlockId (DB): ${currentHorseDbBlockId}
     Horse's activePlanId (DB): ${currentHorseDbPlanId}
     FINAL Viewed Block ID (UI): ${currentActiveBlock?.id} (Value after this effect's potential updates)
@@ -597,11 +613,11 @@ const Dashboard = () => {
                     const blockProgressForViewed = selectedHorse.planProgress?.[currentActiveBlock.id];
                     console.log(`%c[Dashboard fetchDetailsForViewedBlock - TRY] Plan progress for viewed block ${currentActiveBlock.id}:`, "color: teal;", JSON.parse(JSON.stringify(blockProgressForViewed || {})));
                     const firstUncompletedDayIndex = newNumberedDaysArray.findIndex(nd => !blockProgressForViewed?.[String(nd.dayNumber)]?.completed);
-                    
+
                     if (firstUncompletedDayIndex !== -1) {
                         initialDisplayIndex = firstUncompletedDayIndex;
                         console.log(`%c[Dashboard fetchDetailsForViewedBlock - TRY] First uncompleted day in ${currentActiveBlock.title} is index: ${initialDisplayIndex} (Day ${initialDisplayIndex + 1})`, "color: teal;");
-                    } else { 
+                    } else {
                         initialDisplayIndex = newNumberedDaysArray.length - 1 >= 0 ? newNumberedDaysArray.length - 1 : 0;
                         console.log(`%c[Dashboard fetchDetailsForViewedBlock - TRY] All days in ${currentActiveBlock.title} complete or no days. Setting to last day index: ${initialDisplayIndex} (Day ${initialDisplayIndex + 1})`, "color: teal;");
                     }
@@ -614,7 +630,7 @@ const Dashboard = () => {
                 toast({ title: "Error", description: `No se pudieron cargar los detalles de la etapa: ${currentActiveBlock.title}. Message: ${error.message}`, variant: "destructive"});
                 setNumberedDaysForCurrentBlock([]);
                 setSuggestedExercisesForBlock([]);
-                 setDisplayedDayIndex(0); 
+                 setDisplayedDayIndex(0);
             } finally {
                 console.log(`%c[Dashboard fetchDetailsForViewedBlock - FINALLY] For VIEWED Block ID: ${currentActiveBlock?.id}. Setting loaders to false.`, "color: teal;");
                 setIsLoadingNumberedDays(false);
@@ -625,7 +641,7 @@ const Dashboard = () => {
              setNumberedDaysForCurrentBlock([]);
              setSuggestedExercisesForBlock([]);
              setDisplayedDayIndex(0);
-             setIsLoadingNumberedDays(false); 
+             setIsLoadingNumberedDays(false);
              setIsLoadingSuggestedExercises(false);
         }
          console.log(`%c[Dashboard fetchDetailsForViewedBlock - END] VIEWED Block ID: ${currentActiveBlock?.id}`, "color: teal; font-weight: bold;");
@@ -654,7 +670,7 @@ const Dashboard = () => {
           setSessionOverallNote("");
           setSessionDayResult({
               plannedReps: "1 sesión",
-              rating: 5, 
+              rating: 5,
               observations: { nostrils: null, lips: null, ears: null, eyes: null, neck: null, back: null, croup: null, limbs: null, tail: null, additionalNotes: "" }
           });
       } else {
@@ -674,7 +690,7 @@ const Dashboard = () => {
         return false;
     }
     const blockProgress = selectedHorse.planProgress[currentActiveBlock.id];
-    if (!blockProgress && numberedDaysForCurrentBlock.length > 0) { 
+    if (!blockProgress && numberedDaysForCurrentBlock.length > 0) {
         console.log(`%c[Dashboard Memo] allDaysInBlockCompleted: No progress object found for block ${currentActiveBlock.id} in planProgress but block has ${numberedDaysForCurrentBlock.length} days. Returning false.`, 'color: #FF8C00');
         return false;
     }
@@ -706,7 +722,7 @@ const Dashboard = () => {
     setIsCreatePlanDialogOpen(false);
     performFetchAllPlans().then(() => {
       const userCtx = currentUser ? { uid: currentUser.uid, role: userProfile?.role } : null;
-      getTrainingPlans(userCtx).then(refreshedPlans => { 
+      getTrainingPlans(userCtx).then(refreshedPlans => {
         setTrainingPlans(refreshedPlans);
         const newPlan = refreshedPlans.find(p => p.id === newPlanId);
         if (newPlan) setSelectedPlanForAdmin(newPlan);
@@ -834,7 +850,7 @@ const Dashboard = () => {
     setSessionDayResult(prev => {
         const currentDayData = prev || {
             plannedReps: "1 sesión",
-            rating: 5, 
+            rating: 5,
             observations: { nostrils: null, lips: null, ears: null, eyes: null, neck: null, back: null, croup: null, limbs: null, tail: null, additionalNotes: "" }
         };
         let updatedDayData = { ...currentDayData };
@@ -866,7 +882,7 @@ const handleSaveSessionAndNavigate = async () => {
         date: Timestamp.fromDate(date),
         blockId: currentActiveBlock.id,
         dayNumberInBlock: currentNumberedDayForDisplay.dayNumber,
-        selectedDayExerciseId: currentActiveBlock.id, 
+        selectedDayExerciseId: currentActiveBlock.id,
         selectedDayExerciseTitle: `Día de Trabajo ${currentNumberedDayForDisplay.dayNumber}`,
         overallNote: sessionOverallNote,
       };
@@ -874,7 +890,7 @@ const handleSaveSessionAndNavigate = async () => {
 
       if (sessionId) {
         const dayResultInput: ExerciseResultInput = {
-            exerciseId: currentActiveBlock.id, 
+            exerciseId: currentActiveBlock.id,
             plannedReps: sessionDayResult.plannedReps,
             doneReps: 1,
             rating: sessionDayResult.rating,
@@ -990,7 +1006,6 @@ const handleSaveSessionAndNavigate = async () => {
         const updatedHorse = await getHorseById(selectedHorse.id);
         if (updatedHorse) {
           setSelectedHorse(updatedHorse);
-          // Reset the plan selection dropdown after starting
           setSelectedPlanForSessionStart(null);
         }
     } catch (error) {
@@ -1027,16 +1042,16 @@ const handleSaveSessionAndNavigate = async () => {
         });
         if (actualCurrentBlockDetails) {
             console.log(`[Dashboard handleAdvanceToNextEtapa] User tried to advance from non-current block. Snapping back to horse's actual current block: ${actualCurrentBlockDetails.id}`);
-            setCurrentActiveBlock(actualCurrentBlockDetails); 
+            setCurrentActiveBlock(actualCurrentBlockDetails);
         }
         return;
     }
-    
+
     const requiredDurationDays = parseDurationToDays(currentActiveBlock.duration);
     if (requiredDurationDays > 0 && selectedHorse.currentBlockStartDate) {
         const startDate = selectedHorse.currentBlockStartDate.toDate();
         const currentDate = new Date();
-        const safeStartDate = startDate > currentDate ? currentDate : startDate; 
+        const safeStartDate = startDate > currentDate ? currentDate : startDate;
         const elapsedMilliseconds = currentDate.getTime() - safeStartDate.getTime();
         const elapsedDays = Math.floor(elapsedMilliseconds / (1000 * 3600 * 24));
 
@@ -1048,7 +1063,7 @@ const handleSaveSessionAndNavigate = async () => {
                 variant: "default",
                 duration: 7000
             });
-            return; 
+            return;
         }
     } else if (requiredDurationDays > 0 && !selectedHorse.currentBlockStartDate) {
          toast({
@@ -1057,7 +1072,7 @@ const handleSaveSessionAndNavigate = async () => {
             variant: "destructive",
             duration: 7000
         });
-        return; 
+        return;
     }
 
 
@@ -1067,7 +1082,7 @@ const handleSaveSessionAndNavigate = async () => {
       if (result.advanced && result.newBlockId) {
         toast({ title: "Etapa Avanzada", description: "Has pasado a la siguiente etapa del plan." });
         const updatedHorse = await getHorseById(selectedHorse.id);
-        if (updatedHorse) setSelectedHorse(updatedHorse); 
+        if (updatedHorse) setSelectedHorse(updatedHorse);
       } else if (result.planCompleted) {
         toast({ title: "¡Plan Completado!", description: "Has completado todas las etapas de este plan." });
          const updatedHorse = await getHorseById(selectedHorse.id);
@@ -1093,14 +1108,14 @@ const handleSaveSessionAndNavigate = async () => {
 
     if (displayedDayIndex > 0) {
         setDisplayedDayIndex(prev => prev - 1);
-    } else { 
+    } else {
         const currentBlockOrderInPlan = allBlocksInActivePlan.findIndex(b => b.id === currentActiveBlock.id);
-        if (currentBlockOrderInPlan > 0) { 
+        if (currentBlockOrderInPlan > 0) {
             const prevBlock = allBlocksInActivePlan[currentBlockOrderInPlan - 1];
             console.log(`%c[Dashboard handlePreviousDay] Moving to previous block (for viewing): ${prevBlock.id} (${prevBlock.title})`, "color: olive");
-            setIsLoadingNumberedDays(true); 
+            setIsLoadingNumberedDays(true);
             setIsLoadingSuggestedExercises(true);
-            setCurrentActiveBlock(prevBlock); 
+            setCurrentActiveBlock(prevBlock);
         } else {
             toast({title: "Inicio del Plan", description: "Ya estás en el primer día de la primera etapa del plan.", duration: 3000});
         }
@@ -1110,23 +1125,23 @@ const handleSaveSessionAndNavigate = async () => {
   const handleNextDay = async () => {
     console.log(`%c[Dashboard handleNextDay] Current displayedDayIndex: ${displayedDayIndex}, currentBlock (viewed): ${currentActiveBlock?.title}, numberedDaysForCurrentBlock.length: ${numberedDaysForCurrentBlock.length}`, "color: darkgoldenrod");
     if (!currentActiveBlock || !allBlocksInActivePlan || allBlocksInActivePlan.length === 0 || !numberedDaysForCurrentBlock) return;
-    
-    if (displayedDayIndex < numberedDaysForCurrentBlock.length - 1) { 
+
+    if (displayedDayIndex < numberedDaysForCurrentBlock.length - 1) {
         setDisplayedDayIndex(prev => prev + 1);
-    } else { 
+    } else {
         const currentBlockOrderInPlan = allBlocksInActivePlan.findIndex(b => b.id === currentActiveBlock.id);
-        if (currentBlockOrderInPlan < allBlocksInActivePlan.length - 1) { 
+        if (currentBlockOrderInPlan < allBlocksInActivePlan.length - 1) {
             const nextBlock = allBlocksInActivePlan[currentBlockOrderInPlan + 1];
             console.log(`%c[Dashboard handleNextDay] Moving to next block (for viewing): ${nextBlock.id} (${nextBlock.title})`, "color: darkgoldenrod");
-            setIsLoadingNumberedDays(true); 
+            setIsLoadingNumberedDays(true);
             setIsLoadingSuggestedExercises(true);
-            setCurrentActiveBlock(nextBlock); 
-        } else { 
+            setCurrentActiveBlock(nextBlock);
+        } else {
              if (currentActiveBlock.id === selectedHorse?.currentBlockId && allDaysInBlockCompleted) {
                 toast({title: "¡Etapa Finalizada!", description: "Este es el último día de la etapa actual. Considera avanzar a la siguiente etapa si la duración se ha cumplido.", duration: 5000});
              } else if (currentActiveBlock.id !== selectedHorse?.currentBlockId) {
                 toast({title: "Fin de Etapa (Vista Previa)", description: "Has llegado al final de esta etapa en el modo de vista previa.", duration: 3000});
-             } else { 
+             } else {
                 toast({title: "Último Día de la Etapa", description: "Este es el último día de la etapa actual. Completa todos los días para avanzar.", duration: 3000});
              }
         }
@@ -1135,7 +1150,7 @@ const handleSaveSessionAndNavigate = async () => {
 
 
    useEffect(() => {
-    console.log(`%c[Dashboard Render Logic - START V2]
+    console.log(`%c[Dashboard Render Logic - START V6]
     currentUser UID: ${currentUser?.uid}
     userProfile: ${JSON.stringify(userProfile || {})}
     isUserAdmin: ${isUserAdmin}
@@ -1145,13 +1160,13 @@ const handleSaveSessionAndNavigate = async () => {
     selectedHorse.currentBlockId (DB): ${selectedHorse?.currentBlockId}
     currentActiveBlock ID (Viewed): ${currentActiveBlock?.id}
     allBlocksInActivePlan count: ${allBlocksInActivePlan.length}
-    displayedDayIndex: ${displayedDayIndex}`, 
+    displayedDayIndex: ${displayedDayIndex}`,
     "color: #8A2BE2; background-color: #F8F8FF; padding: 2px;");
 
     if (selectedHorse) {
-        console.log(`%c[Dashboard Render Logic V2] Selected horse ${selectedHorse.name}. Active Plan ID: ${selectedHorse.activePlanId}. Dropdown to start new plan will show if activePlanId is falsy.`, "color: #8A2BE2;");
+        console.log(`%c[Dashboard Render Logic V6] Selected horse ${selectedHorse.name}. Active Plan ID: ${selectedHorse.activePlanId}. Dropdown to start new plan will show if activePlanId is falsy.`, "color: #8A2BE2;");
     }
-     console.log(`%c[Dashboard Render Logic - END V2] ---`, "color: #8A2BE2; background-color: #F8F8FF; padding: 2px; border-top: 1px dashed #8A2BE2;");
+     console.log(`%c[Dashboard Render Logic - END V6] ---`, "color: #8A2BE2; background-color: #F8F8FF; padding: 2px; border-top: 1px dashed #8A2BE2;");
   }, [currentUser, userProfile, isUserAdmin, authLoading, selectedHorse, currentActiveBlock, allBlocksInActivePlan, displayedDayIndex]);
 
   const activePlanTitle = useMemo(() => {
@@ -1178,7 +1193,12 @@ const handleSaveSessionAndNavigate = async () => {
               : horses.length === 0 ? <p className="text-center text-muted-foreground py-4">No tienes caballos registrados. ¡Añade tu primer caballo!</p>
               : <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   {horses.map(horse => (
-                    <Button key={horse.id} variant={selectedHorse?.id === horse.id ? "default" : "outline"} onClick={() => setSelectedHorse(horse)} className="h-auto py-3 flex flex-col items-start text-left w-full">
+                    <Button
+                      key={horse.id}
+                      variant={selectedHorse?.id === horse.id ? "default" : "outline"}
+                      onClick={() => setSelectedHorse(horse)}
+                      className="h-auto py-3 flex flex-col items-start text-left w-full shadow-sm hover:shadow-md transition-shadow"
+                    >
                       <span className="font-semibold text-base block whitespace-normal">{horse.name}</span>
                       <span className="text-xs opacity-80 block whitespace-normal">{horse.age} años, {horse.sex}, {horse.color}</span>
                     </Button>
@@ -1194,7 +1214,7 @@ const handleSaveSessionAndNavigate = async () => {
                  {activePlanTitle ? (
                     <CardDescription>Plan Activo: {activePlanTitle}</CardDescription>
                 ) : (
-                     <CardDescription>Selecciona un plan y registra tus sesiones.</CardDescription>
+                     <CardDescription>Este caballo no tiene un plan activo. Selecciona uno abajo para comenzar.</CardDescription>
                 )}
               </CardHeader>
               <CardContent>
@@ -1206,40 +1226,48 @@ const handleSaveSessionAndNavigate = async () => {
                   <TabsContent value="sesiones">
                      <Card className="border-none p-0">
                       <CardHeader className="px-1 pt-1 pb-3">
-                        <CardTitle className="text-xl">Nueva Sesión</CardTitle>
+                         {!selectedHorse.activePlanId && (
+                            <CardTitle className="text-xl">Seleccionar Plan</CardTitle>
+                         )}
+                         {selectedHorse.activePlanId && currentActiveBlock && (
+                            <CardTitle className="text-xl">Nueva Sesión</CardTitle>
+                         )}
                         <CardDescription>Para {selectedHorse.name} el {date ? date.toLocaleDateString("es-ES") : 'día no seleccionado'}</CardDescription>
                       </CardHeader>
                       <CardContent className="grid gap-4 px-1">
                         {!selectedHorse.activePlanId ? (
-                           <div className="space-y-4">
-                              <p className="text-sm text-muted-foreground">
-                                No hay un plan activo para {selectedHorse.name}. Selecciona un plan de la lista para comenzar.
+                           <div className="space-y-4 p-4 border rounded-lg bg-muted/20">
+                              <p className="text-md font-semibold text-center">
+                                No hay un plan activo para {selectedHorse.name}.
+                              </p>
+                              <p className="text-sm text-muted-foreground text-center">
+                                Selecciona un plan de la lista para comenzar un nuevo entrenamiento.
                               </p>
                               <DropdownMenu>
                                   <DropdownMenuTrigger asChild>
-                                  <Button variant="outline" className="w-full justify-start" disabled={isLoadingPlans || plansForDropdown.length === 0}>
+                                  <Button variant="outline" className="w-full justify-between" disabled={isLoadingPlans || plansForDropdown.length === 0}>
                                       {isLoadingPlans ? "Cargando planes..." : selectedPlanForSessionStart ? selectedPlanForSessionStart.title : "Seleccionar Plan para Comenzar"}
-                                      {!isLoadingPlans && <Icons.chevronDown className="ml-auto h-4 w-4" />}
+                                      <Icons.chevronDown className={`ml-auto h-4 w-4 transition-transform ${isLoadingPlans ? 'opacity-0' : 'opacity-100'}`} />
                                   </Button>
                                   </DropdownMenuTrigger>
-                                  <DropdownMenuContent className="w-[var(--radix-dropdown-menu-trigger-width)]">
+                                  <DropdownMenuContent className="w-[var(--radix-dropdown-menu-trigger-width)] max-h-60 overflow-y-auto">
                                   <DropdownMenuLabel>Planes Disponibles</DropdownMenuLabel><DropdownMenuSeparator />
-                                  {isLoadingPlans ? <DropdownMenuItem disabled>Cargando...</DropdownMenuItem>
+                                  {isLoadingPlans ? <DropdownMenuItem disabled><Icons.spinner className="mr-2 h-4 w-4 animate-spin" />Cargando...</DropdownMenuItem>
                                   : plansForDropdown.length > 0 ? plansForDropdown.map((plan) => (
                                       <DropdownMenuItem key={plan.id} onSelect={() => setSelectedPlanForSessionStart(plan)}>
                                           {plan.title} {plan.template && <span className="text-xs text-muted-foreground ml-2">(Plantilla)</span>}
                                       </DropdownMenuItem> ))
-                                  : <DropdownMenuItem disabled>{!isUserAdmin ? "No hay planes. Contacta a un admin." : "No hay planes. Crea uno."}</DropdownMenuItem>}
+                                  : <DropdownMenuItem disabled>{!isUserAdmin ? "No hay planes disponibles. Contacta a un administrador." : "No hay planes disponibles. Crea uno en 'Gestionar Plan'."}</DropdownMenuItem>}
                                   </DropdownMenuContent>
                               </DropdownMenu>
                               {selectedPlanForSessionStart && (
-                                  <Button onClick={handleStartPlan} disabled={isLoadingCurrentBlock}>
+                                  <Button onClick={handleStartPlan} disabled={isLoadingCurrentBlock || !selectedPlanForSessionStart} className="w-full">
                                       {isLoadingCurrentBlock && <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />}
-                                      Comenzar &quot;{selectedPlanForSessionStart.title}&quot; para {selectedHorse.name}
-                                  </Button> 
+                                      Comenzar &quot;{selectedPlanForSessionStart.title}&quot;
+                                  </Button>
                               )}
                               {!selectedPlanForSessionStart && plansForDropdown.length === 0 && !isLoadingPlans && (
-                                  <p className="text-sm text-muted-foreground text-center">{!isUserAdmin ? "No hay planes. Contacta a un admin." : "No hay planes. Crea uno en 'Gestionar Plan'."}</p> 
+                                  <p className="text-sm text-muted-foreground text-center">{!isUserAdmin ? "No hay planes. Contacta a un admin." : "No hay planes. Crea uno en 'Gestionar Plan'."}</p>
                               )}
                            </div>
                         ) : currentActiveBlock ? ( <>
@@ -1411,7 +1439,7 @@ const handleSaveSessionAndNavigate = async () => {
                 </Tabs>
               </CardContent>
             </Card>
-          ) : <Card><CardContent className="flex flex-col items-center justify-center h-64 text-center p-4"><Icons.logo className="w-16 h-16 mb-4 text-muted-foreground" data-ai-hint="horse pointing" /><p className="text-muted-foreground">Selecciona un caballo o registra uno nuevo.</p></CardContent></Card>}
+          ) : <Card><CardContent className="flex flex-col items-center justify-center h-64 text-center p-4"><Icons.logo className="w-16 h-16 mb-4 text-muted-foreground" data-ai-hint="horse pointing" /><p className="text-muted-foreground">Selecciona un caballo o registra uno nuevo para ver las opciones de entrenamiento.</p></CardContent></Card>}
         </div>
         <Card className="md:col-span-1 row-start-1 md:row-auto">
           <CardHeader><CardTitle>Calendario</CardTitle><CardDescription>Selecciona la fecha de tu sesión.</CardDescription></CardHeader>
@@ -1442,6 +1470,5 @@ const handleSaveSessionAndNavigate = async () => {
   );
 };
 export default Dashboard;
-
 
     
