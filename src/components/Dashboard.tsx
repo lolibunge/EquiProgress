@@ -20,7 +20,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useRouter } from 'next/navigation';
 
 import { createSession, addExerciseResult } from "@/services/session";
-import { getHorses as fetchHorsesService, getHorseById, addHorse, startPlanForHorse, updateDayCompletionStatus, advanceHorseToNextBlock, parseDurationToDays, updateHorse, deleteHorse as deleteHorseService } from "@/services/horse";
+import { getHorses as fetchHorsesService, getHorseById, addHorse, startPlanForHorse, updateDayCompletionStatus, advanceHorseToNextBlock, parseDurationToDays, updateHorse, deleteHorse as deleteHorseService, deactivatePlanForHorse } from "@/services/horse";
 import {
   getTrainingPlans,
   getTrainingBlocks,
@@ -270,13 +270,6 @@ const Dashboard = () => {
   const { currentUser, userProfile, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
-  const [isAddHorseDialogOpen, setIsAddHorseDialogOpen] = useState(false);
-  const [isEditHorseDialogOpen, setIsEditHorseDialogOpen] = useState(false);
-  const [editingHorse, setEditingHorse] = useState<Horse | null>(null);
-  const [isDeleteHorseDialogOpen, setIsDeleteHorseDialogOpen] = useState(false);
-  const [deletingHorse, setDeletingHorse] = useState<Horse | null>(null);
-  const [isProcessingHorseDelete, setIsProcessingHorseDelete] = useState(false);
-
 
   const [horses, setHorses] = useState<Horse[]>([]);
   const [isLoadingHorses, setIsLoadingHorses] = useState(true);
@@ -324,6 +317,10 @@ const Dashboard = () => {
   const [isLoadingMasterExercises, setIsLoadingMasterExercises] = useState(false);
   const [selectedMasterExercisesForBlock, setSelectedMasterExercisesForBlock] = useState<Set<string>>(new Set());
   const [exerciseSearchTerm, setExerciseSearchTerm] = useState("");
+
+  const [isDeactivatePlanDialogOpen, setIsDeactivatePlanDialogOpen] = useState(false);
+  const [isProcessingDeactivatePlan, setIsProcessingDeactivatePlan] = useState(false);
+
 
   const isUserAdmin = !!userProfile && userProfile.role === 'admin';
   const initialLoadingComplete = !isLoadingHorses && !isLoadingPlans && !authLoading;
@@ -430,9 +427,10 @@ const Dashboard = () => {
 
       let blockToDisplay: TrainingBlockType | null = null;
 
+      // Default to the first block of the plan for initial view
       if (sortedAllPlanBlocks.length > 0) {
         blockToDisplay = sortedAllPlanBlocks[0];
-        console.log(`%c[Dashboard fetchHorseActivePlanDetails V6] Defaulting VIEW to FIRST block of plan: ${blockToDisplay.id} (${blockToDisplay.title}). Horse's actual currentBlockId in DB is ${horse.currentBlockId}.`, "color: green; font-weight: bold;");
+         console.log(`%c[Dashboard fetchHorseActivePlanDetails V6] Defaulting VIEW to FIRST block of plan: ${blockToDisplay.id} (${blockToDisplay.title}). Horse's actual currentBlockId in DB is ${horse.currentBlockId}.`, "color: green; font-weight: bold;");
       } else {
         console.log(`%c[Dashboard fetchHorseActivePlanDetails V6] No blocks in active plan ${horse.activePlanId}. Cannot set a block to display.`, "color: orange;");
       }
@@ -538,7 +536,7 @@ const Dashboard = () => {
     FINAL Viewed Block ID (UI): ${currentActiveBlock?.id} (Value after this effect's potential updates)
     ---`,
     "color: #007bff; font-weight: bold; background-color: #e7f3ff; padding: 2px; border-top: 1px dashed #007bff;");
-  }, [selectedHorse, fetchHorseActivePlanDetails, toast]);
+  }, [selectedHorse, fetchHorseActivePlanDetails, toast, getTrainingBlocks]);
 
 
  const fetchDetailsForAdminPlan = useCallback(async (planId: string) => {
@@ -668,8 +666,8 @@ const Dashboard = () => {
           setDate(new Date());
           setSessionOverallNote("");
           setSessionDayResult({
-              plannedReps: "1 sesión",
-              rating: 5,
+              plannedReps: "1 sesión", // Default value
+              rating: 5, // Default rating on 0-10 scale
               observations: { nostrils: null, lips: null, ears: null, eyes: null, neck: null, back: null, croup: null, limbs: null, tail: null, additionalNotes: "" }
           });
       } else {
@@ -707,51 +705,6 @@ const Dashboard = () => {
     console.log(`%c[Dashboard Memo allDaysInBlockCompleted] for block ${currentActiveBlock.id}: Final result: ${result}`, `color: ${result ? 'green' : 'red'}; font-weight: bold;`);
     return result;
   }, [selectedHorse, currentActiveBlock, numberedDaysForCurrentBlock]);
-
-
-  const handleHorseAdded = async () => {
-    setIsAddHorseDialogOpen(false);
-    if (currentUser?.uid) await performFetchHorses(currentUser.uid);
-  };
-  const handleAddHorseCancel = () => setIsAddHorseDialogOpen(false);
-
-  const handleHorseUpdated = async () => {
-    setIsEditHorseDialogOpen(false);
-    setEditingHorse(null);
-    if (currentUser?.uid) await performFetchHorses(currentUser.uid);
-  };
-
-  const openEditHorseDialog = (horse: Horse) => {
-    setEditingHorse(horse);
-    setIsEditHorseDialogOpen(true);
-  };
-
-  const openDeleteHorseDialog = (horse: Horse) => {
-    setDeletingHorse(horse);
-    setIsDeleteHorseDialogOpen(true);
-  };
-
-  const handleDeleteHorseConfirmed = async () => {
-    if (!deletingHorse) return;
-    setIsProcessingHorseDelete(true);
-    try {
-      await deleteHorseService(deletingHorse.id);
-      toast({ title: "Caballo Eliminado", description: `El caballo "${deletingHorse.name}" ha sido eliminado.` });
-      setDeletingHorse(null);
-      setIsDeleteHorseDialogOpen(false);
-      if (currentUser?.uid) {
-        const refreshedHorses = await fetchHorsesService(currentUser.uid);
-        setHorses(refreshedHorses);
-        if (selectedHorse?.id === deletingHorse.id) {
-          setSelectedHorse(refreshedHorses.length > 0 ? refreshedHorses[0] : null);
-        }
-      }
-    } catch (error) {
-      toast({ variant: "destructive", title: "Error al Eliminar Caballo", description: "No se pudo eliminar el caballo." });
-    } finally {
-      setIsProcessingHorseDelete(false);
-    }
-  };
 
 
   const handleAdminPlanSelected = (plan: TrainingPlan) => setSelectedPlanForAdmin(plan);
@@ -1051,6 +1004,25 @@ const handleSaveSessionAndNavigate = async () => {
     }
   };
 
+  const handleDeactivatePlanConfirmed = async () => {
+    if (!selectedHorse) return;
+    setIsProcessingDeactivatePlan(true);
+    try {
+      await deactivatePlanForHorse(selectedHorse.id);
+      toast({ title: "Plan Desactivado", description: `El plan activo para ${selectedHorse.name} ha sido desactivado.` });
+      const updatedHorse = await getHorseById(selectedHorse.id);
+      if (updatedHorse) {
+        setSelectedHorse(updatedHorse);
+      }
+      setIsDeactivatePlanDialogOpen(false);
+    } catch (error) {
+      toast({ variant: "destructive", title: "Error", description: "No se pudo desactivar el plan." });
+    } finally {
+      setIsProcessingDeactivatePlan(false);
+    }
+  };
+
+
   const etapaProgressBarValue = useMemo(() => {
     if (!selectedHorse || !selectedHorse.planProgress || !currentActiveBlock || !numberedDaysForCurrentBlock.length) return 0;
     const blockProgress = selectedHorse.planProgress[currentActiveBlock.id];
@@ -1220,44 +1192,10 @@ const handleSaveSessionAndNavigate = async () => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
         <div className="md:col-span-2 space-y-6">
            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className={`grid w-full ${isUserAdmin ? 'grid-cols-3' : 'grid-cols-1'} mb-4`}>
+             <TabsList className={`grid w-full ${isUserAdmin ? 'grid-cols-2' : 'grid-cols-1'} mb-4`}>
               <TabsTrigger value="sesiones">Registrar Sesión</TabsTrigger>
-              <TabsTrigger value="caballos">Gestionar Caballos</TabsTrigger>
               {isUserAdmin && <TabsTrigger value="plan">Gestionar Plan (Admin)</TabsTrigger>}
             </TabsList>
-
-            <TabsContent value="caballos">
-              <Card>
-                <CardHeader>
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                    <div><CardTitle>Mis Caballos</CardTitle><CardDescription>Gestiona tus caballos: edita sus detalles o elimínalos.</CardDescription></div>
-                    <Button onClick={() => setIsAddHorseDialogOpen(true)} className="w-full mt-2 sm:mt-0 sm:w-auto"><Icons.plus className="mr-2 h-4 w-4" /> Añadir Nuevo Caballo</Button>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  {isLoadingHorses ? <div className="flex justify-center py-4"><Icons.spinner className="h-6 w-6 animate-spin" /></div>
-                  : horses.length === 0 ? <p className="text-center text-muted-foreground py-4">No tienes caballos registrados. ¡Añade tu primer caballo!</p>
-                  : <div className="space-y-4">
-                      {horses.map(horse => (
-                        <Card key={horse.id} className="p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                          <div>
-                            <p className="font-semibold text-lg">{horse.name}</p>
-                            <p className="text-sm text-muted-foreground">{horse.age} años, {horse.sex}, {horse.color}</p>
-                          </div>
-                          <div className="flex gap-2 mt-2 sm:mt-0 flex-shrink-0">
-                            <Button variant="outline" size="sm" onClick={() => openEditHorseDialog(horse)}>
-                              <Icons.edit className="mr-1 h-3.5 w-3.5" /> Editar
-                            </Button>
-                            <Button variant="destructive" size="sm" onClick={() => openDeleteHorseDialog(horse)}>
-                              <Icons.trash className="mr-1 h-3.5 w-3.5" /> Eliminar
-                            </Button>
-                          </div>
-                        </Card>
-                      ))}
-                    </div>}
-                </CardContent>
-              </Card>
-            </TabsContent>
 
             <TabsContent value="sesiones">
               <Card>
@@ -1268,7 +1206,7 @@ const handleSaveSessionAndNavigate = async () => {
                 </CardHeader>
                 <CardContent>
                   {isLoadingHorses && horses.length === 0 ? <div className="flex justify-center py-4"><Icons.spinner className="h-6 w-6 animate-spin" /></div>
-                  : !isLoadingHorses && horses.length === 0 ? <p className="text-center text-muted-foreground py-4">No tienes caballos. Añádelos en la pestaña &quot;Gestionar Caballos&quot;.</p>
+                  : !isLoadingHorses && horses.length === 0 ? <p className="text-center text-muted-foreground py-4">No tienes caballos. <Link href="/horses" className="text-primary hover:underline">Añádelos aquí.</Link></p>
                   : <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                       {horses.map(horse => (
                         <Button
@@ -1290,7 +1228,36 @@ const handleSaveSessionAndNavigate = async () => {
                   <CardHeader>
                     <CardTitle>Entrenamiento para {selectedHorse.name}</CardTitle>
                     {activePlanTitle ? (
-                        <CardDescription>Plan Activo: {activePlanTitle}</CardDescription>
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                            <CardDescription className="flex-grow">Plan Activo: {activePlanTitle}</CardDescription>
+                            <AlertDialog open={isDeactivatePlanDialogOpen} onOpenChange={setIsDeactivatePlanDialogOpen}>
+                                <AlertDialogTrigger asChild>
+                                    <Button variant="outline" size="sm" className="w-full sm:w-auto" disabled={isProcessingDeactivatePlan}>
+                                        <Icons.close className="mr-2 h-4 w-4" /> Cambiar/Detener Plan
+                                    </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>¿Detener Plan Activo?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                            Esto desactivará el plan &quot;{activePlanTitle}&quot; para {selectedHorse.name}.
+                                            Podrás seleccionar uno nuevo. El progreso no se borrará permanentemente pero no será visible hasta reactivar este plan.
+                                        </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel disabled={isProcessingDeactivatePlan}>Cancelar</AlertDialogCancel>
+                                        <AlertDialogAction
+                                            onClick={handleDeactivatePlanConfirmed}
+                                            disabled={isProcessingDeactivatePlan}
+                                            className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                                        >
+                                        {isProcessingDeactivatePlan && <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />}
+                                        Sí, detener plan
+                                        </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                        </div>
                     ) : (
                         <CardDescription>Este caballo no tiene un plan activo. Selecciona uno abajo para comenzar.</CardDescription>
                     )}
@@ -1506,25 +1473,6 @@ const handleSaveSessionAndNavigate = async () => {
           <CardContent className="grid gap-6"><Calendar mode="single" selected={date} onSelect={setDate} className="rounded-md border shadow"/>{date ? <p className="text-center text-sm font-medium">Fecha: {date.toLocaleDateString("es-ES", {year: "numeric",month: "long",day: "numeric",})}</p> : <p className="text-center text-sm text-muted-foreground">Selecciona una fecha.</p>}</CardContent>
         </Card>
       </div>
-      <Dialog open={isAddHorseDialogOpen} onOpenChange={setIsAddHorseDialogOpen}><DialogContent className="sm:max-w-[480px]"><DialogHeader><DialogTitle>Añadir Nuevo Caballo</DialogTitle><DialogDescription>Completa los detalles para registrar un nuevo caballo.</DialogDescription></DialogHeader><AddHorseForm onSuccess={handleHorseAdded} onCancel={handleAddHorseCancel} /></DialogContent></Dialog>
-      {editingHorse && <Dialog open={isEditHorseDialogOpen} onOpenChange={setIsEditHorseDialogOpen}><DialogContent className="sm:max-w-[480px]"><DialogHeader><DialogTitle>Editar Caballo: {editingHorse.name}</DialogTitle><DialogDescription>Modifica los detalles de tu caballo.</DialogDescription></DialogHeader><EditHorseForm horse={editingHorse} onSuccess={handleHorseUpdated} onCancel={() => {setIsEditHorseDialogOpen(false); setEditingHorse(null);}} /></DialogContent></Dialog>}
-      <AlertDialog open={isDeleteHorseDialogOpen} onOpenChange={setIsDeleteHorseDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>¿Estás realmente seguro?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Esta acción no se puede deshacer. Esto eliminará permanentemente al caballo &quot;{deletingHorse?.name}&quot; y todas sus sesiones asociadas.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isProcessingHorseDelete} onClick={() => {setIsDeleteHorseDialogOpen(false); setDeletingHorse(null);}}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteHorseConfirmed} disabled={isProcessingHorseDelete} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
-              {isProcessingHorseDelete ? <Icons.spinner className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Sí, eliminar caballo
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
     {isUserAdmin && ( <>
         <Dialog open={isCreatePlanDialogOpen} onOpenChange={setIsCreatePlanDialogOpen}><DialogContent className="sm:max-w-[480px]"><DialogHeader><DialogTitle>Crear Nuevo Plan de Entrenamiento</DialogTitle><DialogDescription>Define un nuevo plan.</DialogDescription></DialogHeader><AddPlanForm onSuccess={handlePlanAdded} onCancel={() => setIsCreatePlanDialogOpen(false)} /></DialogContent></Dialog>
@@ -1549,3 +1497,4 @@ const handleSaveSessionAndNavigate = async () => {
   );
 };
 export default Dashboard;
+

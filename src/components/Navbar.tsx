@@ -25,7 +25,7 @@ import {
   SheetClose,
 } from "@/components/ui/sheet"
 import { Icons } from './icons';
-import { Menu, LogOut, UserCircle, Library, History, LogIn, UserPlus, Home, BookOpen } from 'lucide-react';
+import { Menu, LogOut, UserCircle, Library, History, LogIn, UserPlus, Home, BookOpen, Horse } from 'lucide-react'; // Added Horse
 
 export default function Navbar() {
   const { currentUser, userProfile, loading } = useAuth();
@@ -60,6 +60,12 @@ export default function Navbar() {
         </Button>
         {currentUser && (
           <>
+            <Button variant={isMobile ? "outline" : "ghost"} asChild className={isMobile ? "w-full justify-start" : ""}>
+              <Link href="/horses">
+                <Icons.horse className="mr-2 h-4 w-4" /> {/* Updated Icon */}
+                Caballos
+              </Link>
+            </Button>
             <Button variant={isMobile ? "outline" : "ghost"} asChild className={isMobile ? "w-full justify-start" : ""}>
               <Link href="/plans">
                 <BookOpen className="mr-2 h-4 w-4" />
@@ -98,6 +104,14 @@ export default function Navbar() {
           </SheetClose>
           {currentUser && (
             <>
+              <SheetClose asChild>
+                <Button variant="outline" asChild className="w-full justify-start">
+                  <Link href="/horses">
+                    <Icons.horse className="mr-2 h-4 w-4" /> {/* Updated Icon */}
+                    Caballos
+                  </Link>
+                </Button>
+              </SheetClose>
               <SheetClose asChild>
                 <Button variant="outline" asChild className="w-full justify-start">
                   <Link href="/plans">
@@ -311,3 +325,4 @@ export default function Navbar() {
     </nav>
   );
 }
+

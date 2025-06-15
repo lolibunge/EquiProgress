@@ -164,6 +164,27 @@ export async function startPlanForHorse(horseId: string, planId: string, firstBl
   }
 }
 
+export async function deactivatePlanForHorse(horseId: string): Promise<void> {
+  console.log(`[HorseService] deactivatePlanForHorse called for horseId: ${horseId}`);
+  const horseDocRef = doc(db, 'horses', horseId);
+  const updateData: Partial<Horse> = {
+    activePlanId: null,
+    activePlanStartDate: null,
+    currentBlockId: null,
+    currentBlockStartDate: null,
+    planProgress: {},
+    updatedAt: serverTimestamp() as Timestamp,
+  };
+  try {
+    await updateDoc(horseDocRef, updateData);
+    console.log(`[HorseService] deactivatePlanForHorse: Plan deactivated for horse ${horseId}.`);
+  } catch (e) {
+    console.error(`[HorseService] deactivatePlanForHorse: Error deactivating plan for horse ${horseId}:`, e);
+    throw e;
+  }
+}
+
+
 export async function updateDayCompletionStatus(horseId: string, currentBlockId: string, dayNumber: number, completed: boolean): Promise<void> {
   console.log(`[HorseService] updateDayCompletionStatus called for horseId: ${horseId}, blockId: ${currentBlockId}, dayNumber: ${dayNumber}, completed: ${completed}`);
   const horseDocRef = doc(db, 'horses', horseId);
@@ -326,3 +347,4 @@ export async function advanceHorseToNextBlock(horseId: string): Promise<{ advanc
     throw error;
   }
 }
+
