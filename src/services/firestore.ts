@@ -25,10 +25,18 @@ export async function getTrainingPlans(userContext?: UserContext | null): Promis
       return trainingPlans;
     }
     
+    // Filter for non-admin users
     const filteredPlans = trainingPlans.filter(plan => {
-      const isPublicPlan = plan.allowedUserIds === null || plan.allowedUserIds === undefined;
-      const isExplicitlyAllowed = Array.isArray(plan.allowedUserIds) && userContext?.uid && plan.allowedUserIds.includes(userContext.uid);
-      return isPublicPlan || isExplicitlyAllowed;
+      if (plan.allowedUserIds === null || plan.allowedUserIds === undefined) {
+        return true; // Public plan
+      }
+      if (Array.isArray(plan.allowedUserIds)) {
+        if (plan.allowedUserIds.length === 0) {
+          return false; // Explicitly restricted to no one (except admin)
+        }
+        return userContext?.uid ? plan.allowedUserIds.includes(userContext.uid) : false; // Allow if user is in the list
+      }
+      return false; // Default to deny if malformed
     });
     
     console.log(`[FirestoreService] getTrainingPlans: User is not admin. Filtered ${trainingPlans.length} plans down to ${filteredPlans.length} visible plans.`);
@@ -157,14 +165,22 @@ export async function getTrainingBlocks(planId: string, userContext?: UserContex
     console.log(`[FirestoreService] getTrainingBlocks for planId "${trimmedPlanId}" fetched ${trainingBlocks.length} raw blocks.`);
 
     if (userContext?.role === 'admin') {
+      console.log(`[FirestoreService] getTrainingBlocks: User is admin. Returning all ${trainingBlocks.length} blocks for plan ${trimmedPlanId}.`);
       return trainingBlocks;
     }
 
-    // Filter for non-admin users based on block's allowedUserIds
+    // Filter for non-admin users
     const filteredBlocks = trainingBlocks.filter(block => {
-        const isBlockPublic = block.allowedUserIds === null || block.allowedUserIds === undefined;
-        const isExplicitlyAllowed = Array.isArray(block.allowedUserIds) && userContext?.uid && block.allowedUserIds.includes(userContext.uid);
-        return isBlockPublic || isExplicitlyAllowed;
+        if (block.allowedUserIds === null || block.allowedUserIds === undefined) {
+          return true; // Inherits from plan (assumed plan is visible if we got here)
+        }
+        if (Array.isArray(block.allowedUserIds)) {
+          if (block.allowedUserIds.length === 0) {
+            return false; // Explicitly restricted to no one (except admin)
+          }
+          return userContext?.uid ? block.allowedUserIds.includes(userContext.uid) : false; // Allow if user is in the list
+        }
+        return false; // Default to deny if malformed
     });
 
     console.log(`[FirestoreService] getTrainingBlocks for planId "${trimmedPlanId}" filtered to ${filteredBlocks.length} blocks for user ${userContext?.uid}.`);
@@ -456,14 +472,22 @@ export async function getExercisesForBlock(blockId: string, userContext?: UserCo
     }
 
     if (userContext?.role === 'admin') {
-        // Admins see all exercises within an allowed block
+        console.log(`[FirestoreService] getExercisesForBlock: User is admin. Returning all ${exercises.length} exercises for block ${blockId}.`);
     } else {
-        // Filter exercises for non-admins based on exercise reference's allowedUserIds
+        const originalCount = exercises.length;
         exercises = exercises.filter(exDisplay => {
-            const isExercisePublic = exDisplay.allowedUserIds === null || exDisplay.allowedUserIds === undefined;
-            const isExplicitlyAllowed = Array.isArray(exDisplay.allowedUserIds) && userContext?.uid && exDisplay.allowedUserIds.includes(userContext.uid);
-            return isExercisePublic || isExplicitlyAllowed;
+            if (exDisplay.allowedUserIds === null || exDisplay.allowedUserIds === undefined) {
+              return true; // Inherits from block (assumed block is visible)
+            }
+            if (Array.isArray(exDisplay.allowedUserIds)) {
+              if (exDisplay.allowedUserIds.length === 0) {
+                return false; // Explicitly restricted to no one (except admin)
+              }
+              return userContext?.uid ? exDisplay.allowedUserIds.includes(userContext.uid) : false; // Allow if user is in the list
+            }
+            return false; // Default to deny if malformed
         });
+        console.log(`[FirestoreService] getExercisesForBlock: User is not admin. Filtered ${originalCount} exercises down to ${exercises.length} for block ${blockId}.`);
     }
 
     const sortedExercises = exercises.sort((a, b) => (a.orderInBlock ?? Infinity) - (b.orderInBlock ?? Infinity));
