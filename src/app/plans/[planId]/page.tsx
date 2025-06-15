@@ -21,7 +21,7 @@ interface WeekWithDays extends TrainingBlock {
 function PlanDetailPageContent() {
   const params = useParams();
   const router = useRouter();
-  const { currentUser, userProfile, loading: authLoading } = useAuth(); // Added userProfile
+  const { currentUser, userProfile, loading: authLoading } = useAuth();
   const { toast } = useToast();
 
   const planId = params.planId as string;
@@ -30,11 +30,20 @@ function PlanDetailPageContent() {
   const [weeksWithDays, setWeeksWithDays] = useState<WeekWithDays[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [accessDenied, setAccessDenied] = useState(false);
 
   const fetchPlanDetails = useCallback(async () => {
-    if (!planId || !currentUser) return; // Ensure currentUser is available
+    if (!planId || !currentUser) {
+        setIsLoading(false);
+        if (!currentUser) setError("Debes iniciar sesión para ver los detalles del plan.");
+        else if (!planId) setError("ID del plan no encontrado.");
+        return;
+    }
+
     setIsLoading(true);
     setError(null);
+    setAccessDenied(false);
+
     try {
       const fetchedPlan = await getPlanById(planId);
       if (!fetchedPlan) {
@@ -42,9 +51,31 @@ function PlanDetailPageContent() {
         setIsLoading(false);
         return;
       }
-      setPlan(fetchedPlan);
 
       const userCtx = { uid: currentUser.uid, role: userProfile?.role };
+
+      // Check plan-level access for non-admin users
+      if (userCtx.role !== 'admin') {
+        const planAllowedUserIds = fetchedPlan.allowedUserIds;
+        if (Array.isArray(planAllowedUserIds)) {
+          if (planAllowedUserIds.length === 0) { // Explicitly restricted to no one (except admin)
+            setAccessDenied(true);
+            setPlan(fetchedPlan); // Set plan so title can be shown in error message if needed
+            setIsLoading(false);
+            return;
+          }
+          if (!planAllowedUserIds.includes(userCtx.uid)) { // Not in the explicit list
+            setAccessDenied(true);
+            setPlan(fetchedPlan);
+            setIsLoading(false);
+            return;
+          }
+        }
+        // If planAllowedUserIds is null/undefined, it's public, so access is granted (unless blocks/exercises restrict further)
+      }
+      
+      setPlan(fetchedPlan);
+
       const fetchedBlocks = await getTrainingBlocks(planId, userCtx);
       const sortedBlocks = fetchedBlocks.sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity));
       
@@ -63,12 +94,12 @@ function PlanDetailPageContent() {
     } finally {
       setIsLoading(false);
     }
-  }, [planId, toast, currentUser, userProfile]); // Added currentUser and userProfile
+  }, [planId, toast, currentUser, userProfile]);
 
   useEffect(() => {
-    if (currentUser) { // Fetch only if user is available
+    if (currentUser) {
       fetchPlanDetails();
-    } else if (!authLoading && !currentUser) { // If auth is done and no user, stop loading
+    } else if (!authLoading && !currentUser) {
         setIsLoading(false);
         setError("Debes iniciar sesión para ver los detalles del plan.");
     }
@@ -83,7 +114,7 @@ function PlanDetailPageContent() {
     );
   }
 
-  if (!currentUser && !authLoading) { // Ensure authLoading is also false
+  if (!currentUser && !authLoading) {
      return (
       <div className="container mx-auto flex flex-col items-center justify-center py-10 text-center">
         <Card className="w-full max-w-md">
@@ -106,6 +137,23 @@ function PlanDetailPageContent() {
     );
   }
 
+  if (accessDenied) {
+    return (
+      <div className="container mx-auto py-6 sm:py-10 text-center">
+        <Card className="w-full max-w-lg p-6">
+            <Icons.alert className="mx-auto h-12 w-12 text-destructive mb-4" />
+            <CardTitle className="text-xl text-destructive">Acceso Denegado</CardTitle>
+            <CardDescription className="mt-2">No tienes permiso para ver los detalles de este plan.</CardDescription>
+            <CardContent className="mt-4">
+                <Button variant="outline" onClick={() => router.push('/plans')}>
+                    <Icons.arrowRight className="mr-2 h-4 w-4 rotate-180" /> Volver a Planes
+                </Button>
+            </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   if (error) {
     return (
       <div className="container mx-auto py-6 sm:py-10 text-center">
@@ -121,8 +169,8 @@ function PlanDetailPageContent() {
       </div>
     );
   }
-
-  if (!plan && !isLoading) { // Also check isLoading to avoid premature "not found"
+  
+  if (!plan && !isLoading) {
     return (
       <div className="container mx-auto py-6 sm:py-10 text-center">
         <p>Plan no encontrado o no tienes acceso.</p>
@@ -133,7 +181,7 @@ function PlanDetailPageContent() {
     );
   }
   
-  if (!plan) return null; // Should be covered by loading state or error state
+  if (!plan) return null;
 
   return (
     <div className="container mx-auto py-6 sm:py-10">
@@ -148,6 +196,13 @@ function PlanDetailPageContent() {
                 </CardDescription>
             </div>
             <div className="flex gap-2 w-full sm:w-auto">
+                 {userProfile?.role === 'admin' && (
+                    <Button variant="outline" asChild>
+                        <Link href={`/admin/plans/edit/${plan.id}`}> {/* Placeholder, admin edit page doesn't exist yet */}
+                           <Icons.edit className="mr-2 h-4 w-4" /> Editar Plan (Admin)
+                        </Link>
+                    </Button>
+                 )}
                 <Button variant="outline" onClick={() => router.back()} className="flex-grow sm:flex-grow-0">
                     <Icons.arrowRight className="mr-2 h-4 w-4 rotate-180" /> Volver
                 </Button>
@@ -184,7 +239,7 @@ function PlanDetailPageContent() {
                         ))}
                       </div>
                     ) : (
-                      <p className="text-sm text-muted-foreground">Esta etapa no tiene ejercicios sugeridos.</p>
+                      <p className="text-sm text-muted-foreground">Esta etapa no tiene ejercicios sugeridos para ti o no existen ejercicios.</p>
                     )}
                   </AccordionContent>
                 </AccordionItem>
@@ -206,3 +261,4 @@ export default function PlanDetailPage() {
         </Suspense>
     )
 }
+
