@@ -13,6 +13,7 @@ import {
   HelpCircle,
   Home,
   Loader2,
+  Lock, // Added Lock
   Mail,
   MessageSquare,
   Moon,
@@ -82,6 +83,7 @@ const Icons = {
   home: Home,
   light: Sun,
   loader: Loader2,
+  lock: Lock, // Added Lock
   mail: Mail,
   messageSquare: MessageSquare,
   plus: Plus,
@@ -101,7 +103,8 @@ const Icons = {
   bookMarked: BookMarked,
   calendar: CalendarDays,
   bookOpen: BookOpen,
-  horse: LogoIcon, // Corrected to use the existing LogoIcon
+  horse: LogoIcon, 
 };
 
 export {Icons};
+

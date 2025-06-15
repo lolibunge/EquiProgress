@@ -30,7 +30,7 @@ function PlanDetailPageContent() {
   const [weeksWithDays, setWeeksWithDays] = useState<WeekWithDays[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [accessDenied, setAccessDenied] = useState(false);
+  const [accessDeniedToPlan, setAccessDeniedToPlan] = useState(false);
 
   const fetchPlanDetails = useCallback(async () => {
     if (!planId || !currentUser) {
@@ -42,7 +42,7 @@ function PlanDetailPageContent() {
 
     setIsLoading(true);
     setError(null);
-    setAccessDenied(false);
+    setAccessDeniedToPlan(false);
 
     try {
       const fetchedPlan = await getPlanById(planId);
@@ -58,14 +58,14 @@ function PlanDetailPageContent() {
       if (userCtx.role !== 'admin') {
         const planAllowedUserIds = fetchedPlan.allowedUserIds;
         if (Array.isArray(planAllowedUserIds)) {
-          if (planAllowedUserIds.length === 0) { // Explicitly restricted to no one (except admin)
-            setAccessDenied(true);
-            setPlan(fetchedPlan); // Set plan so title can be shown in error message if needed
+          if (planAllowedUserIds.length === 0) { 
+            setAccessDeniedToPlan(true);
+            setPlan(fetchedPlan); 
             setIsLoading(false);
             return;
           }
-          if (!planAllowedUserIds.includes(userCtx.uid)) { // Not in the explicit list
-            setAccessDenied(true);
+          if (!planAllowedUserIds.includes(userCtx.uid)) { 
+            setAccessDeniedToPlan(true);
             setPlan(fetchedPlan);
             setIsLoading(false);
             return;
@@ -76,16 +76,19 @@ function PlanDetailPageContent() {
       
       setPlan(fetchedPlan);
 
+      // Get all blocks for this plan, annotated with accessStatus by getTrainingBlocks
       const fetchedBlocks = await getTrainingBlocks(planId, userCtx);
       const sortedBlocks = fetchedBlocks.sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity));
       
-      const blocksWithExercises: WeekWithDays[] = await Promise.all(
-        sortedBlocks.map(async (block) => {
-          const days = await getExercisesForBlock(block.id, userCtx);
-          return { ...block, days: days.sort((a,b) => (a.orderInBlock ?? Infinity) - (b.orderInBlock ?? Infinity)) };
-        })
-      );
-      setWeeksWithDays(blocksWithExercises);
+      const blocksWithExercisesPromises = sortedBlocks.map(async (block) => {
+        // For each block, get its exercises, annotated with accessStatus by getExercisesForBlock
+        // Pass the block's own accessStatus to help determine exercise access
+        const days = await getExercisesForBlock(block.id, userCtx, block.accessStatus);
+        return { ...block, days: days.sort((a,b) => (a.orderInBlock ?? Infinity) - (b.orderInBlock ?? Infinity)) };
+      });
+      
+      const resolvedBlocksWithExercises = await Promise.all(blocksWithExercisesPromises);
+      setWeeksWithDays(resolvedBlocksWithExercises);
 
     } catch (err) {
       console.error("Error fetching plan details:", err);
@@ -137,13 +140,13 @@ function PlanDetailPageContent() {
     );
   }
 
-  if (accessDenied) {
+  if (accessDeniedToPlan) {
     return (
       <div className="container mx-auto py-6 sm:py-10 text-center">
         <Card className="w-full max-w-lg p-6">
-            <Icons.alert className="mx-auto h-12 w-12 text-destructive mb-4" />
-            <CardTitle className="text-xl text-destructive">Acceso Denegado</CardTitle>
-            <CardDescription className="mt-2">No tienes permiso para ver los detalles de este plan.</CardDescription>
+            <Icons.lock className="mx-auto h-12 w-12 text-destructive mb-4" />
+            <CardTitle className="text-xl text-destructive">Acceso Denegado al Plan</CardTitle>
+            <CardDescription className="mt-2">No tienes permiso para ver este plan.</CardDescription>
             <CardContent className="mt-4">
                 <Button variant="outline" onClick={() => router.push('/plans')}>
                     <Icons.arrowRight className="mr-2 h-4 w-4 rotate-180" /> Volver a Planes
@@ -212,38 +215,51 @@ function PlanDetailPageContent() {
         <CardContent className="space-y-6">
           {weeksWithDays.length > 0 ? (
             <Accordion type="multiple" className="w-full space-y-3">
-              {weeksWithDays.map((week) => (
-                <AccordionItem key={week.id} value={week.id} className="rounded-lg border bg-card shadow-sm">
-                  <AccordionTrigger className="p-4 hover:no-underline">
+              {weeksWithDays.map((week) => {
+                const isBlockDenied = week.accessStatus === 'denied' || week.accessStatus === 'parent_denied';
+                return (
+                <AccordionItem key={week.id} value={week.id} className={`rounded-lg border bg-card shadow-sm ${isBlockDenied ? 'opacity-60 bg-muted/30' : ''}`}>
+                  <AccordionTrigger 
+                    className={`p-4 hover:no-underline ${isBlockDenied ? 'cursor-not-allowed' : ''}`}
+                    // disabled={isBlockDenied} // Making it expandable to see locked exercises
+                  >
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between w-full">
-                        <span className="text-lg font-semibold">{week.title}</span>
-                        <span className="text-sm text-muted-foreground mt-1 sm:mt-0">
+                        <div className="flex items-center">
+                           {isBlockDenied && <Icons.lock className="h-4 w-4 mr-2 text-muted-foreground flex-shrink-0" />}
+                           <span className={`text-lg font-semibold ${isBlockDenied ? 'text-muted-foreground' : ''}`}>{week.title}</span>
+                        </div>
+                        <span className={`text-sm text-muted-foreground mt-1 sm:mt-0 ${isBlockDenied ? 'text-muted-foreground/70' : ''}`}>
                             {week.duration && `Duración: ${week.duration} | `}
                             {week.days.length} {week.days.length === 1 ? "ejercicio sugerido" : "ejercicios sugeridos"}
                         </span>
                     </div>
                   </AccordionTrigger>
                   <AccordionContent className="px-4 pb-4">
-                    {week.goal && <p className="text-sm text-primary mb-3"><strong>Meta de la Etapa:</strong> {week.goal}</p>}
-                    {week.notes && <p className="text-sm text-muted-foreground mb-3 whitespace-pre-wrap"><strong>Notas de la Etapa:</strong> {week.notes}</p>}
+                    {week.goal && <p className={`text-sm mb-3 ${isBlockDenied ? 'text-muted-foreground/80' : 'text-primary'}`}><strong>Meta de la Etapa:</strong> {week.goal}</p>}
+                    {week.notes && <p className={`text-sm mb-3 whitespace-pre-wrap ${isBlockDenied ? 'text-muted-foreground/80' : 'text-muted-foreground'}`}><strong>Notas de la Etapa:</strong> {week.notes}</p>}
                     
                     {week.days.length > 0 ? (
                       <div className="space-y-3">
-                        {week.days.map((day) => (
-                          <Card key={day.id} className="bg-muted/30 p-3">
-                            <p className="font-semibold text-md">{day.title}</p>
-                            {day.description && <p className="text-xs text-muted-foreground mt-0.5 whitespace-pre-wrap">{day.description}</p>}
-                            {day.objective && <p className="text-xs text-muted-foreground mt-0.5 whitespace-pre-wrap"><strong>Objetivo:</strong> {day.objective}</p>}
-                            {day.suggestedReps && <p className="text-xs text-muted-foreground mt-0.5"><strong>Sugerido:</strong> {day.suggestedReps}</p>}
+                        {week.days.map((day) => {
+                          const isExerciseDenied = day.accessStatus === 'denied' || day.accessStatus === 'parent_denied';
+                          return (
+                          <Card key={day.id} className={`p-3 ${isExerciseDenied ? 'bg-muted/20 opacity-60' : 'bg-muted/50'}`}>
+                            <div className="flex items-center">
+                               {isExerciseDenied && <Icons.lock className="h-3.5 w-3.5 mr-2 text-muted-foreground flex-shrink-0" />}
+                               <p className={`font-semibold text-md ${isExerciseDenied ? 'text-muted-foreground' : ''}`}>{day.title}</p>
+                            </div>
+                            {day.description && <p className={`text-xs mt-0.5 whitespace-pre-wrap ${isExerciseDenied ? 'text-muted-foreground/80' : 'text-muted-foreground'}`}>{day.description}</p>}
+                            {day.objective && <p className={`text-xs mt-0.5 whitespace-pre-wrap ${isExerciseDenied ? 'text-muted-foreground/80' : 'text-muted-foreground'}`}><strong>Objetivo:</strong> {day.objective}</p>}
+                            {day.suggestedReps && <p className={`text-xs mt-0.5 ${isExerciseDenied ? 'text-muted-foreground/80' : 'text-muted-foreground'}`}><strong>Sugerido:</strong> {day.suggestedReps}</p>}
                           </Card>
-                        ))}
+                        )})}
                       </div>
                     ) : (
-                      <p className="text-sm text-muted-foreground">Esta etapa no tiene ejercicios sugeridos para ti o no existen ejercicios.</p>
+                      <p className="text-sm text-muted-foreground">Esta etapa no tiene ejercicios sugeridos.</p>
                     )}
                   </AccordionContent>
                 </AccordionItem>
-              ))}
+              )})}
             </Accordion>
           ) : (
             <p className="text-muted-foreground text-center py-4">Este plan no tiene etapas definidas o no tienes acceso a ninguna.</p>

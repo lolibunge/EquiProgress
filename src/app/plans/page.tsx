@@ -14,7 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 
 interface PlanWithWeekCount extends TrainingPlan {
-  weekCount: number;
+  weekCount: number; // This will now represent the TOTAL number of blocks in the plan
 }
 
 export default function PlansPage() {
@@ -33,11 +33,17 @@ export default function PlansPage() {
     setIsLoadingPlans(true);
     try {
       const userCtx = { uid: currentUser.uid, role: userProfile?.role };
-      const fetchedPlans = await getTrainingPlans(userCtx);
+      // getTrainingPlans already filters plans based on userContext
+      const fetchedPlans = await getTrainingPlans(userCtx); 
+      
       const plansWithCounts: PlanWithWeekCount[] = await Promise.all(
         fetchedPlans.map(async (plan) => {
-          const blocks = await getTrainingBlocks(plan.id);
-          return { ...plan, weekCount: blocks.length };
+          // To get the *total* number of blocks for display, call getTrainingBlocks with 'get_all_for_plan' mode
+          // or pass a null/admin-like context if that's how getTrainingBlocks is designed for fetching all.
+          // Assuming getTrainingBlocks(plan.id, null) or getTrainingBlocks(plan.id, undefined, 'get_all_for_plan')
+          // fetches all blocks for the plan irrespective of current user's specific block access.
+          const allBlocksInPlan = await getTrainingBlocks(plan.id, undefined, 'get_all_for_plan');
+          return { ...plan, weekCount: allBlocksInPlan.length };
         })
       );
       setPlansWithWeeks(plansWithCounts);
@@ -135,7 +141,7 @@ export default function PlansPage() {
                 <CardTitle className="text-xl">{plan.title}</CardTitle>
                 <CardDescription>
                   {plan.template && <Badge variant="outline" className="mr-2">Plantilla</Badge>}
-                  Duración: {plan.weekCount} {plan.weekCount === 1 ? "semana" : "semanas"}
+                  Duración Total: {plan.weekCount} {plan.weekCount === 1 ? "etapa" : "etapas"}
                 </CardDescription>
               </CardHeader>
               <CardContent className="flex-grow">
@@ -155,3 +161,4 @@ export default function PlansPage() {
     </div>
   );
 }
+

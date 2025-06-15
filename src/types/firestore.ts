@@ -43,6 +43,7 @@ export interface TrainingPlan {
     template: boolean;
     horseId?: string;
     allowedUserIds?: string[] | null; 
+    accessStatus?: 'allowed' | 'denied'; // For UI rendering based on current user
 }
 
 export interface ExerciseReference {
@@ -63,6 +64,7 @@ export interface TrainingBlock {
     allowedUserIds?: string[] | null; // User-specific visibility for this block
     createdAt?: Timestamp;
     updatedAt?: Timestamp;
+    accessStatus?: 'allowed' | 'denied' | 'parent_denied'; // For UI rendering
 }
 
 export interface MasterExercise {
@@ -82,6 +84,7 @@ export interface BlockExerciseDisplay extends MasterExercise {
   orderInBlock: number; // order of the suggestion in the list
   blockId: string;
   allowedUserIds?: string[] | null; // From the ExerciseReference
+  accessStatus?: 'allowed' | 'denied' | 'parent_denied'; // For UI rendering
 }
 
 
@@ -237,3 +240,4 @@ export interface ExerciseInput {
   objective?: string;
   order?: number;
 }
+
