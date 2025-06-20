@@ -19,7 +19,7 @@ const appIdEnv = process.env.NEXT_PUBLIC_FIREBASE_APP_ID; // Renamed to avoid co
 const measurementId = process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID;
 
 console.log("Firebase Service: NEXT_PUBLIC_FIREBASE_API_KEY:", apiKey ? "SET" : "NOT SET");
-console.log("Firebase Service: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN:", authDomain ? "SET" : "NOT SET");
+console.log("Firebase Service: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN:", authDomain ? `SET (Value: ${authDomain})` : "NOT SET");
 console.log("Firebase Service: NEXT_PUBLIC_FIREBASE_PROJECT_ID:", projectId ? `SET (Value: ${projectId})` : "NOT SET");
 console.log("Firebase Service: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET:", storageBucket ? "SET" : "NOT SET");
 console.log("Firebase Service: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID:", messagingSenderId ? "SET" : "NOT SET");
@@ -64,6 +64,7 @@ if (configError) {
   );
 } else {
   console.log("Firebase Service: Firebase config seems present. Attempting to initialize Firebase app...");
+  console.log("Firebase Service: Using Auth Domain in config for initializeApp:", firebaseConfig.authDomain); // Added this line
   try {
     if (!getApps().length) {
       app = initializeApp(firebaseConfig);
