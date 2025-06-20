@@ -108,7 +108,7 @@ import {
   sortableKeyboardCoordinates,
   useSortable,
   verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
+} from '@dnd-kit/sortable'; // Corrected import
 import { CSS } from '@dnd-kit/utilities';
 
 
@@ -488,7 +488,7 @@ const Dashboard = () => {
       setIsLoadingCurrentBlock(false);
       previousHorseDataRef.current = null;
     }
-  }, [selectedHorse, fetchHorseActivePlanDetails, toast, currentUser, userProfile]);
+  }, [selectedHorse, fetchHorseActivePlanDetails, toast, currentUser, userProfile, currentActiveBlock]); // Added currentActiveBlock to dependencies
 
 
  const fetchDetailsForAdminPlan = useCallback(async (planId: string) => {
@@ -550,7 +550,7 @@ const Dashboard = () => {
                 setNumberedDaysForCurrentBlock(newNumberedDaysArray);
 
                 const userCtx = currentUser ? { uid: currentUser.uid, role: userProfile?.role } : null;
-                const suggested = await getExercisesForBlock(currentActiveBlock.id, userCtx);
+                const suggested = await getExercisesForBlock(currentActiveBlock.id, userCtx, currentActiveBlock.accessStatus); // Pass block access status
                 setSuggestedExercisesForBlock(suggested.sort((a,b) => (a.orderInBlock ?? Infinity) - (b.orderInBlock ?? Infinity)));
 
                 let initialDisplayIndex = 0;
@@ -585,7 +585,7 @@ const Dashboard = () => {
         }
     };
     fetchDetailsForViewedBlock();
-  }, [currentActiveBlock?.id, toast, selectedHorse?.id, selectedHorse?.activePlanId, selectedHorse?.planProgress, currentUser, userProfile]);
+  }, [currentActiveBlock, toast, selectedHorse, currentUser, userProfile]); // Removed currentActiveBlock.id and currentActiveBlock.title to avoid excessive calls
 
 
   const currentNumberedDayForDisplay: NumberedDay | null = useMemo(() => {
@@ -594,7 +594,7 @@ const Dashboard = () => {
       return day;
     }
     return null;
-  }, [numberedDaysForCurrentBlock, displayedDayIndex, currentActiveBlock?.title]);
+  }, [numberedDaysForCurrentBlock, displayedDayIndex]);
 
 
   useEffect(() => {
@@ -612,7 +612,7 @@ const Dashboard = () => {
           setSessionDayResult(null);
           setSessionOverallNote("");
       }
-  }, [currentNumberedDayForDisplay?.dayNumber, currentActiveBlock?.id]);
+  }, [currentNumberedDayForDisplay, currentActiveBlock?.id]);
 
 
   const allDaysInBlockCompleted = useMemo(() => {
@@ -800,7 +800,7 @@ const handleSaveSessionAndNavigate = async () => {
         date: Timestamp.fromDate(date),
         blockId: currentActiveBlock.id,
         dayNumberInBlock: currentNumberedDayForDisplay.dayNumber,
-        selectedDayExerciseId: currentActiveBlock.id,
+        selectedDayExerciseId: currentActiveBlock.id, // Using blockId as the 'day card' ID
         selectedDayExerciseTitle: `Día de Trabajo ${currentNumberedDayForDisplay.dayNumber}`,
         overallNote: sessionOverallNote,
       };
@@ -808,9 +808,9 @@ const handleSaveSessionAndNavigate = async () => {
 
       if (sessionId) {
         const dayResultInput: ExerciseResultInput = {
-            exerciseId: currentActiveBlock.id,
+            exerciseId: currentActiveBlock.id, // MasterExercise ID for the "Day Card" is the block itself
             plannedReps: sessionDayResult.plannedReps,
-            doneReps: 1,
+            doneReps: 1, // Day is considered "done" if session is logged
             rating: sessionDayResult.rating,
             observations: sessionDayResult.observations && Object.values(sessionDayResult.observations).some(v => v !== null && v !== undefined && String(v).trim() !== '')
                             ? sessionDayResult.observations : null,
@@ -1099,13 +1099,18 @@ const handleSaveSessionAndNavigate = async () => {
   return (
     <div className="container mx-auto py-6 sm:py-10">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
-        <div className="md:col-span-2 space-y-6">
+        <div className={isUserAdmin ? "md:col-span-3 space-y-6" : "md:col-span-2 space-y-6"}>
            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-             <TabsList className={`grid w-full ${isUserAdmin ? 'grid-cols-2' : 'grid-cols-1'} mb-4`}>
-              <TabsTrigger value="sesiones">Registrar Sesión</TabsTrigger>
-              {isUserAdmin && <TabsTrigger value="plan">Gestionar Plan (Admin)</TabsTrigger>}
+             <TabsList className="grid w-full grid-cols-1 mb-4">
+              {!isUserAdmin && (
+                <TabsTrigger value="sesiones">Registrar Sesión</TabsTrigger>
+              )}
+              {isUserAdmin && (
+                <TabsTrigger value="plan">Gestionar Plan (Admin)</TabsTrigger>
+              )}
             </TabsList>
 
+            {!isUserAdmin && (
             <TabsContent value="sesiones">
               <Card>
                 <CardHeader>
@@ -1257,8 +1262,11 @@ const handleSaveSessionAndNavigate = async () => {
                                             <h4 className="text-md font-semibold mb-2">Ejercicios Sugeridos para esta Etapa:</h4>
                                             <ul className="space-y-1 text-sm text-muted-foreground">
                                                 {suggestedExercisesForBlock.map(ex => (
-                                                    <li key={ex.id} className="p-2 border rounded-md bg-background shadow-sm">
-                                                       <strong className="block text-foreground">{ex.title}</strong>
+                                                    <li key={ex.id} className={`p-2 border rounded-md bg-background shadow-sm ${ex.accessStatus === 'denied' || ex.accessStatus === 'parent_denied' ? 'opacity-60' : ''}`}>
+                                                       <strong className="block text-foreground">
+                                                          {ex.accessStatus === 'denied' || ex.accessStatus === 'parent_denied' ? <Icons.lock className="inline-block h-3.5 w-3.5 mr-1 align-text-bottom" /> : null}
+                                                          {ex.title}
+                                                       </strong>
                                                        {ex.suggestedReps && <p className="text-xs mt-0.5">Sugerido: {ex.suggestedReps}</p>}
                                                        {ex.description && <p className="text-xs mt-0.5 whitespace-pre-wrap">Desc: {ex.description}</p>}
                                                        {ex.objective && <p className="text-xs mt-0.5 whitespace-pre-wrap">Obj: {ex.objective}</p>}
@@ -1305,6 +1313,7 @@ const handleSaveSessionAndNavigate = async () => {
                 </Card>
               )}
             </TabsContent>
+            )}
 
             {isUserAdmin && (
               <TabsContent value="plan">
@@ -1377,10 +1386,15 @@ const handleSaveSessionAndNavigate = async () => {
               </TabsContent> )}
           </Tabs>
         </div>
-        <Card className="md:col-span-1 row-start-1 md:row-auto">
-          <CardHeader><CardTitle>Calendario</CardTitle><CardDescription>Selecciona la fecha de tu sesión.</CardDescription></CardHeader>
-          <CardContent className="grid gap-6"><Calendar mode="single" selected={date} onSelect={setDate} className="rounded-md border shadow"/>{date ? <p className="text-center text-sm font-medium">Fecha: {date.toLocaleDateString("es-ES", {year: "numeric",month: "long",day: "numeric",})}</p> : <p className="text-center text-sm text-muted-foreground">Selecciona una fecha.</p>}</CardContent>
-        </Card>
+        {!isUserAdmin && (
+            <Card className="md:col-span-1 row-start-1 md:row-auto">
+            <CardHeader><CardTitle>Calendario</CardTitle><CardDescription>Selecciona la fecha de tu sesión.</CardDescription></CardHeader>
+            <CardContent className="grid gap-6">
+                <Calendar mode="single" selected={date} onSelect={setDate} className="rounded-md border shadow"/>
+                {date ? <p className="text-center text-sm font-medium">Fecha: {date.toLocaleDateString("es-ES", {year: "numeric",month: "long",day: "numeric",})}</p> : <p className="text-center text-sm text-muted-foreground">Selecciona una fecha.</p>}
+            </CardContent>
+            </Card>
+        )}
       </div>
 
     {isUserAdmin && ( <>
