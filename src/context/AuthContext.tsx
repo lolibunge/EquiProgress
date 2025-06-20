@@ -53,30 +53,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
         try {
             profile = await getUserProfile(user.uid);
             console.log(`%c[AuthContext] Profile fetched from Firestore for UID ${user.uid}:`, "color: dodgerblue;", JSON.stringify(profile, null, 2));
-
-            // TEMPORARY OVERRIDE FOR ADMIN UID BD9FKEgfewc8NylAgEYIqJLeFmD2
-            if (user.uid === "BD9FKEgfewc8NylAgEYIqJLeFmD2") {
-              console.warn(`%c[AuthContext] SPECIAL OVERRIDE: UID ${user.uid} detected. Forcing admin role. This is a temporary measure for development.`, "color: magenta; font-weight: bold;");
-             const baseProfile = profile || { // Use fetched profile as base, or create a minimal one
-                uid: user.uid,
-                email: user.email!,
-                displayName: user.displayName || user.email?.split('@')[0] || 'Admin (Forced)',
-                photoURL: user.photoURL || '',
-                // createdAt: Timestamp.now(),
-                // updatedAt: Timestamp.now(),
-              };
-              profile = { // This creates a new object for 'profile'
-                ...baseProfile,
-                role: 'admin' as 'admin' // Explicitly set/override role to admin
-              };
-              if (profile && baseProfile.role && baseProfile.role !== 'admin') { // Check original role if profile existed
-                console.log(`%c[AuthContext] Override: Existing profile (role: ${baseProfile.role}) modified to ensure admin role.`, "color: magenta;");
-              } else if (!baseProfile.role && profile && profile.uid === user.uid) { // Check if we just created it
-                console.log(`%c[AuthContext] Override: No Firestore profile role found or profile missing, created minimal admin profile locally.`, "color: magenta;");
-              }
-            }
-            // END TEMPORARY OVERRIDE
-
             console.log(`%c[AuthContext] FINAL profile object being set for UID ${user.uid}:`, "color: green; font-weight: bold;", JSON.stringify(profile, null, 2));
             setUserProfile(profile);
         } catch (error) {
@@ -109,4 +85,3 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
-
