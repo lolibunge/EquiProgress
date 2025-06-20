@@ -54,8 +54,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
             profile = await getUserProfile(user.uid);
             console.log(`%c[AuthContext] Profile fetched from Firestore for UID ${user.uid}:`, "color: dodgerblue;", JSON.stringify(profile, null, 2));
 
-            // TEMPORARY OVERRIDE FOR ADMIN UID LPL3vwFZk5NDHlD8rLpaENEt5AC3
-            if (user.uid === "LPL3vwFZk5NDHlD8rLpaENEt5AC3") {
+            // TEMPORARY OVERRIDE FOR ADMIN UID BD9FKEgfewc8NylAgEYIqJLeFmD2
+            if (user.uid === "BD9FKEgfewc8NylAgEYIqJLeFmD2") {
               console.warn(`%c[AuthContext] SPECIAL OVERRIDE: UID ${user.uid} detected. Forcing admin role. This is a temporary measure for development.`, "color: magenta; font-weight: bold;");
              const baseProfile = profile || { // Use fetched profile as base, or create a minimal one
                 uid: user.uid,
@@ -109,3 +109,4 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
+
