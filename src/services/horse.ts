@@ -125,7 +125,8 @@ export async function deleteHorse(horseId: string): Promise<void> {
   const sessionsRef = collection(db, 'horses', horseId, 'sessions');
   try {
     const sessionsSnapshot = await getDocs(sessionsRef);
-    sessionsSnapshot.forEach(async (sessionDoc) => {
+
+    for (const sessionDoc of sessionsSnapshot.docs) {
       // Delete exerciseResults subcollection for each session
       const exerciseResultsRef = collection(db, 'horses', horseId, 'sessions', sessionDoc.id, 'exerciseResults');
       const exerciseResultsSnapshot = await getDocs(exerciseResultsRef);
@@ -133,7 +134,7 @@ export async function deleteHorse(horseId: string): Promise<void> {
         batch.delete(erDoc.ref);
       });
       batch.delete(sessionDoc.ref);
-    });
+    }
 
     await batch.commit();
     console.log(`[HorseService] deleteHorse: Horse ${horseId} and all associated sessions and exercise results deleted successfully.`);
