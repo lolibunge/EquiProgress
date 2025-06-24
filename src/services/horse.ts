@@ -126,6 +126,7 @@ export async function deleteHorse(horseId: string): Promise<void> {
   try {
     const sessionsSnapshot = await getDocs(sessionsRef);
 
+    // Delete each session and its exercise results sequentially
     for (const sessionDoc of sessionsSnapshot.docs) {
       // Delete exerciseResults subcollection for each session
       const exerciseResultsRef = collection(db, 'horses', horseId, 'sessions', sessionDoc.id, 'exerciseResults');
