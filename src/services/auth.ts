@@ -1,16 +1,15 @@
-
 // src/services/auth.ts
-// Removed 'use server' directive
 
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signInWithPopup,
+  signInWithRedirect,
   GoogleAuthProvider,
   signOut,
   type User,
 } from 'firebase/auth';
-import { doc, setDoc, getDoc, serverTimestamp, Timestamp, collection, getDocs, query, orderBy } from 'firebase/firestore'; // Added collection, getDocs, query, orderBy
+import { doc, setDoc, getDoc, serverTimestamp, Timestamp, collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { auth, db } from '@/firebase';
 import type { UserProfile } from '@/types/firestore';
 
@@ -28,26 +27,10 @@ export async function signUpWithEmail(email: string, password: string): Promise<
     const user = userCredential.user;
     console.log("[AuthService] signUpWithEmail: User created in Firebase Auth:", user.uid);
 
-    if (!db) {
-      console.error("[AuthService] signUpWithEmail: Firestore db service is NOT available. Cannot create user profile for UID:", user.uid);
+    if (db) {
+      await createOrUpdateUserProfile(user);
     } else {
-      const userDocRef = doc(db, "users", user.uid);
-      const profileData = {
-        uid: user.uid,
-        email: user.email,
-        displayName: user.displayName || user.email?.split('@')[0] || 'Usuario',
-        photoURL: user.photoURL || '', 
-        role: 'customer', 
-        createdAt: serverTimestamp() as Timestamp,
-        updatedAt: serverTimestamp() as Timestamp,
-      };
-      console.log(`[AuthService] signUpWithEmail: Preparing to create user profile in Firestore for UID: ${user.uid}. Data:`, JSON.stringify(profileData, (key, value) => typeof value === 'function' ? 'FieldValue.serverTimestamp()' : value, 2));
-      try {
-        await setDoc(userDocRef, profileData);
-        console.log("[AuthService] signUpWithEmail: User profile created successfully in Firestore for UID:", user.uid);
-      } catch (firestoreError: any) {
-        console.error(`[AuthService] signUpWithEmail: CRITICAL ERROR creating user profile in Firestore for UID: ${user.uid}. Code: ${firestoreError.code}, Message: ${firestoreError.message}`, firestoreError);
-      }
+      console.error("[AuthService] signUpWithEmail: Firestore db service is NOT available. Cannot create user profile for UID:", user.uid);
     }
     return user;
   } catch (error: any) {
@@ -68,33 +51,10 @@ export async function signInWithEmail(email: string, password: string): Promise<
     const user = userCredential.user;
     console.log("[AuthService] signInWithEmail: User signed in via Firebase Auth:", user.uid);
     
-    if (!db) {
-      console.error("[AuthService] signInWithEmail: Firestore db service is NOT available. Cannot check/create user profile for UID:", user.uid);
+    if (db) {
+      await createOrUpdateUserProfile(user);
     } else {
-      const userDocRef = doc(db, "users", user.uid);
-      console.log("[AuthService] signInWithEmail: Attempting to get/create user profile in Firestore for UID:", user.uid, "using db instance:", db ? "Available" : "MISSING/UNDEFINED");
-      try {
-        const userDoc = await getDoc(userDocRef);
-        if (!userDoc.exists() || !userDoc.data()?.role) {
-          console.log(`[AuthService] signInWithEmail: User profile for UID ${user.uid} does not exist or role is missing. Attempting to create/update.`);
-          const profileData = {
-            uid: user.uid,
-            email: user.email,
-            displayName: user.displayName || user.email?.split('@')[0] || 'Usuario',
-            photoURL: user.photoURL || '',
-            role: userDoc.exists() && userDoc.data()?.role ? userDoc.data()?.role : 'customer',
-            createdAt: userDoc.exists() && userDoc.data()?.createdAt ? userDoc.data()?.createdAt : serverTimestamp(),
-            updatedAt: serverTimestamp() as Timestamp
-          };
-          console.log(`[AuthService] signInWithEmail: Preparing to set/merge user profile in Firestore for UID: ${user.uid}. Data:`, JSON.stringify(profileData, (key, value) => typeof value === 'function' ? 'FieldValue.serverTimestamp()' : value, 2));
-          await setDoc(userDocRef, profileData, { merge: true });
-          console.log(`[AuthService] signInWithEmail: User profile created/updated successfully in Firestore for UID: ${user.uid}`);
-        } else {
-          console.log(`[AuthService] signInWithEmail: User profile already exists for UID ${user.uid}. Role: ${userDoc.data()?.role}`);
-        }
-      } catch (firestoreError: any) {
-        console.error(`[AuthService] signInWithEmail: CRITICAL ERROR checking/creating user profile in Firestore for UID: ${user.uid}. Code: ${firestoreError.code}, Message: ${firestoreError.message}`, firestoreError);
-      }
+      console.error("[AuthService] signInWithEmail: Firestore db service is NOT available. Cannot check/create user profile for UID:", user.uid);
     }
     return user;
   } catch (error: any) {
@@ -105,48 +65,64 @@ export async function signInWithEmail(email: string, password: string): Promise<
 
 export async function signInWithGoogle(): Promise<User | null> {
   console.log("[AuthService] signInWithGoogle: Attempting Google sign in.");
-  try {
-    if (!auth) {
-      console.error("[AuthService] signInWithGoogle: Firebase auth service is not available.");
-      throw new Error("Servicio de autenticación no disponible.");
-    }
+  if (!auth) {
+    console.error("[AuthService] signInWithGoogle: Firebase auth service is not available.");
+    throw new Error("Servicio de autenticación no disponible.");
+  }
 
+  try {
     const result = await signInWithPopup(auth, googleProvider);
     const user = result.user;
     console.log("[AuthService] signInWithGoogle: User signed in via Google, UID:", user.uid);
 
-    if (!db) {
-      console.error("[AuthService] signInWithGoogle: Firestore db service is NOT available. Cannot check/create user profile for UID:", user.uid);
+    if (db) {
+      await createOrUpdateUserProfile(user);
     } else {
-      const userDocRef = doc(db, "users", user.uid);
-      console.log("[AuthService] signInWithGoogle: Attempting to get/create user profile in Firestore for UID:", user.uid, "using db instance:", db ? "Available" : "MISSING/UNDEFINED");
-      try {
-        const userDoc = await getDoc(userDocRef);
-        if (!userDoc.exists() || !userDoc.data()?.role) {
-          console.log(`[AuthService] signInWithGoogle: User profile for UID ${user.uid} does not exist or role is missing. Attempting to create/update.`);
-          const profileData = {
-            uid: user.uid,
-            email: user.email,
-            displayName: user.displayName || 'Usuario',
-            photoURL: user.photoURL || '',
-            role: userDoc.exists() && userDoc.data()?.role ? userDoc.data()?.role : 'customer',
-            createdAt: userDoc.exists() && userDoc.data()?.createdAt ? userDoc.data()?.createdAt : serverTimestamp(),
-            updatedAt: serverTimestamp() as Timestamp
-          };
-          console.log(`[AuthService] signInWithGoogle: Preparing to set/merge user profile in Firestore for UID: ${user.uid}. Data:`, JSON.stringify(profileData, (key, value) => typeof value === 'function' ? 'FieldValue.serverTimestamp()' : value, 2));
-          await setDoc(userDocRef, profileData, { merge: true });
-          console.log(`[AuthService] signInWithGoogle: User profile created/updated successfully in Firestore for UID: ${user.uid}`);
-        } else {
-          console.log(`[AuthService] signInWithGoogle: User profile already exists for UID ${user.uid}. Role: ${userDoc.data()?.role}`);
-        }
-      } catch (firestoreError: any) {
-        console.error(`[AuthService] signInWithGoogle: CRITICAL ERROR checking/creating user profile in Firestore for UID: ${user.uid}. Code: ${firestoreError.code}, Message: ${firestoreError.message}`, firestoreError);
-      }
+      console.error("[AuthService] signInWithGoogle: Firestore db service is NOT available. Cannot check/create user profile for UID:", user.uid);
     }
+
     return user;
   } catch (error: any) {
     console.error(`[AuthService] signInWithGoogle: Error during Google sign in: Code: ${error.code}, Message: ${error.message}`, error);
+
+    if (error.code === "auth/popup-blocked" || error.code === "auth/popup-closed-by-user") {
+      console.log("[AuthService] signInWithGoogle: Falling back to signInWithRedirect.");
+      await signInWithRedirect(auth, googleProvider);
+      return null;
+    }
+
     throw error;
+  }
+}
+
+async function createOrUpdateUserProfile(user: User): Promise<void> {
+  if (!db) {
+    console.error("[AuthService] createOrUpdateUserProfile: Firestore db service is NOT available. Cannot check/create user profile for UID:", user.uid);
+    return;
+  }
+  const userDocRef = doc(db, "users", user.uid);
+  console.log("[AuthService] createOrUpdateUserProfile: Attempting to get/create user profile in Firestore for UID:", user.uid);
+  try {
+    const userDoc = await getDoc(userDocRef);
+    if (!userDoc.exists() || !userDoc.data()?.role) {
+      console.log(`[AuthService] createOrUpdateUserProfile: User profile for UID ${user.uid} does not exist or role is missing. Attempting to create/update.`);
+      const profileData = {
+        uid: user.uid,
+        email: user.email,
+        displayName: user.displayName || user.email?.split('@')[0] || 'Usuario',
+        photoURL: user.photoURL || '',
+        role: userDoc.exists() && userDoc.data()?.role ? userDoc.data()?.role : 'customer',
+        createdAt: userDoc.exists() && userDoc.data()?.createdAt ? userDoc.data()?.createdAt : serverTimestamp(),
+        updatedAt: serverTimestamp() as Timestamp,
+      };
+      console.log(`[AuthService] createOrUpdateUserProfile: Setting user profile in Firestore for UID: ${user.uid}. Data:`, JSON.stringify(profileData, (key, value) => typeof value === 'function' ? 'FieldValue.serverTimestamp()' : value, 2));
+      await setDoc(userDocRef, profileData, { merge: true });
+      console.log(`[AuthService] createOrUpdateUserProfile: User profile created/updated successfully in Firestore for UID: ${user.uid}`);
+    } else {
+      console.log(`[AuthService] createOrUpdateUserProfile: User profile already exists for UID ${user.uid}. Role: ${userDoc.data()?.role}`);
+    }
+  } catch (firestoreError: any) {
+    console.error(`[AuthService] createOrUpdateUserProfile: CRITICAL ERROR checking/creating user profile in Firestore for UID: ${user.uid}. Code: ${firestoreError.code}, Message: ${firestoreError.message}`, firestoreError);
   }
 }
 
@@ -181,7 +157,7 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
         email: data.email || null,
         displayName: data.displayName || null,
         photoURL: data.photoURL || null,
-        role: data.role || 'customer', // default to customer if role is missing
+        role: data.role || 'customer',
       } as UserProfile;
     }
     console.warn(`[AuthService] getUserProfile: No user profile found in Firestore for UID: ${uid}`);
@@ -200,7 +176,7 @@ export async function getAllUserProfiles(): Promise<UserProfile[]> {
   }
   try {
     const usersCollectionRef = collection(db, "users");
-    const q = query(usersCollectionRef, orderBy("displayName", "asc")); // Order by displayName or email
+    const q = query(usersCollectionRef, orderBy("displayName", "asc"));
     const querySnapshot = await getDocs(q);
     const users: UserProfile[] = [];
     querySnapshot.forEach((docSnap) => {
@@ -210,7 +186,7 @@ export async function getAllUserProfiles(): Promise<UserProfile[]> {
         email: data.email || null,
         displayName: data.displayName || data.email?.split('@')[0] || 'Usuario Desconocido',
         photoURL: data.photoURL || null,
-        role: data.role || 'customer', // Default to 'customer' if role is missing
+        role: data.role || 'customer',
       } as UserProfile);
     });
     console.log(`[AuthService] getAllUserProfiles: Fetched ${users.length} user profiles.`);
@@ -218,9 +194,8 @@ export async function getAllUserProfiles(): Promise<UserProfile[]> {
   } catch (error: any) {
     console.error(`[AuthService] getAllUserProfiles: Error fetching all user profiles: Code: ${error.code}, Message: ${error.message}`, error);
     if (error.code === 'failed-precondition' && error.message.includes('index')) {
-        console.error(`[AuthService] INDEX_REQUIRED: Firestore query for getAllUserProfiles (orderBy: displayName asc) likely needs an index. Please check the Firebase console. Error: ${error.message}`);
+      console.error(`[AuthService] INDEX_REQUIRED: Firestore query for getAllUserProfiles likely needs an index. Please check the Firebase console. Error: ${error.message}`);
     }
     throw error;
   }
 }
-
