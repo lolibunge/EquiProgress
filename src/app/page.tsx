@@ -28,6 +28,7 @@ import {
   FileDown,
 } from 'lucide-react';
 import type { jsPDF } from 'jspdf';
+import { Logo } from '@/components/logo';
 
 type View = 'edit' | 'preview';
 
@@ -47,7 +48,7 @@ export default function Home() {
 
   useEffect(() => {
     try {
-      const savedDraft = localStorage.getItem('freshpress_draft');
+      const savedDraft = localStorage.getItem('equiprogress_draft');
       if (savedDraft) {
         const { title, content } = JSON.parse(savedDraft);
         setTitle(title || '');
@@ -69,7 +70,7 @@ export default function Home() {
     setIsSaving(true);
     try {
       const draft = { title, content };
-      localStorage.setItem('freshpress_draft', JSON.stringify(draft));
+      localStorage.setItem('equiprogress_draft', JSON.stringify(draft));
     } catch (error) {
        toast({
         title: 'Error saving draft',
@@ -234,9 +235,9 @@ export default function Home() {
           <div className="flex h-16 items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-primary/20 rounded-lg">
-                <FileText className="h-6 w-6 text-primary" />
+                <Logo className="h-6 w-6 text-primary" />
               </div>
-              <h1 className="text-xl font-headline font-bold text-foreground tracking-tight">FreshPress</h1>
+              <h1 className="text-xl font-headline font-bold text-foreground tracking-tight">EquiProgress</h1>
             </div>
             <div className="flex items-center gap-1 sm:gap-2">
               <Button variant="ghost" size="icon" aria-label="Save Draft" onClick={handleSaveDraft} disabled={isSaving}>

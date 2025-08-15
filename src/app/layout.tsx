@@ -3,8 +3,8 @@ import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 
 export const metadata: Metadata = {
-  title: 'FreshPress',
-  description: 'AI-powered blog post generator',
+  title: 'EquiProgress',
+  description: 'Tracking your equestrian journey.',
 };
 
 export default function RootLayout({
