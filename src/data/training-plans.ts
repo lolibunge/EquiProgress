@@ -19,29 +19,49 @@ export const trainingPlans: TrainingPlan[] = [
   {
     id: 'unbroke-1',
     category: 'Unbroke',
-    name: 'Foundation Groundwork: Week 1-4',
-    description: 'Establishing trust, respect, and basic communication on the ground. This is the essential starting point for any young or unhandled horse.',
-    duration: '4 Weeks',
+    name: 'The Unbroke Horse',
+    description: 'A 10-step process to start a horse from the ground up, establishing a solid foundation for a future riding partner.',
+    duration: '10 Steps',
     exercises: [
       {
-        name: 'Haltering & Leading',
-        description: 'Teach the horse to accept a halter without fear and to lead willingly without pulling or lagging.',
-        duration: '15 min/day',
+        name: 'Iniciación en el Circular',
+        description: 'Introduce the horse to working in a round pen or on a longe line, establishing respect for the handler\'s space and basic commands.',
       },
       {
-        name: 'Grooming & Touch Desensitization',
-        description: 'Accustom the horse to being touched and groomed all over its body, including legs, belly, and ears.',
-        duration: '10 min/day',
+        name: 'Desensibilización',
+        description: 'Accustom the horse to various objects, sounds, and touch to build confidence and reduce spookiness.',
       },
       {
-        name: 'Yielding to Pressure',
-        description: 'Teach the horse to move away from steady, gentle pressure on its poll, shoulder, and hindquarters.',
-        duration: '10 min/day',
+        name: 'Sensibilización',
+        description: 'Teach the horse to yield to physical pressure, the foundation for responding to leg and rein aids.',
       },
       {
-        name: 'Longeing for Respect',
-        description: 'Introduce the longe line to teach the horse to move in a circle around the handler, respecting personal space and voice commands.',
-        duration: '20 min, 3 times/week',
+        name: 'Sensibilización en Movimiento',
+        description: 'Apply yielding-to-pressure exercises while the horse is in motion to develop more refined control.',
+      },
+      {
+        name: 'Primer Ensillada',
+        description: 'Carefully introduce the saddle pad and then the saddle, ensuring the horse remains calm and accepting.',
+      },
+      {
+        name: 'Trabajo Pie a Tierra',
+        description: 'Groundwork exercises with the horse saddled to prepare it for responding to aids from the ground.',
+      },
+      {
+        name: 'Trabajo de Rienda en Mano',
+        description: 'Introduce the concept of steering and stopping from the ground using the reins.',
+      },
+      {
+        name: 'Primera Monta',
+        description: 'The initial mounting process, focusing on keeping the horse relaxed and still as the rider gets on for the first time.',
+      },
+      {
+        name: 'Primer Salida Afuera',
+        description: 'The first short rides in a safe, enclosed area, focusing on simple walking and turning.',
+      },
+      {
+        name: 'Ejercicios de Rienda Montado',
+        description: 'Basic mounted exercises to practice steering, stopping, and moving forward from the rider\'s aids.',
       },
     ],
   },
