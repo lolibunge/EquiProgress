@@ -15,7 +15,5 @@ export const Logo = (props: React.SVGProps<SVGSVGElement>) => (
     <path d="M4 12h8" />
     <path d="M4 20h8" />
     <path d="M12 4v16" />
-    <path d="M16 12h4" />
-    <path d="M16 4v8h4" />
   </svg>
 );
