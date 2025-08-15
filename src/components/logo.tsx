@@ -6,17 +6,15 @@ export const Logo = (props: React.SVGProps<SVGSVGElement>) => (
     viewBox="0 0 24 24"
     fill="none"
     stroke="currentColor"
-    strokeWidth="2"
+    strokeWidth="1.5"
     strokeLinecap="round"
     strokeLinejoin="round"
     {...props}
   >
-    <path d="M16 16.42a8.94 8.94 0 0 1-8-3.42 9 9 0 0 1 7.13-7.13 9 9 0 0 1 8.87 8.87A8.94 8.94 0 0 1 16 16.42z" />
-    <path d="m11.33 13.05 1.6-3.2-3.2 1.6" />
-    <path d="M12 22a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" />
-    <path d="M12 14v4" />
-    <path d="M10 16h4" />
-    <path d="M7 10a5 5 0 0 1 5-5" />
-    <path d="M9 10a3 3 0 0 1 3-3" />
+    <path d="M3.5 10.5c2.5-2 5.5-4 8.5-4s6 2 8.5 4" />
+    <path d="M12 4.5v15" />
+    <path d="M4 11.5c-1.5 2-2.5 4.5-2.5 7.5" />
+    <path d="M20 11.5c1.5 2 2.5 4.5 2.5 7.5" />
+    <path d="M12 11.5a2.5 2.5 0 0 0-2.5 2.5c0 1.5 1 2.5 2.5 2.5s2.5-1 2.5-2.5A2.5 2.5 0 0 0 12 11.5z" />
   </svg>
 );
