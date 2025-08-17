@@ -1,7 +1,9 @@
 'use client';
 
-import { useState } from 'react';
-import { trainingPlans, TrainingPlan, Exercise } from '@/data/training-plans';
+import { useState, useEffect } from 'react';
+import { db } from '@/lib/firebase';
+import { collection, onSnapshot, QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
+import { TrainingPlan, Exercise } from '@/data/training-plans';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Button } from '@/components/ui/button';
@@ -9,6 +11,35 @@ import { Logo } from '@/components/logo';
 
 export default function Home() {
   const [selectedCategory, setSelectedCategory] = useState<'Unbroke' | 'Retraining' | 'Continuing Training'>('Unbroke');
+  const [trainingPlans, setTrainingPlans] = useState<TrainingPlan[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const unsubscribe = onSnapshot(collection(db, 'trainingPlans'), (snapshot) => {
+      const plans: TrainingPlan[] = [];
+      snapshot.forEach((doc: QueryDocumentSnapshot<DocumentData>) => {
+        const data = doc.data();
+        // Ensure the data conforms to the TrainingPlan interface
+        const plan: TrainingPlan = {
+          id: doc.id,
+          category: data.category,
+          name: data.name,
+          description: data.description,
+          duration: data.duration,
+          exercises: data.exercises,
+        };
+        plans.push(plan);
+      });
+      setTrainingPlans(plans);
+      setLoading(false);
+    }, (error) => {
+      console.error("Error fetching training plans: ", error);
+      setLoading(false);
+    });
+
+    // Cleanup subscription on unmount
+    return () => unsubscribe();
+  }, []);
 
   const filteredPlans = trainingPlans.filter(plan => plan.category === selectedCategory);
 
@@ -56,36 +87,40 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {filteredPlans.map((plan: TrainingPlan) => (
-            <Card key={plan.id} className="flex flex-col">
-              <CardHeader>
-                <CardTitle>{plan.name}</CardTitle>
-                <CardDescription>{plan.duration}</CardDescription>
-              </CardHeader>
-              <CardContent className="flex-grow">
-                <p className="text-muted-foreground mb-4">{plan.description}</p>
-                <Accordion type="single" collapsible className="w-full">
-                  <AccordionItem value="exercises">
-                    <AccordionTrigger>View Exercises</AccordionTrigger>
-                    <AccordionContent>
-                      <ul className="space-y-4 pt-2">
-                        {plan.exercises.map((exercise: Exercise, index: number) => (
-                          <li key={index} className="border-l-2 border-primary pl-4">
-                            <h4 className="font-semibold">{exercise.name}</h4>
-                            <p className="text-sm text-muted-foreground">{exercise.description}</p>
-                            {exercise.duration && <p className="text-xs text-muted-foreground/80">Duration: {exercise.duration}</p>}
-                            {exercise.reps && <p className="text-xs text-muted-foreground/80">Reps: {exercise.reps}</p>}
-                          </li>
-                        ))}
-                      </ul>
-                    </AccordionContent>
-                  </AccordionItem>
-                </Accordion>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        {loading ? (
+          <p className="text-center">Loading training plans...</p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {filteredPlans.map((plan: TrainingPlan) => (
+              <Card key={plan.id} className="flex flex-col">
+                <CardHeader>
+                  <CardTitle>{plan.name}</CardTitle>
+                  <CardDescription>{plan.duration}</CardDescription>
+                </CardHeader>
+                <CardContent className="flex-grow">
+                  <p className="text-muted-foreground mb-4">{plan.description}</p>
+                  <Accordion type="single" collapsible className="w-full">
+                    <AccordionItem value="exercises">
+                      <AccordionTrigger>View Exercises</AccordionTrigger>
+                      <AccordionContent>
+                        <ul className="space-y-4 pt-2">
+                          {plan.exercises.map((exercise: Exercise, index: number) => (
+                            <li key={index} className="border-l-2 border-primary pl-4">
+                              <h4 className="font-semibold">{exercise.name}</h4>
+                              <p className="text-sm text-muted-foreground">{exercise.description}</p>
+                              {exercise.duration && <p className="text-xs text-muted-foreground/80">Duration: {exercise.duration}</p>}
+                              {exercise.reps && <p className="text-xs text-muted-foreground/80">Reps: {exercise.reps}</p>}
+                            </li>
+                          ))}
+                        </ul>
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
       </main>
     </div>
   );
