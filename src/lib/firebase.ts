@@ -13,11 +13,14 @@ const firebaseConfig = {
   measurementId: "G-ZZXBSJM295"
 };
 
+const USE_FIRESTORE = process.env.NEXT_PUBLIC_USE_FIRESTORE === 'true';
 
 // Initialize Firebase
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
-const db = getFirestore(app);
-const storage = getStorage(app);
+const db = USE_FIRESTORE ? getFirestore(app) : undefined;
+const storage = USE_FIRESTORE ? getStorage(app) : undefined; // Also conditionalize storage if not needed without Firestore
 
-export { app, auth, db, storage };
+
+export { app, auth, db, storage, USE_FIRESTORE };
+
