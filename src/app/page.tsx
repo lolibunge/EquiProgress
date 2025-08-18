@@ -1,36 +1,15 @@
+
 'use client';
 
-import { TrainingPlan, Exercise } from '@/data/training-plans';
+import { trainingPlans, TrainingPlan, Exercise } from '@/data/training-plans';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Button } from '@/components/ui/button';
 import { Logo } from '@/components/logo';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { useToast } from "@/hooks/use-toast"
-import { db, USE_FIRESTORE } from '@/lib/firebase';
-import { collection, addDoc, onSnapshot, doc, updateDoc, setDoc } from 'firebase/firestore';
-import { useState, useEffect } from 'react';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Label } from '@/components/ui/label';
+import { useState } from 'react';
 
 export default function Home() {
-  const [trainingPlans, setTrainingPlans] = useState<TrainingPlan[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<'Unbroke' | 'Retraining' | 'Continuing Training'>('Unbroke');
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-
-  useEffect(() => {
-    if (!USE_FIRESTORE || !db) return;
-    const unsub = onSnapshot(collection(db, "trainingPlans"), (snapshot) => {
-      const plans: TrainingPlan[] = [];
-      snapshot.forEach((doc) => {
-        plans.push({ id: doc.id, ...doc.data() } as TrainingPlan);
-      });
-      setTrainingPlans(plans);
-    });
-    return () => unsub();
-  }, []);
 
   const filteredPlans = trainingPlans.filter(plan => plan.category === selectedCategory);
 
@@ -45,12 +24,6 @@ export default function Home() {
               </div>
               <h1 className="text-xl font-headline font-bold text-foreground tracking-tight">EquiProgress</h1>
             </div>
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-              <DialogTrigger asChild>
-                <Button>New Plan</Button>
-              </DialogTrigger>
-              <PlanForm onClose={() => setIsDialogOpen(false)} />
-            </Dialog>
           </div>
         </div>
       </header>
@@ -118,136 +91,5 @@ export default function Home() {
         </div>
       </main>
     </div>
-  );
-}
-
-
-function PlanForm({ onClose }: { onClose: () => void }) {
-  const [name, setName] = useState('');
-  const [category, setCategory] = useState<'Unbroke' | 'Retraining' | 'Continuing Training'>('Unbroke');
-  const [duration, setDuration] = useState('');
-  const [description, setDescription] = useState('');
-  const [exercises, setExercises] = useState<Exercise[]>([{ name: '', description: '', duration: '', reps: '' }]);
-  const { toast } = useToast();
-
-  const handleExerciseChange = (index: number, field: keyof Exercise, value: string) => {
-    const newExercises = [...exercises];
-    newExercises[index][field] = value;
-    setExercises(newExercises);
-  };
-
-  const addExercise = () => {
-    setExercises([...exercises, { name: '', description: '', duration: '', reps: '' }]);
-  };
-
-  const removeExercise = (index: number) => {
-    const newExercises = exercises.filter((_, i) => i !== index);
-    setExercises(newExercises);
-  };
-  
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!USE_FIRESTORE || !db) {
-        toast({
-            title: "Error",
-            description: "Firestore is not configured. Please check your Firebase setup.",
-            variant: "destructive",
-        });
-        return;
-    }
-
-    const planData = { name, category, duration, description, exercises };
-    
-    try {
-        await addDoc(collection(db, 'trainingPlans'), planData);
-        toast({
-            title: "Success!",
-            description: "New training plan added.",
-        });
-        onClose();
-    } catch (error) {
-        console.error("Error saving training plan: ", error);
-        toast({
-            title: "Error",
-            description: "There was a problem saving the training plan.",
-            variant: "destructive",
-        });
-    }
-  };
-
-  return (
-    <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
-      <DialogHeader>
-        <DialogTitle>Add New Training Plan</DialogTitle>
-      </DialogHeader>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="space-y-2">
-            <Label htmlFor="name">Plan Name</Label>
-            <Input id="name" value={name} onChange={e => setName(e.target.value)} placeholder="e.g., Groundwork Fundamentals" required />
-        </div>
-         <div className="space-y-2">
-            <Label htmlFor="category">Category</Label>
-            <Select value={category} onValueChange={(value: 'Unbroke' | 'Retraining' | 'Continuing Training') => setCategory(value)}>
-                <SelectTrigger id="category">
-                    <SelectValue placeholder="Select a category" />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="Unbroke">Unbroke</SelectItem>
-                    <SelectItem value="Retraining">Retraining</SelectItem>
-                    <SelectItem value="Continuing Training">Continuing Training</SelectItem>
-                </SelectContent>
-            </Select>
-        </div>
-        <div className="space-y-2">
-            <Label htmlFor="duration">Duration</Label>
-            <Input id="duration" value={duration} onChange={e => setDuration(e.target.value)} placeholder="e.g., 4 Weeks" required />
-        </div>
-        <div className="space-y-2">
-            <Label htmlFor="description">Description</Label>
-            <Textarea id="description" value={description} onChange={e => setDescription(e.target.value)} placeholder="Briefly describe the plan's goals" required />
-        </div>
-
-        <div>
-            <h3 className="text-lg font-medium mb-2">Exercises</h3>
-            <div className="space-y-4">
-                {exercises.map((exercise, index) => (
-                    <div key={index} className="p-4 border rounded-md space-y-2 relative">
-                         {exercises.length > 1 && (
-                            <Button type="button" variant="destructive" size="sm" className="absolute top-2 right-2" onClick={() => removeExercise(index)}>
-                                Remove
-                            </Button>
-                        )}
-                        <div className="space-y-2">
-                            <Label htmlFor={`ex-name-${index}`}>Exercise Name</Label>
-                            <Input id={`ex-name-${index}`} value={exercise.name} onChange={e => handleExerciseChange(index, 'name', e.target.value)} placeholder="e.g., Lunging for Respect" required />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor={`ex-desc-${index}`}>Description</Label>
-                             <Textarea id={`ex-desc-${index}`} value={exercise.description} onChange={e => handleExerciseChange(index, 'description', e.target.value)} placeholder="Describe the exercise" required />
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <Label htmlFor={`ex-duration-${index}`}>Duration (Optional)</Label>
-                                <Input id={`ex-duration-${index}`} value={exercise.duration} onChange={e => handleExerciseChange(index, 'duration', e.target.value)} placeholder="e.g., 15 mins" />
-                            </div>
-                            <div className="space-y-2">
-                                <Label htmlFor={`ex-reps-${index}`}>Reps (Optional)</Label>
-                                <Input id={`ex-reps-${index}`} value={exercise.reps} onChange={e => handleExerciseChange(index, 'reps', e.target.value)} placeholder="e.g., 5 times each side" />
-                            </div>
-                        </div>
-                    </div>
-                ))}
-            </div>
-            <Button type="button" variant="outline" size="sm" onClick={addExercise} className="mt-4">
-                Add Another Exercise
-            </Button>
-        </div>
-
-        <DialogFooter>
-          <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button type="submit">Save Plan</Button>
-        </DialogFooter>
-      </form>
-    </DialogContent>
   );
 }
