@@ -111,16 +111,6 @@ export default function Home() {
                       </ul>
                     </AccordionContent>
                   </AccordionItem>
-                   <AccordionItem value="json">
-                    <AccordionTrigger>View JSON</AccordionTrigger>
-                    <AccordionContent>
-                      <pre className="text-xs bg-muted p-2 rounded-md overflow-x-auto">
-                        <code>
-                          {JSON.stringify(plan.exercises, null, 2)}
-                        </code>
-                      </pre>
-                    </AccordionContent>
-                  </AccordionItem>
                 </Accordion>
               </CardContent>
             </Card>
