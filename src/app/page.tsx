@@ -40,7 +40,7 @@ export default function Home() {
 
         <div className="flex justify-center mb-8">
           <div className="p-1 rounded-lg bg-muted flex gap-1">
-            {(['Unbroke', 'Retraining', 'Continuing Training'] as const).map((category) => (
+            {(['Desde cero: caballo sin domar', 'Volver a lo básico: bajo montura', 'Mejorar flexibilidad y reunión'] as const).map((category) => (
               <Button
                 key={category}
                 variant={selectedCategory === category ? 'default' : 'ghost'}
