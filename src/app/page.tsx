@@ -19,9 +19,6 @@ export default function Home() {
   const [trainingPlans, setTrainingPlans] = useState<TrainingPlan[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<'Unbroke' | 'Retraining' | 'Continuing Training'>('Unbroke');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingPlan, setEditingPlan] = useState<TrainingPlan | null>(null);
-
-  const { toast } = useToast();
 
   useEffect(() => {
     if (!USE_FIRESTORE || !db) return;
@@ -34,16 +31,6 @@ export default function Home() {
     });
     return () => unsub();
   }, []);
-
-  const openEditDialog = (plan: TrainingPlan) => {
-    setEditingPlan(plan);
-    setIsDialogOpen(true);
-  };
-
-  const openNewDialog = () => {
-    setEditingPlan(null);
-    setIsDialogOpen(true);
-  }
 
   const filteredPlans = trainingPlans.filter(plan => plan.category === selectedCategory);
 
@@ -60,13 +47,9 @@ export default function Home() {
             </div>
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
-                <Button onClick={openNewDialog}>New Plan</Button>
+                <Button>New Plan</Button>
               </DialogTrigger>
-              <PlanForm
-                plan={editingPlan}
-                onClose={() => setIsDialogOpen(false)}
-                key={editingPlan ? editingPlan.id : 'new'}
-              />
+              <PlanForm onClose={() => setIsDialogOpen(false)} />
             </Dialog>
           </div>
         </div>
@@ -105,13 +88,10 @@ export default function Home() {
           {filteredPlans.map((plan: TrainingPlan) => (
             <Card key={plan.id} className="flex flex-col">
               <CardHeader>
-                <div className="flex justify-between items-start">
                   <div>
                     <CardTitle>{plan.name}</CardTitle>
                     <CardDescription>{plan.duration}</CardDescription>
                   </div>
-                  <Button variant="ghost" size="sm" onClick={() => openEditDialog(plan)}>Edit</Button>
-                </div>
               </CardHeader>
               <CardContent className="flex-grow">
                 <p className="text-muted-foreground mb-4">{plan.description}</p>
@@ -152,12 +132,12 @@ export default function Home() {
 }
 
 
-function PlanForm({ plan, onClose }: { plan: TrainingPlan | null, onClose: () => void }) {
-  const [name, setName] = useState(plan?.name || '');
-  const [category, setCategory] = useState<'Unbroke' | 'Retraining' | 'Continuing Training'>(plan?.category || 'Unbroke');
-  const [duration, setDuration] = useState(plan?.duration || '');
-  const [description, setDescription] = useState(plan?.description || '');
-  const [exercises, setExercises] = useState<Exercise[]>(plan?.exercises || [{ name: '', description: '', duration: '', reps: '' }]);
+function PlanForm({ onClose }: { onClose: () => void }) {
+  const [name, setName] = useState('');
+  const [category, setCategory] = useState<'Unbroke' | 'Retraining' | 'Continuing Training'>('Unbroke');
+  const [duration, setDuration] = useState('');
+  const [description, setDescription] = useState('');
+  const [exercises, setExercises] = useState<Exercise[]>([{ name: '', description: '', duration: '', reps: '' }]);
   const { toast } = useToast();
 
   const handleExerciseChange = (index: number, field: keyof Exercise, value: string) => {
@@ -189,22 +169,11 @@ function PlanForm({ plan, onClose }: { plan: TrainingPlan | null, onClose: () =>
     const planData = { name, category, duration, description, exercises };
     
     try {
-        if (plan && plan.id) {
-            // Update existing plan
-            const planRef = doc(db, 'trainingPlans', plan.id);
-            await setDoc(planRef, planData);
-            toast({
-                title: "Success!",
-                description: "Training plan updated successfully.",
-            });
-        } else {
-            // Add new plan
-            await addDoc(collection(db, 'trainingPlans'), planData);
-            toast({
-                title: "Success!",
-                description: "New training plan added.",
-            });
-        }
+        await addDoc(collection(db, 'trainingPlans'), planData);
+        toast({
+            title: "Success!",
+            description: "New training plan added.",
+        });
         onClose();
     } catch (error) {
         console.error("Error saving training plan: ", error);
@@ -219,7 +188,7 @@ function PlanForm({ plan, onClose }: { plan: TrainingPlan | null, onClose: () =>
   return (
     <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
       <DialogHeader>
-        <DialogTitle>{plan ? 'Edit Training Plan' : 'Add New Training Plan'}</DialogTitle>
+        <DialogTitle>Add New Training Plan</DialogTitle>
       </DialogHeader>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-2">
