@@ -9,7 +9,16 @@ import { Logo } from '@/components/logo';
 import { useState } from 'react';
 
 export default function Home() {
-  const [selectedCategory, setSelectedCategory] = useState<'Unbroke' | 'Retraining' | 'Continuing Training'>('Unbroke');
+  const CATEGORIES = ['Unbroke', 'Retraining', 'Continuing Training'] as const;
+  type Category = typeof CATEGORIES[number]; // igual a TrainingPlan['category']
+
+  const CATEGORY_LABELS: Record<Category, string> = {
+    Unbroke: 'Sin domar',
+    Retraining: 'Reentrenamiento',
+    'Continuing Training': 'Entrenamiento continuo',
+  };
+
+  const [selectedCategory, setSelectedCategory] = useState<Category>('Unbroke');
 
   const filteredPlans = trainingPlans.filter(plan => plan.category === selectedCategory);
 
@@ -31,29 +40,32 @@ export default function Home() {
       <main className="flex-grow w-full container mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex flex-col items-center text-center mb-12">
             <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold font-headline tracking-tight text-foreground">
-              Equestrian Training Plans
+              Planes de Entrenamiento para Caballos
             </h2>
             <p className="mt-4 max-w-2xl text-lg text-muted-foreground">
-              From starting a young horse to refining advanced movements, find a plan that fits your journey.
+              Desde iniciar un caballo joven hasta refinar movimientos avanzados, encuentra un plan que se adapte a tu viaje.
             </p>
         </div>
 
         <div className="flex justify-center mb-8">
           <div className="p-1 rounded-lg bg-muted flex gap-1">
-            {(['Desde cero: caballo sin domar', 'Volver a lo básico: bajo montura', 'Mejorar flexibilidad y reunión'] as const).map((category) => (
-              <Button
-                key={category}
-                variant={selectedCategory === category ? 'default' : 'ghost'}
-                onClick={() => setSelectedCategory(category)}
-                className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
-                  selectedCategory === category
-                    ? 'bg-primary text-primary-foreground shadow-sm'
-                    : 'text-muted-foreground hover:bg-background/50'
-                }`}
-              >
-                {category}
-              </Button>
-            ))}
+            <div className="p-1 rounded-lg bg-muted flex gap-1">
+              {CATEGORIES.map((category) => (
+                <Button
+                  key={category}
+                  variant={selectedCategory === category ? 'default' : 'ghost'}
+                  onClick={() => setSelectedCategory(category)}
+                  className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+                    selectedCategory === category
+                      ? 'bg-primary text-primary-foreground shadow-sm'
+                      : 'text-muted-foreground hover:bg-background/50 hover:text-primary'
+                  }`}
+                  aria-pressed={selectedCategory === category}
+                >
+                  {CATEGORY_LABELS[category]}
+                </Button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -70,15 +82,15 @@ export default function Home() {
                 <p className="text-muted-foreground mb-4">{plan.description}</p>
                 <Accordion type="single" collapsible className="w-full">
                   <AccordionItem value="exercises">
-                    <AccordionTrigger>View Exercises</AccordionTrigger>
+                    <AccordionTrigger>Ver Ejercicios</AccordionTrigger>
                     <AccordionContent>
                       <ul className="space-y-4 pt-2">
                         {plan.exercises.map((exercise: Exercise, index: number) => (
                           <li key={index} className="border-l-2 border-primary pl-4">
                             <h4 className="font-semibold">{exercise.name}</h4>
                             <p className="text-sm text-muted-foreground">{exercise.description}</p>
-                            {exercise.duration && <p className="text-xs text-muted-foreground/80">Duration: {exercise.duration}</p>}
-                            {exercise.reps && <p className="text-xs text-muted-foreground/80">Reps: {exercise.reps}</p>}
+                            {exercise.duration && <p className="text-xs text-muted-foreground/80">Duración: {exercise.duration}</p>}
+                            {exercise.reps && <p className="text-xs text-muted-foreground/80">Repeticiones: {exercise.reps}</p>}
                           </li>
                         ))}
                       </ul>
