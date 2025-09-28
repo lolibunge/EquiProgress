@@ -1,10 +1,20 @@
 export interface Exercise {
   id: string;
   name: string;
-  description: string;
-  duration?: string;
-  reps?: string;
   image?: string;
+  // LEGADO
+  description?: string;
+
+  // NUEVO (ficha técnica)
+  objective?: string;        // Objetivo
+  method?: string[];         // Pasos / Método
+  cues?: string[];           // Ayudas / señales del guía
+  gear?: string[];           // Material: cabestro, stick, etc.
+  duration?: string;         // Tiempo sugerido por sesión
+  prerequisites?: string[];  // Requisitos previos
+  safety?: string[];         // Seguridad / consideraciones
+  progressSigns?: Signal[];  // Señales de progreso
+  advanceCriteria?: string[];// Criterios para pasar de fase
 };
 
 export type PlanStage = {
@@ -37,27 +47,169 @@ export const CATEGORY_LABELS_ES: Record<Category, string> = {
 };
 
 export const trainingPlans: TrainingPlan[] = [
-  {
+    {
     id: "iniciacion-joven",
     name: "Iniciación Caballo Joven",
     description: "Base sólida: conexión, desensibilización y primeras respuestas.",
     duration: "6 semanas",
     weeks: 6,
-    image: "/plans/plan-de-inicicion-caballo-joven.png",
+    image: "/plans/plan-de-iniciacion-caballo-joven.png",
     category: "Unbroke",
     exercises: [
-      { id: "libertad", name: "Trabajo en libertad", description: "Conectar y regular energía.", image: "/plans/exercise/libertad.png" },
-      { id: "desens", name: "Desensibilización", description: "Stick & string + mano.", image: "/plans/exercise/desens.png" },
-      { id: "leading", name: "Leading", description: "Respuestas básicas a la cuerda.", image: "/plans/exercise/leading.png" },
+      {
+        id: "libertad",
+        name: "Trabajo en libertad",
+        image: "/plans/exercise/libertad.png",
+        objective: "Generar vínculo, atención y autorregulación sin herramientas.",
+        method: [
+          "Iniciar en corral/redondo, permitir explorar y observar lenguaje corporal.",
+          "Proponer cambios suaves de dirección y ritmo con tu postura y energía.",
+          "Recompensar mirar, acercarse, bajar la cabeza y regular el impulso."
+        ],
+        cues: ["Posición del cuerpo (invitar/alejar)", "Mirada suave", "Respiración lenta"],
+        gear: ["Corral/redondo seguro"],
+        duration: "10–15 min",
+        prerequisites: [],
+        safety: ["Evitar rincones con objetos que puedan golpear", "Mantener salida libre"],
+        progressSigns: [
+          { label: "Enganche", details: "Te busca y te sigue por iniciativa propia" },
+          { label: "Regulación", details: "Pasa de activo a calmado sin perder conexión" }
+        ],
+        advanceCriteria: [
+          "Responde a cambios de dirección con fluidez",
+          "Mantiene atención 2–3 minutos seguidos"
+        ]
+      },
+      {
+        id: "desens",
+        name: "Desensibilización I",
+        image: "/plans/exercise/desens.png",
+        objective: "Aceptar estímulos básicos en estático sin tensión.",
+        method: [
+          "Aplicar estímulos suaves con stick & string y mano (cuello, hombro, dorso).",
+          "Esperar señal de relajación y retirar estímulo (principio presión–liberación).",
+          "Repetir en ambos lados y zonas simétricas."
+        ],
+        cues: ["Tocar–retirar", "Ritmo constante", "Exhalar al relajar"],
+        gear: ["Cabestro", "Stick & string"],
+        duration: "10–12 min",
+        prerequisites: [],
+        safety: ["Evitar golpes con la cuerda", "No avanzar si hay tensión alta"],
+        progressSigns: [
+          { label: "Relaja cuello y dorso" },
+          { label: "Baja la cabeza" },
+          { label: "Respiración más lenta" }
+        ],
+        advanceCriteria: [
+          "Tolera contacto en 5–6 zonas sin mover los pies",
+          "Recupera la calma en < 5 segundos tras un pequeño sobresalto"
+        ]
+      },
+      {
+        id: "desens2",
+        name: "Desensibilización II",
+        image: "/plans/exercise/desens.png",
+        objective: "Generalizar la aceptación de estímulos en movimiento.",
+        method: [
+          "Mover cuerda y string alrededor del cuerpo mientras camina a tu lado.",
+          "Pasar la cuerda por cuello, dorso y grupa, manteniendo ritmo parejo.",
+          "Intercalar paradas y reinicios suaves conservando la calma."
+        ],
+        cues: ["Caminar a la par", "Transiciones cortas", "Voz neutra"],
+        gear: ["Cabestro", "Cuerda 3–4 m", "Stick & string"],
+        duration: "10–12 min",
+        prerequisites: ["Desensibilización I aceptada en estático"],
+        safety: ["Evitar enredos con la cuerda", "Zonas despejadas"],
+        progressSigns: [
+          { label: "Calma en movimiento" },
+          { label: "Recuperación rápida tras estímulos" }
+        ],
+        advanceCriteria: [
+          "Mantiene paso regular con estímulos oscilantes",
+          "Tolera cuerda sobre grupa y dorso sin acelerar"
+        ]
+      },
+      {
+        id: "leading",
+        name: "Leading",
+        image: "/plans/exercise/leading.png",
+        objective: "Respuestas claras a la cuerda respetando el espacio personal.",
+        method: [
+          "Enseñar avanzar con ligera tensión y liberar al primer paso.",
+          "Parar elevando tu energía hacia atrás + micro tensión, liberar al detener.",
+          "Girar hombros/ancas con indicación mínima de cuerda y posición corporal."
+        ],
+        cues: ["Micro-tensión en cuerda", "Postura (adelante/atrás)", "Voz baja para parar"],
+        gear: ["Cabestro", "Cuerda 3–4 m"],
+        duration: "8–10 min",
+        prerequisites: ["Desensibilización I/II estables"],
+        safety: ["No envolver la cuerda en la mano", "Mantener zona libre delante"],
+        progressSigns: [
+          { label: "Responde a señales pequeñas" },
+          { label: "Mantiene ritmo y distancia sin invadir" }
+        ],
+        advanceCriteria: [
+          "Avanza/para con indicaciones sutiles",
+          "Gira derecha/izquierda sin tracción constante"
+        ]
+      },
+      {
+        id: "transition",
+        name: "Transiciones",
+        image: "/plans/exercise/leading.png",
+        objective: "Suavidad y control en cambios de marcha (paso↔trote) con atención sostenida.",
+        method: [
+          "Secuenciar paso–trote–paso en líneas rectas cortas.",
+          "Usar respiración/voz como prefijo y cuerda mínima como refuerzo.",
+          "Aumentar duración y reducir ayuda hasta que anticipe con tu cuerpo."
+        ],
+        cues: ["Exhalar para volver a paso", "Tono de voz para subir", "Micro gesto de hombros"],
+        gear: ["Cabestro", "Cuerda 3–4 m"],
+        duration: "8–12 min",
+        prerequisites: ["Leading consistente"],
+        safety: ["Evitar suelos resbaladizos", "Intervalos cortos si sube el estrés"],
+        progressSigns: [
+          { label: "Transiciones limpias, sin tirones" },
+          { label: "Mantiene foco tras 4–6 cambios seguidos" }
+        ],
+        advanceCriteria: [
+          "Responde a voz/postura > cuerda",
+          "Recupera la calma al paso en 2–3 pasos"
+        ]
+      },
+      {
+        id: "integration",
+        name: "Integración",
+        image: "/plans/exercise/leading.png",
+        objective: "Unir los ejercicios en una secuencia fluida y coherente.",
+        method: [
+          "Secuencia tipo: libertad (conexión) → desens I/II (calma) → leading (dirección) → transiciones (control).",
+          "Mantener pausas breves de respiración y rascado en puntos de éxito.",
+          "Cerrar con vuelta a la calma y chequeo de señales corporales."
+        ],
+        cues: ["Rutina clara", "Pausas conscientes", "Criterio de calidad antes de avanzar"],
+        gear: ["Cabestro", "Cuerda", "Stick & string"],
+        duration: "12–15 min",
+        prerequisites: ["Libertad, Desens I/II y Leading básicos"],
+        safety: ["Dosificar para evitar fatiga mental", "Cortar si hay tensión sostenida"],
+        progressSigns: [
+          { label: "Fluidez", details: "Pasa de un ejercicio a otro sin perder calma" },
+          { label: "Conexión estable", details: "Recupera atención tras estímulos" }
+        ],
+        advanceCriteria: [
+          "Secuencia completa sin picos de tensión",
+          "Respuestas mayormente con ayudas sutiles"
+        ]
+      }
     ],
     stages: [
       { week: 1, title: "Vínculo", description: "Trabajo en libertad + lectura de señales.", exerciseIds: ["libertad"] },
       { week: 2, title: "Desensibilización I", description: "Zonas de contacto, presión/soltar.", exerciseIds: ["desens"] },
-      { week: 3, title: "Desensibilización II", description: "Generalizar estímulos en movimiento." },
+      { week: 3, title: "Desensibilización II", description: "Generalizar estímulos en movimiento.", exerciseIds: ["desens2"] },
       { week: 4, title: "Leading", description: "Parar/Avanzar/Derecha/Izquierda a pie.", exerciseIds: ["leading"] },
-      { week: 5, title: "Transiciones", description: "Cambios suaves, atención sostenida." },
-      { week: 6, title: "Integración", description: "Secuencia fluida de ejercicios base." },
-    ],
+      { week: 5, title: "Transiciones", description: "Cambios suaves, atención sostenida.", exerciseIds: ["transition"] },
+      { week: 6, title: "Integración", description: "Secuencia fluida de ejercicios base.", exerciseIds: ["integration"] }
+    ]
   },
     // 🔧 Retraining
   {
