@@ -116,19 +116,55 @@ export default function PlanDetailPage() {
   const weeksCompleted = saved.completedWeeks.length;
   const progressPct = Math.round((weeksCompleted / plan.weeks) * 100);
 
-  const fmt = (d: Date) =>
-    d.toLocaleDateString(undefined, {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
+  // ====== Progreso por días (auto + manual) ======
+  const [now, setNow] = useState<number>(Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(t);
+  }, []);
 
+  const totalDays = Math.max(1, plan.weeks * 7);
+  const startedDate = saved.startAt ? new Date(saved.startAt) : null;
+
+  const actualDaysElapsed = useMemo(() => {
+    if (!startedDate) return 0;
+    const diffMs = now - startedDate.getTime();
+    return Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)) + 1); // día 1 cuenta
+  }, [now, startedDate]);
+
+  // días “manuales” según semanas completadas
+  const manualDaysElapsed = weeksCompleted * 7;
+
+  // usamos el mayor de ambos, limitado al total
+  const daysElapsed = Math.min(totalDays, Math.max(actualDaysElapsed, manualDaysElapsed));
+  const daysRemaining = Math.max(0, totalDays - daysElapsed);
+  const dayProgressPct = Math.round((daysElapsed / totalDays) * 100);
+
+  // (opcional) auto-sincronizar semana actual a partir de los días (reales o manuales)
+  useEffect(() => {
+    if (!saved.startAt) return;
+    const autoWeek = Math.min(
+      plan.weeks,
+      Math.max(1, Math.ceil(daysElapsed / 7))
+    );
+    if (saved.currentWeek < autoWeek) {
+      persist({ ...saved, currentWeek: autoWeek });
+    }
+  }, [daysElapsed, saved, plan.weeks]);
+
+  const fmt = (d: Date) =>
+    d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+
+  // ETA: si el progreso manual > real, estimamos desde “hoy”; si no, desde startAt
   const etaDate = useMemo(() => {
     if (!saved.startAt) return null;
-    const end = new Date(saved.startAt);
-    end.setDate(end.getDate() + plan.weeks * 7 - 1);
+    const baseMs =
+      manualDaysElapsed > actualDaysElapsed
+        ? now // progreso manual “trae” la fecha fin hacia hoy
+        : startedDate!.getTime();
+    const end = new Date(baseMs + (daysRemaining > 0 ? (daysRemaining - 1) * 86400000 : 0));
     return end;
-  }, [saved.startAt, plan.weeks]);
+  }, [saved.startAt, manualDaysElapsed, actualDaysElapsed, daysRemaining, now]);
 
   // ─────────────────────────────────────────────────────────────
   // UI
@@ -204,7 +240,9 @@ export default function PlanDetailPage() {
 
               {/* Botones: columna en mobile, fila en sm+ */}
               {!saved.startAt || saved.currentWeek === 0 ? (
-                <Button className="w-full sm:w-auto">Iniciar plan</Button>
+                <Button className="w-full sm:w-auto" onClick={startPlan}>
+                  Iniciar plan
+                </Button>
               ) : (
                 <div className="flex w-full sm:w-auto flex-col sm:flex-row gap-2 sm:gap-2 min-w-0">
                   <div className="flex w-full gap-2 min-w-0">
@@ -278,6 +316,30 @@ export default function PlanDetailPage() {
                   {plan.weeks}
                 </p>
               )}
+
+              {/* Progreso por días */}
+                <div className="mt-3 space-y-2">
+                  <div className="flex items-center justify-between text-xs sm:text-sm text-muted-foreground">
+                    <span>{daysElapsed} / {totalDays} días</span>
+                    <span>{dayProgressPct}%</span>
+                  </div>
+                  <div className="w-full h-2 rounded-full bg-muted overflow-hidden">
+                    <div
+                      className="h-full bg-primary/70 transition-all"
+                      style={{ width: `${dayProgressPct}%` }}
+                      role="progressbar"
+                      aria-valuenow={dayProgressPct}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {daysRemaining > 0
+                      ? `Quedan ${daysRemaining} día${daysRemaining === 1 ? '' : 's'}.`
+                      : '¡Duración estimada completada!'}
+                  </p>
+                </div>
+
             </CardContent>
           </Card>
         </section>
@@ -403,53 +465,34 @@ export default function PlanDetailPage() {
             <div className="grid gap-4">
               {plan.stages.map((stage) => (
                 <Card key={`${plan.id}-stack-${stage.week}`}>
-                  <CardHeader className="flex flex-col items-start justify-between">
+                  <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                     <div className="flex items-center gap-3">
-                      <Badge
-                        variant={
-                          stage.week === saved.currentWeek ? 'default' : 'secondary'
-                        }
-                      >
+                      <Badge variant={stage.week === saved.currentWeek ? 'default' : 'secondary'}>
                         Semana {stage.week}
                       </Badge>
-                      {stage.title && (
-                        <span className="font-medium">{stage.title}</span>
-                      )}
+                      {stage.title && <span className="font-medium">{stage.title}</span>}
                     </div>
-                    <div className="flex items-center gap-3">
-                      <label className="flex items-center gap-2 text-xs text-muted-foreground select-none cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={isCompleted(stage.week)}
-                          onChange={(e) =>
-                            e.target.checked
-                              ? markWeekDone(stage.week)
-                              : unmarkWeek(stage.week)
-                          }
-                        />
-                        Completada
-                      </label>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setCurrentWeek(stage.week)}
-                      >
-                        Ir
-                      </Button>
-                    </div>
+                    {/* si querés, mantené un botón para fijar semana actual */}
+                    {/* <Button size="sm" variant="outline" onClick={() => setCurrentWeek(stage.week)}>Marcar como semana actual</Button> */}
                   </CardHeader>
 
-                  <CardContent className="space-y-3">
-                    <p className="text-sm text-muted-foreground">
-                      {stage.description}
-                    </p>
+                  <CardContent className="space-y-4">
+                    <p className="text-sm text-muted-foreground">{stage.description}</p>
+
                     {stage.exerciseIds?.length ? (
-                      <ul className="text-sm list-disc pl-5">
+                      <ul className="grid gap-3">
                         {stage.exerciseIds.map((eid) => {
                           const ex = plan.exercises.find((e) => e.id === eid);
+                          if (!ex) return null;
                           return (
-                            <li key={eid}>
-                              <strong>{ex?.name ?? eid}:</strong> {ex?.description}
+                            <li key={eid} className="flex items-center justify-between gap-3 rounded-lg border p-3">
+                              <div className="min-w-0">
+                                <p className="font-medium text-sm truncate">{ex.name}</p>
+                                <p className="text-xs text-muted-foreground line-clamp-2">{ex.description}</p>
+                              </div>
+                              <Button asChild size="sm" className="shrink-0">
+                                <Link href={`/exercises/${ex.id}?from=${plan.id}`}>Ver ejercicio</Link>
+                              </Button>
                             </li>
                           );
                         })}
