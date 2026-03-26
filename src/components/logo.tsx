@@ -1,18 +1,23 @@
-import * as React from 'react';
+import Image from 'next/image';
+import { cn } from '@/lib/utils';
 
-export const Logo = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.5"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    {...props}
-  >
-    <path d="M12 12m-2 0a2 2 0 1 0 4 0a2 2 0 1 0-4 0" />
-    <path d="M21 12c-1.884-3.13-4.28-5.523-7.17-7.168" />
-    <path d="M3 12c1.884 3.13 4.28 5.523 7.17 7.168" />
-  </svg>
-);
+type LogoProps = {
+  className?: string;
+  variant?: 'mark' | 'full';
+  priority?: boolean;
+};
+
+export function Logo({ className, variant = 'mark', priority = false }: LogoProps) {
+  const isFull = variant === 'full';
+
+  return (
+    <Image
+      src={isFull ? '/brand/logo-equiprogress.png' : '/brand/logo-mark.png'}
+      alt="EquiProgress"
+      width={isFull ? 640 : 256}
+      height={isFull ? 360 : 256}
+      priority={priority}
+      className={cn('object-contain', className)}
+    />
+  );
+}

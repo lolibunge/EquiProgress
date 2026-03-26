@@ -1,19 +1,11 @@
-// app/plans/[id]/page.tsx
 'use client';
 
 import Image from 'next/image';
 import Link from 'next/link';
 import { notFound, useParams } from 'next/navigation';
-import { trainingPlans } from '@/data/training-plans';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { useEffect, useState } from 'react';
+
+import { useAuth } from '@/components/auth-provider';
 import {
   Carousel,
   CarouselContent,
@@ -21,176 +13,422 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from '@/components/ui/carousel';
-import { useEffect, useMemo, useState } from 'react';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { useToast } from '@/hooks/use-toast';
+import { USE_FIRESTORE } from '@/lib/firebase';
+import {
+  canUserAccessPlan,
+  getPlanDisplayDescription,
+  getPlanDisplayName,
+  isAdminUser,
+} from '@/lib/plan-visibility';
+import {
+  createEmptyProgress,
+  loadRemotePlanProgress,
+  normalizeSavedPlan,
+  PROGRESS_ACTION_LABELS,
+  readLocalPlanProgress,
+  savePlanProgress,
+  subscribeHistory,
+  writeLocalPlanProgress,
+  type ProgressAction,
+  type ProgressHistoryEntry,
+  type SavedPlan,
+} from '@/lib/progress-store';
+import { trainingPlans } from '@/data/training-plans';
 
-type SavedPlan = {
-  startAt?: string | null;
-  currentWeek: number; // 0 = not started, 1..weeks in progress
-  completedWeeks: number[]; // e.g., [1,2,3]
+type ProgressEvent = {
+  action: ProgressAction;
+  week?: number | null;
+  note?: string | null;
 };
+
+const WORK_DAYS_PER_WEEK = 5;
+const WORKDAY_LABELS = ['Dia 1', 'Dia 2', 'Dia 3', 'Dia 4', 'Dia 5'];
 
 export default function PlanDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const plan = trainingPlans.find((p) => p.id === id);
+  const plan = trainingPlans.find((entry) => entry.id === id);
   if (!plan) notFound();
 
-  // ─────────────────────────────────────────────────────────────
-  // Progress (by weeks) persisted in localStorage
-  // ─────────────────────────────────────────────────────────────
   const STORAGE_KEY = `equi:plan:${plan.id}`;
 
-  const [saved, setSaved] = useState<SavedPlan>({
-    startAt: null,
-    currentWeek: 0,
-    completedWeeks: [],
-  });
+  const { user, loading: authLoading } = useAuth();
+  const { toast } = useToast();
+  const isAdmin = isAdminUser(user);
+  const canAccessPlan = canUserAccessPlan(plan.id, isAdmin);
+  const planName = getPlanDisplayName(plan.id, plan.name, isAdmin);
+  const planDescription = getPlanDisplayDescription(plan.id, plan.description, isAdmin);
+
+  const [saved, setSaved] = useState<SavedPlan>(createEmptyProgress());
+  const [isLoadingProgress, setIsLoadingProgress] = useState(true);
+  const [recentHistory, setRecentHistory] = useState<ProgressHistoryEntry[]>([]);
+  const [hasShownSyncError, setHasShownSyncError] = useState(false);
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw) as SavedPlan;
-        setSaved({
-          startAt: parsed.startAt ?? null,
-          currentWeek: parsed.currentWeek ?? 0,
-          completedWeeks: Array.isArray(parsed.completedWeeks)
-            ? parsed.completedWeeks
-            : [],
-        });
+    if (authLoading) return;
+
+    let cancelled = false;
+
+    async function loadProgress() {
+      setIsLoadingProgress(true);
+
+      const localProgress = readLocalPlanProgress(STORAGE_KEY);
+      let nextProgress = localProgress;
+      // Evita bloquear la UI si la nube tarda o falla: usamos local como fallback.
+      const unblockTimer = setTimeout(() => {
+        if (cancelled) return;
+        setSaved(normalizeSavedPlan(localProgress));
+        setIsLoadingProgress(false);
+      }, 3500);
+
+      if (user && canAccessPlan && USE_FIRESTORE) {
+        try {
+          const remoteProgress = await loadRemotePlanProgress(user.uid, plan.id);
+
+          if (remoteProgress) {
+            nextProgress = remoteProgress;
+          } else if (hasAnyProgress(localProgress)) {
+            await savePlanProgress({
+              uid: user.uid,
+              planId: plan.id,
+              planName,
+              progress: localProgress,
+            });
+          }
+        } catch (error) {
+          if (!cancelled && !hasShownSyncError) {
+            toast({
+              variant: 'destructive',
+              title: 'Fallo la sincronizacion en la nube',
+              description: firestoreSyncErrorMessage(error),
+            });
+            setHasShownSyncError(true);
+          }
+        }
       }
-    } catch {
-      // ignore
-    }
-  }, [STORAGE_KEY]);
 
-  function persist(next: SavedPlan) {
-    setSaved(next);
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    } catch {
-      // ignore
-    }
-  }
+      clearTimeout(unblockTimer);
 
-  function startPlan() {
-    persist({
-      startAt: new Date().toISOString(),
-      currentWeek: 1,
-      completedWeeks: [],
+      if (cancelled) return;
+
+      setSaved(normalizeSavedPlan(nextProgress));
+      setIsLoadingProgress(false);
+    }
+
+    void loadProgress();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [STORAGE_KEY, authLoading, canAccessPlan, hasShownSyncError, plan.id, planName, toast, user]);
+
+  useEffect(() => {
+    if (!user || !canAccessPlan || !USE_FIRESTORE || authLoading) {
+      setRecentHistory([]);
+      return;
+    }
+
+    const unsubscribe = subscribeHistory(user.uid, (entries) => {
+      const filtered = entries
+        .filter((entry) => entry.planId === plan.id)
+        .slice(0, 8);
+      setRecentHistory(filtered);
+    }, 120);
+
+    return unsubscribe;
+  }, [authLoading, canAccessPlan, plan.id, user]);
+
+  function persist(next: SavedPlan, event?: ProgressEvent) {
+    const normalized = normalizeSavedPlan(next);
+
+    setSaved(normalized);
+    writeLocalPlanProgress(STORAGE_KEY, normalized);
+
+    if (!user || !USE_FIRESTORE) return;
+
+    void savePlanProgress({
+      uid: user.uid,
+      planId: plan.id,
+      planName,
+      progress: normalized,
+      event,
+    }).catch((error) => {
+      if (!hasShownSyncError) {
+        toast({
+          variant: 'destructive',
+          title: 'No se pudo sincronizar el progreso',
+          description: firestoreSyncErrorMessage(error),
+        });
+        setHasShownSyncError(true);
+      }
     });
   }
 
-  function resetPlan() {
-    persist({ startAt: null, currentWeek: 0, completedWeeks: [] });
-  }
-
-  const isCompleted = (w: number) => saved.completedWeeks.includes(w);
-
-  function setCurrentWeek(w: number) {
-    const clamped = Math.max(1, Math.min(plan.weeks, w));
-    persist({ ...saved, currentWeek: clamped });
-  }
-
-  function markWeekDone(w: number) {
-    if (isCompleted(w)) return;
-    const completedWeeks = [...new Set([...saved.completedWeeks, w])].sort(
-      (a, b) => a - b
+  function startPlan() {
+    const baseProgress = createEmptyProgress();
+    persist(
+      {
+        ...baseProgress,
+        startAt: new Date().toISOString(),
+        currentWeek: 1,
+      },
+      {
+        action: 'plan_started',
+        week: 1,
+      }
     );
+  }
+
+  function resetPlan() {
+    persist(createEmptyProgress(), { action: 'plan_reset' });
+  }
+
+  function getWeekDays(week: number): boolean[] {
+    const key = String(week);
+    const stored = saved.daysByWeek[key] ?? [];
+    return Array.from({ length: WORK_DAYS_PER_WEEK }, (_, index) => Boolean(stored[index]));
+  }
+
+  function isCompleted(week: number) {
+    return getWeekDays(week).every(Boolean);
+  }
+
+  function setCurrentWeek(week: number) {
+    const clampedWeek = Math.max(1, Math.min(plan.weeks, week));
+    if (clampedWeek === saved.currentWeek) return;
+
+    persist(
+      { ...saved, currentWeek: clampedWeek },
+      {
+        action: 'week_selected',
+        week: clampedWeek,
+      }
+    );
+  }
+
+  function markWeekDone(week: number) {
+    if (isCompleted(week)) return;
+
+    const completedWeeks = [...new Set([...saved.completedWeeks, week])].sort((a, b) => a - b);
+    const completedDays = Array.from({ length: WORK_DAYS_PER_WEEK }, () => true);
     let currentWeek = saved.currentWeek;
-    if (w === saved.currentWeek && saved.currentWeek < plan.weeks) {
-      currentWeek = saved.currentWeek + 1; // auto-advance
+
+    if (week === saved.currentWeek && saved.currentWeek < plan.weeks) {
+      currentWeek = saved.currentWeek + 1;
     }
-    persist({ ...saved, completedWeeks, currentWeek });
+
+    persist(
+      {
+        ...saved,
+        completedWeeks,
+        currentWeek,
+        daysByWeek: {
+          ...saved.daysByWeek,
+          [String(week)]: completedDays,
+        },
+      },
+      {
+        action: 'week_completed',
+        week,
+      }
+    );
   }
 
-  function unmarkWeek(w: number) {
-    const completedWeeks = saved.completedWeeks.filter((x) => x !== w);
-    persist({ ...saved, completedWeeks });
+  function unmarkWeek(week: number) {
+    if (!isCompleted(week)) return;
+
+    const completedWeeks = saved.completedWeeks.filter((entry) => entry !== week);
+    const resetDays = Array.from({ length: WORK_DAYS_PER_WEEK }, () => false);
+
+    persist(
+      {
+        ...saved,
+        completedWeeks,
+        daysByWeek: {
+          ...saved.daysByWeek,
+          [String(week)]: resetDays,
+        },
+      },
+      {
+        action: 'week_unmarked',
+        week,
+      }
+    );
   }
 
-  function completeCurrentWeek() {
-    if (saved.currentWeek <= 0) return;
-    markWeekDone(saved.currentWeek);
+  function setWorkDay(week: number, dayIndex: number, checked: boolean) {
+    if (!isWeekEditable(week)) return;
+
+    const currentDays = getWeekDays(week);
+    if (currentDays[dayIndex] === checked) return;
+
+    const nextDays = [...currentDays];
+    nextDays[dayIndex] = checked;
+
+    const weekWasCompleted = isCompleted(week);
+    const weekIsCompleted = nextDays.every(Boolean);
+
+    let completedWeeks = saved.completedWeeks;
+    let currentWeek = saved.currentWeek;
+    let event: ProgressEvent = {
+      action: checked ? 'day_checked' : 'day_unchecked',
+      week,
+    };
+
+    if (weekIsCompleted && !weekWasCompleted) {
+      completedWeeks = [...new Set([...saved.completedWeeks, week])].sort((a, b) => a - b);
+      event = { action: 'week_completed', week };
+      if (week === saved.currentWeek && saved.currentWeek < plan.weeks) {
+        currentWeek = saved.currentWeek + 1;
+      }
+    }
+
+    if (!weekIsCompleted && weekWasCompleted) {
+      completedWeeks = saved.completedWeeks.filter((entry) => entry !== week);
+      event = { action: 'week_unmarked', week };
+    }
+
+    persist(
+      {
+        ...saved,
+        currentWeek,
+        completedWeeks,
+        daysByWeek: {
+          ...saved.daysByWeek,
+          [String(week)]: nextDays,
+        },
+      },
+      event
+    );
   }
 
-  const weeksCompleted = saved.completedWeeks.length;
+  function goToNextWeek() {
+    if (editableWeek <= 0) return;
+
+    if (saved.currentWeek !== editableWeek) {
+      setCurrentWeek(editableWeek);
+      return;
+    }
+
+    markWeekDone(editableWeek);
+  }
+
+  function isWeekEditable(week: number): boolean {
+    return editableWeek > 0 && week === editableWeek;
+  }
+
+  const weeksCompleted = Array.from({ length: plan.weeks }, (_, index) => index + 1).filter(
+    (week) => isCompleted(week)
+  ).length;
+
+  const editableWeek =
+    Array.from({ length: plan.weeks }, (_, index) => index + 1).find(
+      (week) => !isCompleted(week)
+    ) ?? 0;
   const progressPct = Math.round((weeksCompleted / plan.weeks) * 100);
 
-  // ====== Progreso por días (auto + manual) ======
-  const [now, setNow] = useState<number>(Date.now());
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 60_000);
-    return () => clearInterval(t);
-  }, []);
+  const totalDays = Math.max(1, plan.weeks * WORK_DAYS_PER_WEEK);
+  const workedDays = Array.from({ length: plan.weeks }, (_, index) => {
+    const week = index + 1;
+    return getWeekDays(week).filter(Boolean).length;
+  }).reduce((total, value) => total + value, 0);
+  const daysRemaining = Math.max(0, totalDays - workedDays);
+  const dayProgressPct = Math.round((workedDays / totalDays) * 100);
+  const currentWeekDays =
+    saved.currentWeek > 0
+      ? getWeekDays(saved.currentWeek)
+      : Array.from({ length: WORK_DAYS_PER_WEEK }, () => false);
+  const isCurrentWeekEditable = isWeekEditable(saved.currentWeek);
 
-  const totalDays = Math.max(1, plan.weeks * 7);
-  const startedDate = saved.startAt ? new Date(saved.startAt) : null;
-
-  const actualDaysElapsed = useMemo(() => {
-    if (!startedDate) return 0;
-    const diffMs = now - startedDate.getTime();
-    return Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)) + 1); // día 1 cuenta
-  }, [now, startedDate]);
-
-  // días “manuales” según semanas completadas
-  const manualDaysElapsed = weeksCompleted * 7;
-
-  // usamos el mayor de ambos, limitado al total
-  const daysElapsed = Math.min(totalDays, Math.max(actualDaysElapsed, manualDaysElapsed));
-  const daysRemaining = Math.max(0, totalDays - daysElapsed);
-  const dayProgressPct = Math.round((daysElapsed / totalDays) * 100);
-
-  // (opcional) auto-sincronizar semana actual a partir de los días (reales o manuales)
-  useEffect(() => {
-    if (!saved.startAt) return;
-    const autoWeek = Math.min(
-      plan.weeks,
-      Math.max(1, Math.ceil(daysElapsed / 7))
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-background text-foreground font-body antialiased">
+        <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <Card>
+            <CardHeader>
+              <CardTitle>Loading plan...</CardTitle>
+              <CardDescription>Checking account access.</CardDescription>
+            </CardHeader>
+          </Card>
+        </main>
+      </div>
     );
-    if (saved.currentWeek < autoWeek) {
-      persist({ ...saved, currentWeek: autoWeek });
-    }
-  }, [daysElapsed, saved, plan.weeks]);
+  }
 
-  const fmt = (d: Date) =>
-    d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-background text-foreground font-body antialiased">
+        <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <Card className="max-w-xl mx-auto">
+            <CardHeader>
+              <CardTitle>Login required</CardTitle>
+              <CardDescription>
+                Students must log in to open assigned training plans.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <Button asChild className="w-full">
+                <Link href="/login">Go to login</Link>
+              </Button>
+              <Button asChild variant="outline" className="w-full">
+                <Link href="/">Back to home</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        </main>
+      </div>
+    );
+  }
 
-  // ETA: si el progreso manual > real, estimamos desde “hoy”; si no, desde startAt
-  const etaDate = useMemo(() => {
-    if (!saved.startAt) return null;
-    const baseMs =
-      manualDaysElapsed > actualDaysElapsed
-        ? now // progreso manual “trae” la fecha fin hacia hoy
-        : startedDate!.getTime();
-    const end = new Date(baseMs + (daysRemaining > 0 ? (daysRemaining - 1) * 86400000 : 0));
-    return end;
-  }, [saved.startAt, manualDaysElapsed, actualDaysElapsed, daysRemaining, now]);
+  if (!canAccessPlan) {
+    return (
+      <div className="min-h-screen bg-background text-foreground font-body antialiased">
+        <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <Card className="max-w-xl mx-auto">
+            <CardHeader>
+              <CardTitle>Plan not assigned</CardTitle>
+              <CardDescription>
+                This account does not have access to this plan.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button asChild className="w-full">
+                <Link href="/">Back to assigned plans</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        </main>
+      </div>
+    );
+  }
 
-  // ─────────────────────────────────────────────────────────────
-  // UI
-  // ─────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-background text-foreground font-body antialiased">
       <header className="sticky top-0 z-20 bg-background/80 backdrop-blur-sm border-b border-primary/20">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <Link
-            href="/"
-            className="text-sm text-muted-foreground hover:text-primary"
-          >
-            &larr; Volver
+          <Link href="/" className="p-2 text-sm text-muted-foreground hover:text-primary">
+            &larr;
           </Link>
-          <h1 className="text-lg font-headline font-semibold">{plan.name}</h1>
+          <h1 className="text-lg font-headline font-semibold">{planName}</h1>
           <div />
         </div>
       </header>
 
       <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-10">
-        {/* HERO */}
         {plan.image && (
           <div className="relative w-full aspect-[1/1] overflow-hidden rounded-2xl">
             <Image
               src={plan.image}
-              alt={`Imagen de ${plan.name}`}
+              alt={`Imagen de ${planName}`}
               fill
               priority
               sizes="100vw"
@@ -199,7 +437,6 @@ export default function PlanDetailPage() {
           </div>
         )}
 
-        {/* OVERVIEW */}
         <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <Card className="md:col-span-2">
             <CardHeader>
@@ -208,7 +445,7 @@ export default function PlanDetailPage() {
             </CardHeader>
             <CardContent>
               <p className="text-muted-foreground leading-relaxed">
-                {plan.description}
+                {planDescription}
               </p>
             </CardContent>
           </Card>
@@ -225,7 +462,30 @@ export default function PlanDetailPage() {
           </Card>
         </section>
 
-        {/* PROGRESO / SEMANAS */}
+        <section>
+          <Card>
+            <CardHeader>
+              <CardTitle>{isAdmin ? 'Vista de administrador' : 'Sincronizacion de estudiante activa'}</CardTitle>
+              <CardDescription>
+                El progreso esta vinculado a {user.displayName || user.email}.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <p className="text-sm text-muted-foreground">
+                Cada avance diario y semanal se guarda y se agrega al historial de este estudiante.
+              </p>
+              <Button asChild variant="outline">
+                <Link href="/history">Abrir historial completo</Link>
+              </Button>
+              {!USE_FIRESTORE && (
+                <p className="text-sm text-muted-foreground">
+                  La sincronizacion de Firestore esta desactivada. Define `NEXT_PUBLIC_USE_FIRESTORE=true` para guardar historial en la nube.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </section>
+
         <section>
           <Card>
             <CardHeader className="space-y-3 sm:space-y-0 sm:flex sm:items-start sm:justify-between">
@@ -233,59 +493,69 @@ export default function PlanDetailPage() {
                 <CardTitle>Progreso del plan</CardTitle>
                 <CardDescription>
                   {saved.startAt
-                    ? `Iniciado el ${fmt(new Date(saved.startAt))}`
+                    ? `Iniciado el ${formatDate(saved.startAt)}`
                     : 'Aún no iniciado'}
                 </CardDescription>
               </div>
 
-              {/* Botones: columna en mobile, fila en sm+ */}
               {!saved.startAt || saved.currentWeek === 0 ? (
-                <Button className="w-full sm:w-auto" onClick={startPlan}>
+                <Button
+                  className="w-full sm:w-auto"
+                  onClick={startPlan}
+                  disabled={isLoadingProgress}
+                >
                   Iniciar plan
                 </Button>
               ) : (
-                <div className="flex w-full sm:w-auto flex-col sm:flex-row gap-2 sm:gap-2 min-w-0">
+                <div className="flex w-full sm:w-auto flex-col sm:flex-row gap-2 min-w-0">
                   <div className="flex w-full gap-2 min-w-0">
                     <Button
                       variant="outline"
                       onClick={() => setCurrentWeek(saved.currentWeek - 1)}
-                      disabled={saved.currentWeek <= 1}
+                      disabled={saved.currentWeek <= 1 || isLoadingProgress}
                       className="flex-1 sm:flex-none whitespace-normal text-center"
                     >
                       Semana anterior
                     </Button>
                     <Button
                       variant="outline"
-                      onClick={() => setCurrentWeek(saved.currentWeek + 1)}
-                      disabled={saved.currentWeek >= plan.weeks}
+                      onClick={goToNextWeek}
+                      disabled={
+                        editableWeek <= 0 ||
+                        isLoadingProgress ||
+                        saved.currentWeek <= 0
+                      }
                       className="flex-1 sm:flex-none whitespace-normal text-center"
                     >
-                      Siguiente semana
+                      {editableWeek <= 0
+                        ? 'Plan completado'
+                        : saved.currentWeek === editableWeek
+                          ? editableWeek >= plan.weeks
+                            ? 'Finalizar semana'
+                            : 'Siguiente semana'
+                          : `Ir a semana ${editableWeek}`}
                     </Button>
                   </div>
 
-                  <div className="flex w-full gap-2 min-w-0">
-                    <Button
-                      onClick={completeCurrentWeek}
-                      className="flex-1 sm:flex-none whitespace-normal text-center"
-                    >
-                      {/* En móvil podés abreviar el texto para evitar desborde */}
-                      <span className="sm:hidden">Completar</span>
-                      <span className="hidden sm:inline">Completar semana {saved.currentWeek}</span>
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      onClick={resetPlan}
-                      className="flex-1 sm:flex-none whitespace-normal text-center"
-                    >
-                      Reiniciar
-                    </Button>
-                  </div>
+                  <Button
+                    variant="ghost"
+                    onClick={resetPlan}
+                    disabled={isLoadingProgress}
+                    className="w-full sm:w-auto whitespace-normal text-center"
+                  >
+                    Reiniciar
+                  </Button>
                 </div>
               )}
             </CardHeader>
 
             <CardContent className="space-y-3">
+              {isLoadingProgress && (
+                <p className="text-xs text-muted-foreground">
+                  Cargando progreso...
+                </p>
+              )}
+
               <div className="flex items-center justify-between text-sm text-muted-foreground">
                 <span>
                   {weeksCompleted} / {plan.weeks} semanas completadas
@@ -304,47 +574,92 @@ export default function PlanDetailPage() {
                 />
               </div>
 
-              {etaDate && (
-                <p className="text-xs text-muted-foreground">
-                  Fin estimado: {fmt(etaDate)}
-                </p>
-              )}
-
               {saved.currentWeek > 0 && (
-                <p className="text-xs text-muted-foreground">
-                  Semana actual: <strong>{saved.currentWeek}</strong> de{' '}
-                  {plan.weeks}
-                </p>
-              )}
-
-              {/* Progreso por días */}
-                <div className="mt-3 space-y-2">
-                  <div className="flex items-center justify-between text-xs sm:text-sm text-muted-foreground">
-                    <span>{daysElapsed} / {totalDays} días</span>
-                    <span>{dayProgressPct}%</span>
-                  </div>
-                  <div className="w-full h-2 rounded-full bg-muted overflow-hidden">
-                    <div
-                      className="h-full bg-primary/70 transition-all"
-                      style={{ width: `${dayProgressPct}%` }}
-                      role="progressbar"
-                      aria-valuenow={dayProgressPct}
-                      aria-valuemin={0}
-                      aria-valuemax={100}
-                    />
+                <div className="space-y-2 rounded-lg border border-primary/20 p-3">
+                  <p className="text-xs text-muted-foreground">
+                    Semana actual: <strong>{saved.currentWeek}</strong> de {plan.weeks}
+                  </p>
+                  <p className="text-sm font-medium">
+                    Semana {saved.currentWeek}: marcar dias trabajados
+                  </p>
+                  {!isCurrentWeekEditable && editableWeek > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      Semana en solo lectura. La semana activa para editar es la {editableWeek}.
+                    </p>
+                  )}
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                    {WORKDAY_LABELS.map((label, dayIndex) => (
+                      <label
+                        key={`${saved.currentWeek}-${label}`}
+                        className="flex items-center gap-2 rounded-md border px-2 py-2 text-sm"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={currentWeekDays[dayIndex]}
+                          onChange={(event) =>
+                            setWorkDay(saved.currentWeek, dayIndex, event.target.checked)
+                          }
+                          disabled={isLoadingProgress || !isCurrentWeekEditable}
+                        />
+                        <span>{label}</span>
+                      </label>
+                    ))}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    {daysRemaining > 0
-                      ? `Quedan ${daysRemaining} día${daysRemaining === 1 ? '' : 's'}.`
-                      : '¡Duración estimada completada!'}
+                    {currentWeekDays.filter(Boolean).length} / {WORK_DAYS_PER_WEEK} dias trabajados
+                    en esta semana.
                   </p>
                 </div>
+              )}
 
+              <div className="mt-3 space-y-2">
+                <div className="flex items-center justify-between text-xs sm:text-sm text-muted-foreground">
+                  <span>{workedDays} / {totalDays} dias</span>
+                  <span>{dayProgressPct}%</span>
+                </div>
+                <div className="w-full h-2 rounded-full bg-muted overflow-hidden">
+                  <div
+                    className="h-full bg-primary/70 transition-all"
+                    style={{ width: `${dayProgressPct}%` }}
+                    role="progressbar"
+                    aria-valuenow={dayProgressPct}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {daysRemaining > 0
+                    ? `Quedan ${daysRemaining} día${daysRemaining === 1 ? '' : 's'}.`
+                    : '¡Duración estimada completada!'}
+                </p>
+              </div>
+
+              {user && recentHistory.length > 0 && (
+                <div className="pt-2">
+                  <h3 className="text-sm font-medium">Historial reciente</h3>
+                  <ul className="mt-2 space-y-2">
+                    {recentHistory.map((entry) => (
+                      <li key={entry.id} className="rounded-lg border p-2 text-xs sm:text-sm">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="font-medium">
+                            {PROGRESS_ACTION_LABELS[entry.action]}
+                          </span>
+                          <span className="text-muted-foreground">
+                            {formatDateTime(entry.createdAt)}
+                          </span>
+                        </div>
+                        <p className="text-muted-foreground">
+                          Semana: {entry.week ?? '-'} | Actual: {entry.currentWeek}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </CardContent>
           </Card>
         </section>
 
-        {/* TIMELINE / ETAPAS POR SEMANA */}
         {plan.stages?.length ? (
           <section>
             <h2 className="text-xl font-semibold mb-4">Etapas del plan</h2>
@@ -352,6 +667,11 @@ export default function PlanDetailPage() {
               {plan.stages.map((stage) => {
                 const active = stage.week === saved.currentWeek;
                 const completed = isCompleted(stage.week);
+                const editable = isWeekEditable(stage.week);
+                const stagePrimaryExerciseId = stage.exerciseIds?.[0];
+                const stagePrimaryExercise = stagePrimaryExerciseId
+                  ? plan.exercises.find((entry) => entry.id === stagePrimaryExerciseId)
+                  : null;
                 return (
                   <li key={`${plan.id}-timeline-${stage.week}`} className="ml-2">
                     <div
@@ -359,39 +679,50 @@ export default function PlanDetailPage() {
                         completed ? 'bg-primary' : 'bg-muted'
                       }`}
                     />
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-col items-start gap-2">
                       <Badge variant={active ? 'default' : 'secondary'}>
                         Semana {stage.week}
                       </Badge>
-                      {stage.title && (
-                        <span className="font-medium">{stage.title}</span>
-                      )}
-                      {completed && (
-                        <span className="text-xs text-muted-foreground">
-                          (Completada)
-                        </span>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {stage.title && (
+                          <span className="font-medium">{stage.title}</span>
+                        )}
+                        {completed && (
+                          <span className="text-xs text-muted-foreground">
+                            (Completada)
+                          </span>
+                        )}
+                      </div>
                     </div>
 
-                    <div className="mt-2 flex items-center gap-3">
+                    <div className="mt-2 flex flex-wrap items-center gap-3">
                       <Button
                         size="sm"
                         variant="outline"
                         onClick={() => setCurrentWeek(stage.week)}
+                        disabled={isLoadingProgress}
                       >
                         Ir a esta semana
                       </Button>
+                      {stagePrimaryExercise && (
+                        <Button asChild size="sm" variant="secondary">
+                          <Link href={`/exercises/${stagePrimaryExercise.id}?from=${plan.id}`}>
+                            Ver ejercicio
+                          </Link>
+                        </Button>
+                      )}
                       <label className="flex items-center gap-2 text-sm text-muted-foreground select-none cursor-pointer">
                         <input
                           type="checkbox"
                           checked={completed}
-                          onChange={(e) =>
-                            e.target.checked
+                          onChange={(event) =>
+                            event.target.checked
                               ? markWeekDone(stage.week)
                               : unmarkWeek(stage.week)
                           }
+                          disabled={isLoadingProgress || !editable}
                         />
-                        Marcar completada
+                        {editable ? 'Marcar completada' : 'Semana cerrada'}
                       </label>
                     </div>
 
@@ -405,7 +736,6 @@ export default function PlanDetailPage() {
           </section>
         ) : null}
 
-        {/* CARRUSEL DE EJERCICIOS */}
         {plan.exercises?.length ? (
           <section>
             <div className="flex items-baseline justify-between mb-4">
@@ -417,16 +747,16 @@ export default function PlanDetailPage() {
 
             <Carousel opts={{ loop: true, align: 'center' }}>
               <CarouselContent>
-                {plan.exercises.map((ex, index) => (
+                {plan.exercises.map((exercise, index) => (
                   <CarouselItem
-                    key={`${plan.id}-ex-${ex.id ?? 'noid'}-${index}`}
+                    key={`${plan.id}-ex-${exercise.id ?? 'noid'}-${index}`}
                     className="basis-[350px] sm:basis-[350px] md:basis-[350px] lg:basis-[350px] px-1 sm:px-2"
                   >
                     <Card className="h-full overflow-hidden rounded-lg">
                       <div className="relative w-full aspect-square overflow-hidden">
                         <Image
-                          src={ex.image || '/placeholder.jpg'}
-                          alt={ex.name}
+                          src={exercise.image || '/placeholder.jpg'}
+                          alt={exercise.name}
                           fill
                           className="object-cover"
                           sizes="(max-width: 640px) 160px, (max-width: 768px) 200px, (max-width: 1024px) 240px, 280px"
@@ -435,16 +765,16 @@ export default function PlanDetailPage() {
 
                       <CardHeader className="py-2">
                         <CardTitle className="text-sm leading-tight line-clamp-2">
-                          {ex.name}
+                          {exercise.name}
                         </CardTitle>
                         <CardDescription className="text-xs">
-                          {ex.duration ?? ex.reps ?? '—'}
+                          {exercise.duration ?? exercise.reps ?? '—'}
                         </CardDescription>
                       </CardHeader>
 
                       <CardContent className="pt-0 pb-2">
                         <p className="text-xs text-muted-foreground line-clamp-3">
-                          {ex.description}
+                          {exercise.description}
                         </p>
                       </CardContent>
                     </Card>
@@ -458,54 +788,6 @@ export default function PlanDetailPage() {
           </section>
         ) : null}
 
-        {/* STACK SEMANA A SEMANA */}
-        {plan.stages?.length ? (
-          <section className="space-y-4">
-            <h2 className="text-xl font-semibold">Detalle semana a semana</h2>
-            <div className="grid gap-4">
-              {plan.stages.map((stage) => (
-                <Card key={`${plan.id}-stack-${stage.week}`}>
-                  <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                    <div className="flex items-center gap-3">
-                      <Badge variant={stage.week === saved.currentWeek ? 'default' : 'secondary'}>
-                        Semana {stage.week}
-                      </Badge>
-                      {stage.title && <span className="font-medium">{stage.title}</span>}
-                    </div>
-                    {/* si querés, mantené un botón para fijar semana actual */}
-                    {/* <Button size="sm" variant="outline" onClick={() => setCurrentWeek(stage.week)}>Marcar como semana actual</Button> */}
-                  </CardHeader>
-
-                  <CardContent className="space-y-4">
-                    <p className="text-sm text-muted-foreground">{stage.description}</p>
-
-                    {stage.exerciseIds?.length ? (
-                      <ul className="grid gap-3">
-                        {stage.exerciseIds.map((eid) => {
-                          const ex = plan.exercises.find((e) => e.id === eid);
-                          if (!ex) return null;
-                          return (
-                            <li key={eid} className="flex items-center justify-between gap-3 rounded-lg border p-3">
-                              <div className="min-w-0">
-                                <p className="font-medium text-sm truncate">{ex.name}</p>
-                                <p className="text-xs text-muted-foreground line-clamp-2">{ex.description}</p>
-                              </div>
-                              <Button asChild size="sm" className="shrink-0">
-                                <Link href={`/exercises/${ex.id}?from=${plan.id}`}>Ver ejercicio</Link>
-                              </Button>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    ) : null}
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </section>
-        ) : null}
-
-        {/* CTA */}
         <section className="flex justify-end">
           <Button asChild>
             <Link href="/">Elegir otro plan</Link>
@@ -514,4 +796,53 @@ export default function PlanDetailPage() {
       </main>
     </div>
   );
+}
+
+function hasAnyProgress(saved: SavedPlan): boolean {
+  const hasAnyDayChecked = Object.values(saved.daysByWeek ?? {}).some(
+    (days) => Array.isArray(days) && days.some(Boolean)
+  );
+  return Boolean(saved.startAt || saved.currentWeek > 0 || saved.completedWeeks.length > 0 || hasAnyDayChecked);
+}
+
+function formatDate(dateIso: string): string {
+  return new Date(dateIso).toLocaleDateString('es-UY', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
+function formatDateTime(date: Date | null): string {
+  if (!date) return 'Ahora';
+  return date.toLocaleString('es-UY', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function firestoreSyncErrorMessage(error: unknown): string {
+  if (typeof error !== 'object' || !error || !('code' in error)) {
+    return 'Se guardara localmente por ahora.';
+  }
+
+  const code = String(error.code);
+
+  switch (code) {
+    case 'permission-denied':
+      return 'Firestore bloqueo el acceso. Revisa las reglas para users/{uid}.';
+    case 'failed-precondition':
+      return 'Firestore no esta habilitado en este proyecto. Activalo en Firebase Console.';
+    case 'unauthenticated':
+      return 'La sesion no es valida para escribir en Firestore. Inicia sesion de nuevo.';
+    case 'unavailable':
+      return 'Firestore esta temporalmente no disponible. Intenta de nuevo en unos minutos.';
+    case 'not-found':
+      return 'No se encontro la base de datos de Firestore para este proyecto.';
+    default:
+      return `Error de sincronizacion (${code}). Se guardara localmente por ahora.`;
+  }
 }

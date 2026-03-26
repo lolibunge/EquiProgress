@@ -41,22 +41,23 @@ export type TrainingPlan = {
 
 // Spanish labels for categories (use for UI)
 export const CATEGORY_LABELS_ES: Record<Category, string> = {
-  Unbroke: 'Sin domar',
+  Unbroke: 'Manejo básico del caballo',
   Retraining: 'Reentrenamiento',
   'Continuing Training': 'Entrenamiento continuado',
 };
 
 export const trainingPlans: TrainingPlan[] = [
     {
-    id: "iniciacion-joven",
-    name: "Iniciación Caballo Joven",
-    description: "Base sólida: conexión, desensibilización y primeras respuestas.",
-    duration: "6 semanas",
-    weeks: 6,
-    image: "/plans/plan-de-iniciacion-caballo-joven.png",
-    category: "Unbroke",
-    exercises: [
-      {
+  id: "iniciacion-joven",
+  name: "Iniciación Caballo Joven",
+  description: "Base sólida: conexión, desensibilización y primeras respuestas.",
+  duration: "6 semanas",
+  weeks: 6,
+  image: "/plans/plan-de-iniciacion-caballo-joven.png",
+  category: "Unbroke",
+  exercises: [
+    // --- NUEVOS EJERCICIOS PARA LAS SEMANAS ---
+    {
         id: "libertad",
         name: "Trabajo en libertad",
         image: "/plans/exercise/libertad.png",
@@ -73,7 +74,10 @@ export const trainingPlans: TrainingPlan[] = [
         safety: ["Evitar rincones con objetos que puedan golpear", "Mantener salida libre"],
         progressSigns: [
           { label: "Enganche", details: "Te busca y te sigue por iniciativa propia" },
-          { label: "Regulación", details: "Pasa de activo a calmado sin perder conexión" }
+          { label: "Regulación", details: "Pasa de activo a calmado sin perder conexión" },
+          { label: "Relaja cuello y dorso" },
+          { label: "Baja la cabeza" },
+          { label: "Respiración más lenta" }
         ],
         advanceCriteria: [
           "Responde a cambios de dirección con fluidez",
@@ -82,7 +86,7 @@ export const trainingPlans: TrainingPlan[] = [
       },
       {
         id: "desens",
-        name: "Desensibilización I",
+        name: "Desensibilización",
         image: "/plans/exercise/desens.png",
         objective: "Aceptar estímulos básicos en estático sin tensión.",
         method: [
@@ -93,7 +97,7 @@ export const trainingPlans: TrainingPlan[] = [
         cues: ["Tocar–retirar", "Ritmo constante", "Exhalar al relajar"],
         gear: ["Cabestro", "Stick & string"],
         duration: "10–12 min",
-        prerequisites: [],
+        prerequisites: ["Trabajo en libertad"],
         safety: ["Evitar golpes con la cuerda", "No avanzar si hay tensión alta"],
         progressSigns: [
           { label: "Relaja cuello y dorso" },
@@ -106,112 +110,523 @@ export const trainingPlans: TrainingPlan[] = [
         ]
       },
       {
-        id: "desens2",
-        name: "Desensibilización II",
-        image: "/plans/exercise/desens.png",
-        objective: "Generalizar la aceptación de estímulos en movimiento.",
+        id: "sens-cabrestear",
+        name: "Cabrestear (avanzar a la par)",
+        image: "/plans/exercise/cabrestear.png",
+        objective: "Enseñar a iniciar la marcha con una indicación suave y avanzar a la par del guía.",
         method: [
-          "Mover cuerda y string alrededor del cuerpo mientras camina a tu lado.",
-          "Pasar la cuerda por cuello, dorso y grupa, manteniendo ritmo parejo.",
-          "Intercalar paradas y reinicios suaves conservando la calma."
+          "Ubícate al costado del caballo, a la altura del hombro. Cabestro en la mano interna; stick/vara en la externa.",
+          "Prepara tu cuerpo en actitud de avanzar (pecho hacia delante y primer paso).",
+          "Si no responde, toca suavemente con el stick en flanco o grupa hasta que dé 1–2 pasos, y libera.",
+          "Camina relajada a su lado, detente y premia. Repite 3–5 veces buscando que inicie solo con tu postura."
         ],
-        cues: ["Caminar a la par", "Transiciones cortas", "Voz neutra"],
-        gear: ["Cabestro", "Cuerda 3–4 m", "Stick & string"],
-        duration: "10–12 min",
-        prerequisites: ["Desensibilización I aceptada en estático"],
-        safety: ["Evitar enredos con la cuerda", "Zonas despejadas"],
+        cues: ["Postura de avance", "Micro-tensión de cabestro si hace falta", "Toque suave con stick como refuerzo"],
+        gear: ["Cabestro", "Cuerda 3–4 m", "Stick/vara"],
+        duration: "6–8 min",
+        prerequisites: ["Desensibilización"],
+        safety: ["Mantener zona libre a los costados", "Evitar golpear con el stick, solo tocar si no hay respuesta"],
         progressSigns: [
-          { label: "Calma en movimiento" },
-          { label: "Recuperación rápida tras estímulos" }
+          { label: "Inicia la marcha con tu postura" },
+          { label: "Camina a la par sin invadir" }
         ],
         advanceCriteria: [
-          "Mantiene paso regular con estímulos oscilantes",
-          "Tolera cuerda sobre grupa y dorso sin acelerar"
+          "Avanza con indicación postural > stick",
+          "Se detiene y arranca sin tirones de cuerda"
         ]
       },
       {
-        id: "leading",
-        name: "Leading",
-        image: "/plans/exercise/leading.png",
-        objective: "Respuestas claras a la cuerda respetando el espacio personal.",
+        id: "sens-retroceso",
+        name: "Retroceder",
+        image: "/plans/exercise/retroceder.png",
+        objective: "Que el caballo ceda espacio y retroceda con un estímulo mínimo desde el cabestro.",
         method: [
-          "Enseñar avanzar con ligera tensión y liberar al primer paso.",
-          "Parar elevando tu energía hacia atrás + micro tensión, liberar al detener.",
-          "Girar hombros/ancas con indicación mínima de cuerda y posición corporal."
+          "Párate frente al caballo a ~1,5 m. Cabestro en mano; stick en la otra (solo por seguridad).",
+          "Agita la cuerda desde la punta del cabestro en ondas horizontales para transmitirlas a la nariz.",
+          "Cuando dé 1–2 pasos atrás, detén las ondas y premia (baja tu energía).",
+          "Invítalo a volver hacia ti y, antes de llegar a tu espacio, eleva la mano para detenerlo y premia en la frente.",
+          "Repite hasta lograr 3–4 pasos suaves y fluidos."
         ],
-        cues: ["Micro-tensión en cuerda", "Postura (adelante/atrás)", "Voz baja para parar"],
+        cues: ["Ondas de cuerda en cabestro", "Mano levantada para parar al volver", "Energía corporal baja para calmar"],
+        gear: ["Cabestro", "Cuerda 3–4 m", "Stick (opcional)"],
+        duration: "6–8 min",
+        prerequisites: ["Desensibilización"],
+        safety: ["No envolver la cuerda en la mano", "Mantener distancia para evitar pisadas"],
+        progressSigns: [
+          { label: "Retrocede con ondas pequeñas" },
+          { label: "Se detiene a tu señal antes de invadir tu espacio" }
+        ],
+        advanceCriteria: [
+          "Retrocede 3–4 pasos con ondas mínimas",
+          "Vuelve y se detiene con tu mano alzada"
+        ]
+      },
+      {
+        id: "sens-giro-frente",
+        name: "Girar el frente (ceder hombros)",
+        image: "/plans/exercise/ceder-el-frente.png",
+        objective: "Ceder los hombros cruzando la mano externa sobre la interna, manteniendo la pata interna como pivote.",
+        method: [
+          "Colócate entre cabeza y hombro. Con tu mano interna, bloquea suavemente para que no avance.",
+          "Con tu mano externa, aplica presión ligera en el hombro para invitar el cruce hacia fuera.",
+          "Si no responde, agita brevemente la punta del cabestro entre oreja y ojo (sin golpear) y libera al primer cruce.",
+          "Da 1–2 pasos de cruce, suelta presión y premia. Repite al otro lado."
+        ],
+        cues: ["Bloque suave delante", "Presión ligera en hombro", "Micro estímulo visual con punta de cabestro"],
         gear: ["Cabestro", "Cuerda 3–4 m"],
-        duration: "8–10 min",
-        prerequisites: ["Desensibilización I/II estables"],
-        safety: ["No envolver la cuerda en la mano", "Mantener zona libre delante"],
+        duration: "6–8 min",
+        prerequisites: ["Desensibilización"],
+        safety: ["No colocarte delante si empuja hombros", "Evita presión continua: pedir–soltar"],
         progressSigns: [
-          { label: "Responde a señales pequeñas" },
-          { label: "Mantiene ritmo y distancia sin invadir" }
+          { label: "Cruza hombros con presión mínima" },
+          { label: "Mantiene pata interna como pivote" }
         ],
         advanceCriteria: [
-          "Avanza/para con indicaciones sutiles",
-          "Gira derecha/izquierda sin tracción constante"
+          "2–3 pasos cruzados por lado sin tracción constante",
+          "Responde a señales cada vez más sutiles"
         ]
       },
       {
-        id: "transition",
-        name: "Transiciones",
-        image: "/plans/exercise/leading.png",
-        objective: "Suavidad y control en cambios de marcha (paso↔trote) con atención sostenida.",
+        id: "sens-giro-grupa",
+        name: "Girar la grupa (ceder posteriores)",
+        image: "/plans/exercise/sens-giro-grupa.png",
+        objective: "Desplazar la grupa cruzando la pata interna sobre la externa, dejando los anteriores más fijos.",
         method: [
-          "Secuenciar paso–trote–paso en líneas rectas cortas.",
-          "Usar respiración/voz como prefijo y cuerda mínima como refuerzo.",
-          "Aumentar duración y reducir ayuda hasta que anticipe con tu cuerpo."
+          "Colócate a la mitad del barril. Mano interna al cabestro; mano externa con el stick.",
+          "Orienta tu cuerpo hacia la grupa. Da 3–4 toques en el aire apuntando a la grupa; si no cede, toca suave.",
+          "Al primer cruce de pata interna sobre la externa, detén el estímulo y premia.",
+          "Repite 1–2 pasos por vez, alternando lados, hasta lograr fluidez."
         ],
-        cues: ["Exhalar para volver a paso", "Tono de voz para subir", "Micro gesto de hombros"],
+        cues: ["Orientación corporal a grupa", "Toques al aire → toque suave como refuerzo", "Liberar al primer cruce"],
+        gear: ["Desensibilización"],
+        duration: "6–8 min",
+        prerequisites: ["Desensibilización"],
+        safety: ["Mantenerte fuera de la trayectoria de los posteriores", "No insistir con golpes: pedir–soltar"],
+        progressSigns: [
+          { label: "Cruza posteriores con señal leve" },
+          { label: "Anteriores quedan casi fijos" }
+        ],
+        advanceCriteria: [
+          "2–3 pasos de cruce por lado sin tensión",
+          "Responde primero al lenguaje corporal"
+        ]
+      },
+      {
+        id: "sens-flexion-lateral",
+        name: "Flexión lateral",
+        image: "/plans/exercise/sens-flexion-lateral.png",
+        objective: "Mejorar la movilidad cervical y la suavidad del contacto, cediendo lateralmente.",
+        method: [
+          "Ubícate a la altura de la paleta/barril. Toma el cabestro y pide traer la nariz hacia tu costado.",
+          "Busca una pequeña flexión; al primer gesto de ceder, suelta y premia.",
+          "Aumenta gradualmente el rango hasta que la nariz se acerque al barril sin mover los pies.",
+          "Repite a ambos lados, alternando flexiones cortas y una más completa."
+        ],
+        cues: ["Toma corta del cabestro", "Presión–liberación inmediata", "Respiración tranquila"],
+        gear: ["Cabestro", "Cuerda corta (opcional)"],
+        duration: "4–6 min",
+        prerequisites: ["Desensibilización"],
+        safety: ["No tirar de golpe", "Detener si mueve pies: volver a pedir suave"],
+        progressSigns: [
+          { label: "Cede con presión mínima" },
+          { label: "Aumenta rango de flexión sin moverse" }
+        ],
+        advanceCriteria: [
+          "Flexión amplia y suave a ambos lados",
+          "Mantiene calma y respiración regular"
+        ]
+      },
+      {
+        id: "sens-giro-posteriores",
+        name: "Giro sobre los posteriores (con envoltura de cuerda)",
+        image: "/plans/exercise/sens-giro-posteriores.png",
+        objective: "Pedir un giro manteniendo los posteriores como pivote, usando la cuerda como ayuda envolvente.",
+        method: [
+          "Desde el lado izquierdo, pasa la cuerda por el lado derecho, rodea detrás de la grupa y vuelve hacia la cabeza por el lado izquierdo (envoltura).",
+          "Con tu mano interna guía la cabeza ligeramente hacia la dirección del giro.",
+          "Con la mano que sostiene la punta del cabresto, tracciona suave hacia ti mientras liberas la guía de la cabeza.",
+          "Al pivotar sobre posteriores, suelta y premia. Repite 3–5 veces por lado."
+        ],
+        cues: ["Guía ligera de cabeza", "Tracción suave con la cuerda envolvente", "Soltar al primer pivot"],
+        gear: ["Cabestro", "Cuerda 3–4 m"],
+        duration: "6–8 min",
+        prerequisites: ["Desensibilización"],
+        safety: ["Evitar enredos con la cuerda", "No ejercer tirones bruscos"],
+        progressSigns: [
+          { label: "Gira controlado sin perder equilibrio" },
+          { label: "Mantiene posteriores como pivote" }
+        ],
+        advanceCriteria: [
+          "2–3 giros controlados por lado",
+          "Responde con mínima tracción de cuerda"
+        ]
+      },
+    {
+      id: "sens-mov",
+      name: "Sensibilización en movimiento",
+      image: "/plans/exercise/sens-mov.png",
+      objective: "Mantener respuestas claras a las ayudas mientras se desplaza.",
+      method: [
+        "Caminar a la par con cambios de dirección y ritmo (corto/medio).",
+        "Paradas suaves desde la marcha usando voz y micro-tensión.",
+        "Retroceder 1–3 pasos y volver a avanzar sin perder la conexión.",
+      ],
+      cues: ["Ritmo del guía", "Voz (subir/bajar)", "Micro-tensión de cuerda"],
+      gear: ["Cabestro", "Cuerda 3–4 m"],
+      duration: "8–12 min",
+      prerequisites: ["Sensibilización (estático) consistente"],
+      safety: ["Evitar pisos resbaladizos", "Mantener espacio libre alrededor"],
+      progressSigns: [
+        { label: "Ritmo parejo sin tirones" },
+        { label: "Paradas y retrocesos limpios" }
+      ],
+      advanceCriteria: [
+        "Sostiene 2–3 minutos de trabajo variado sin perder calma",
+        "Responde a voz/postura > cuerda"
+      ]
+    },
+    {
+      id: "enfrenada",
+      name: "Primera Enfrenada (Embocadura)",
+      image: "/plans/exercise/enfrenada.png",
+      objective: "Presentar y aceptar la embocadura/bozal con tranquilidad.",
+      method: [
+        "Desensibilizar boca y comisuras con la mano; premiar lamidos.",
+        "Presentar el bocado/bozal de forma gradual; colocar y retirar varias veces.",
+        "Caminar breves tramos, aflojar y quitar; repetir buscando relajación.",
+      ],
+      cues: ["Mano suave", "Tiempo y respiración tranquila", "Reforzador al relajar"],
+      gear: ["Cabezada + bocado/bozal (según preferencia)"],
+      duration: "10–15 min",
+      prerequisites: ["Desensibilización", "Sensibilización básica", "Sensibilización en movimiento"],
+      safety: ["Revisar boca/dentición", "No apretar ni forzar la colocación"],
+      progressSigns: [
+        { label: "Acepta colocar/retirar sin resistencia" },
+        { label: "Mastica y relaja mandíbula" }
+      ],
+      advanceCriteria: [
+        "Camina relajado con embocadura/bozal",
+        "Mantiene atención sin sacudidas de cabeza"
+      ]
+    },
+    {
+      id: "ensillada",
+      name: "Primera Ensillada",
+      image: "/plans/exercise/ensillada.png",
+      objective: "Introducir manta/silla y cincha de forma progresiva y segura.",
+      method: [
+        "Presentar manta y posar/retirar sobre el dorso hasta ver relajación.",
+        "Colocar silla y cincha sin apretar; caminar círculos amplios.",
+        "Ajustar un punto, caminar y observar; repetir hasta cincha funcional.",
+      ],
+      cues: ["Progresión en capas", "Pausas tras cada avance", "Recompensa al relajar"],
+      gear: ["Manta/sudadera", "Silla", "Cincha"],
+      duration: "12–15 min",
+      prerequisites: ["Desensibilización", "Sensibilización básica", "Sensibilización en movimiento"],
+      safety: ["Corral seguro", "No atar corto", "Ideal con asistente atento"],
+      progressSigns: [
+        { label: "Tolera manta/silla sin tensión sostenida" },
+        { label: "Camina y gira con cincha sin acelerar" }
+      ],
+      advanceCriteria: [
+        "Acepta ajuste progresivo de cincha",
+        "Se mueve suelto, sin corcovear ni bloquearse"
+      ]
+    }
+  ],
+
+  // ===================== NUEVAS SEMANAS =====================
+  stages: [
+    {
+      week: 1,
+      title: "Trabajo en libertad",
+      description: "Conexión, lectura de señales y regulación de energía.",
+      exerciseIds: ["libertad"]
+    },
+    {
+      week: 2,
+      title: "Desensibilización",
+      description: "Zonas de contacto y principio presión–liberación en estático.",
+      exerciseIds: ["desens"]
+    },
+    {
+      week: 3,
+      title: "Sensibilización",
+      description: "Ceder a presiones: avanzar/retroceder, ceder hombros y grupa, flexión.",
+      exerciseIds: [
+        "sens-cabrestear",
+        "sens-retroceso",
+        "sens-giro-frente",
+        "sens-giro-grupa",
+        "sens-flexion-lateral"
+      ]
+    },
+    {
+      week: 4,
+      title: "Sensibilización en movimiento",
+      description: "Aplicar ayudas en marcha: cambios de dirección, paradas y retrocesos suaves.",
+      exerciseIds: ["sens-mov"]
+    },
+    {
+      week: 5,
+      title: "Primera Enfrenada",
+      description: "Presentación y aceptación del bocado/bozal con calma.",
+      exerciseIds: ["enfrenada"]
+    },
+    {
+      week: 6,
+      title: "Primera Ensillada",
+      description: "Manta, silla y cincha progresiva + caminar y girar relajado.",
+      exerciseIds: ["ensillada"]
+    }
+  ]
+},
+  // 🔧 Taller Método Mente y Movimiento (sin semanas 5 y 6)
+  {
+    id: "taller-metodo-mente-movimiento",
+    name: "Taller Metodo Mente y Movimiento",
+    description: "Primer acercamiento al caballo con enfoque de manejo basico, calma y comunicacion.",
+    duration: "4 semanas",
+    weeks: 4,
+    image: "/plans/plan-de-iniciacion-caballo-joven.png",
+    category: "Unbroke",
+    exercises: [
+      {
+        id: "taller-libertad",
+        name: "Trabajo en libertad",
+        image: "/plans/exercise/libertad.png",
+        objective: "Generar vínculo, atención y autorregulación sin herramientas.",
+        method: [
+          "Iniciar en corral/redondo, permitir explorar y observar lenguaje corporal.",
+          "Proponer cambios suaves de dirección y ritmo con tu postura y energía.",
+          "Recompensar mirar, acercarse, bajar la cabeza y regular el impulso."
+        ],
+        cues: ["Posición del cuerpo (invitar/alejar)", "Mirada suave", "Respiración lenta"],
+        gear: ["Corral/redondo seguro"],
+        duration: "10–15 min",
+        prerequisites: [],
+        safety: ["Evitar rincones con objetos que puedan golpear", "Mantener salida libre"],
+        progressSigns: [
+          { label: "Enganche", details: "Te busca y te sigue por iniciativa propia" },
+          { label: "Regulación", details: "Pasa de activo a calmado sin perder conexión" },
+          { label: "Relaja cuello y dorso" },
+          { label: "Baja la cabeza" },
+          { label: "Respiración más lenta" }
+        ],
+        advanceCriteria: [
+          "Responde a cambios de dirección con fluidez",
+          "Mantiene atención 2–3 minutos seguidos"
+        ]
+      },
+      {
+        id: "taller-desens",
+        name: "Desensibilización",
+        image: "/plans/exercise/desens.png",
+        objective: "Aceptar estímulos básicos en estático sin tensión.",
+        method: [
+          "Aplicar estímulos suaves con stick & string y mano (cuello, hombro, dorso).",
+          "Esperar señal de relajación y retirar estímulo (principio presión–liberación).",
+          "Repetir en ambos lados y zonas simétricas."
+        ],
+        cues: ["Tocar–retirar", "Ritmo constante", "Exhalar al relajar"],
+        gear: ["Cabestro", "Stick & string"],
+        duration: "10–12 min",
+        prerequisites: ["Trabajo en libertad"],
+        safety: ["Evitar golpes con la cuerda", "No avanzar si hay tensión alta"],
+        progressSigns: [
+          { label: "Relaja cuello y dorso" },
+          { label: "Baja la cabeza" },
+          { label: "Respiración más lenta" }
+        ],
+        advanceCriteria: [
+          "Tolera contacto en 5–6 zonas sin mover los pies",
+          "Recupera la calma en < 5 segundos tras un pequeño sobresalto"
+        ]
+      },
+      {
+        id: "taller-sens-cabrestear",
+        name: "Cabrestear (avanzar a la par)",
+        image: "/plans/exercise/cabrestear.png",
+        objective: "Enseñar a iniciar la marcha con una indicación suave y avanzar a la par del guía.",
+        method: [
+          "Ubícate al costado del caballo, a la altura del hombro. Cabestro en la mano interna; stick/vara en la externa.",
+          "Prepara tu cuerpo en actitud de avanzar (pecho hacia delante y primer paso).",
+          "Si no responde, toca suavemente con el stick en flanco o grupa hasta que dé 1–2 pasos, y libera.",
+          "Camina relajada a su lado, detente y premia. Repite 3–5 veces buscando que inicie solo con tu postura."
+        ],
+        cues: ["Postura de avance", "Micro-tensión de cabestro si hace falta", "Toque suave con stick como refuerzo"],
+        gear: ["Cabestro", "Cuerda 3–4 m", "Stick/vara"],
+        duration: "6–8 min",
+        prerequisites: ["Desensibilización"],
+        safety: ["Mantener zona libre a los costados", "Evitar golpear con el stick, solo tocar si no hay respuesta"],
+        progressSigns: [
+          { label: "Inicia la marcha con tu postura" },
+          { label: "Camina a la par sin invadir" }
+        ],
+        advanceCriteria: [
+          "Avanza con indicación postural > stick",
+          "Se detiene y arranca sin tirones de cuerda"
+        ]
+      },
+      {
+        id: "taller-sens-retroceso",
+        name: "Retroceder",
+        image: "/plans/exercise/retroceder.png",
+        objective: "Que el caballo ceda espacio y retroceda con un estímulo mínimo desde el cabestro.",
+        method: [
+          "Párate frente al caballo a ~1,5 m. Cabestro en mano; stick en la otra (solo por seguridad).",
+          "Agita la cuerda desde la punta del cabestro en ondas horizontales para transmitirlas a la nariz.",
+          "Cuando dé 1–2 pasos atrás, detén las ondas y premia (baja tu energía).",
+          "Invítalo a volver hacia ti y, antes de llegar a tu espacio, eleva la mano para detenerlo y premia en la frente.",
+          "Repite hasta lograr 3–4 pasos suaves y fluidos."
+        ],
+        cues: ["Ondas de cuerda en cabestro", "Mano levantada para parar al volver", "Energía corporal baja para calmar"],
+        gear: ["Cabestro", "Cuerda 3–4 m", "Stick (opcional)"],
+        duration: "6–8 min",
+        prerequisites: ["Desensibilización"],
+        safety: ["No envolver la cuerda en la mano", "Mantener distancia para evitar pisadas"],
+        progressSigns: [
+          { label: "Retrocede con ondas pequeñas" },
+          { label: "Se detiene a tu señal antes de invadir tu espacio" }
+        ],
+        advanceCriteria: [
+          "Retrocede 3–4 pasos con ondas mínimas",
+          "Vuelve y se detiene con tu mano alzada"
+        ]
+      },
+      {
+        id: "taller-sens-giro-frente",
+        name: "Girar el frente (ceder hombros)",
+        image: "/plans/exercise/ceder-el-frente.png",
+        objective: "Ceder los hombros cruzando la mano externa sobre la interna, manteniendo la pata interna como pivote.",
+        method: [
+          "Colócate entre cabeza y hombro. Con tu mano interna, bloquea suavemente para que no avance.",
+          "Con tu mano externa, aplica presión ligera en el hombro para invitar el cruce hacia fuera.",
+          "Si no responde, agita brevemente la punta del cabestro entre oreja y ojo (sin golpear) y libera al primer cruce.",
+          "Da 1–2 pasos de cruce, suelta presión y premia. Repite al otro lado."
+        ],
+        cues: ["Bloque suave delante", "Presión ligera en hombro", "Micro estímulo visual con punta de cabestro"],
+        gear: ["Cabestro", "Cuerda 3–4 m"],
+        duration: "6–8 min",
+        prerequisites: ["Desensibilización"],
+        safety: ["No colocarte delante si empuja hombros", "Evita presión continua: pedir–soltar"],
+        progressSigns: [
+          { label: "Cruza hombros con presión mínima" },
+          { label: "Mantiene pata interna como pivote" }
+        ],
+        advanceCriteria: [
+          "2–3 pasos cruzados por lado sin tracción constante",
+          "Responde a señales cada vez más sutiles"
+        ]
+      },
+      {
+        id: "taller-sens-giro-grupa",
+        name: "Girar la grupa (ceder posteriores)",
+        image: "/plans/exercise/sens-giro-grupa.png",
+        objective: "Desplazar la grupa cruzando la pata interna sobre la externa, dejando los anteriores más fijos.",
+        method: [
+          "Colócate a la mitad del barril. Mano interna al cabestro; mano externa con el stick.",
+          "Orienta tu cuerpo hacia la grupa. Da 3–4 toques en el aire apuntando a la grupa; si no cede, toca suave.",
+          "Al primer cruce de pata interna sobre la externa, detén el estímulo y premia.",
+          "Repite 1–2 pasos por vez, alternando lados, hasta lograr fluidez."
+        ],
+        cues: ["Orientación corporal a grupa", "Toques al aire → toque suave como refuerzo", "Liberar al primer cruce"],
+        gear: ["Desensibilización"],
+        duration: "6–8 min",
+        prerequisites: ["Desensibilización"],
+        safety: ["Mantenerte fuera de la trayectoria de los posteriores", "No insistir con golpes: pedir–soltar"],
+        progressSigns: [
+          { label: "Cruza posteriores con señal leve" },
+          { label: "Anteriores quedan casi fijos" }
+        ],
+        advanceCriteria: [
+          "2–3 pasos de cruce por lado sin tensión",
+          "Responde primero al lenguaje corporal"
+        ]
+      },
+      {
+        id: "taller-sens-flexion-lateral",
+        name: "Flexión lateral",
+        image: "/plans/exercise/sens-flexion-lateral.png",
+        objective: "Mejorar la movilidad cervical y la suavidad del contacto, cediendo lateralmente.",
+        method: [
+          "Ubícate a la altura de la paleta/barril. Toma el cabestro y pide traer la nariz hacia tu costado.",
+          "Busca una pequeña flexión; al primer gesto de ceder, suelta y premia.",
+          "Aumenta gradualmente el rango hasta que la nariz se acerque al barril sin mover los pies.",
+          "Repite a ambos lados, alternando flexiones cortas y una más completa."
+        ],
+        cues: ["Toma corta del cabestro", "Presión–liberación inmediata", "Respiración tranquila"],
+        gear: ["Cabestro", "Cuerda corta (opcional)"],
+        duration: "4–6 min",
+        prerequisites: ["Desensibilización"],
+        safety: ["No tirar de golpe", "Detener si mueve pies: volver a pedir suave"],
+        progressSigns: [
+          { label: "Cede con presión mínima" },
+          { label: "Aumenta rango de flexión sin moverse" }
+        ],
+        advanceCriteria: [
+          "Flexión amplia y suave a ambos lados",
+          "Mantiene calma y respiración regular"
+        ]
+      },
+      {
+        id: "taller-sens-mov",
+        name: "Sensibilización en movimiento",
+        image: "/plans/exercise/sens-mov.png",
+        objective: "Mantener respuestas claras a las ayudas mientras se desplaza.",
+        method: [
+          "Caminar a la par con cambios de dirección y ritmo (corto/medio).",
+          "Paradas suaves desde la marcha usando voz y micro-tensión.",
+          "Retroceder 1–3 pasos y volver a avanzar sin perder la conexión.",
+        ],
+        cues: ["Ritmo del guía", "Voz (subir/bajar)", "Micro-tensión de cuerda"],
         gear: ["Cabestro", "Cuerda 3–4 m"],
         duration: "8–12 min",
-        prerequisites: ["Leading consistente"],
-        safety: ["Evitar suelos resbaladizos", "Intervalos cortos si sube el estrés"],
+        prerequisites: ["Sensibilización (estático) consistente"],
+        safety: ["Evitar pisos resbaladizos", "Mantener espacio libre alrededor"],
         progressSigns: [
-          { label: "Transiciones limpias, sin tirones" },
-          { label: "Mantiene foco tras 4–6 cambios seguidos" }
+          { label: "Ritmo parejo sin tirones" },
+          { label: "Paradas y retrocesos limpios" }
         ],
         advanceCriteria: [
-          "Responde a voz/postura > cuerda",
-          "Recupera la calma al paso en 2–3 pasos"
-        ]
-      },
-      {
-        id: "integration",
-        name: "Integración",
-        image: "/plans/exercise/leading.png",
-        objective: "Unir los ejercicios en una secuencia fluida y coherente.",
-        method: [
-          "Secuencia tipo: libertad (conexión) → desens I/II (calma) → leading (dirección) → transiciones (control).",
-          "Mantener pausas breves de respiración y rascado en puntos de éxito.",
-          "Cerrar con vuelta a la calma y chequeo de señales corporales."
-        ],
-        cues: ["Rutina clara", "Pausas conscientes", "Criterio de calidad antes de avanzar"],
-        gear: ["Cabestro", "Cuerda", "Stick & string"],
-        duration: "12–15 min",
-        prerequisites: ["Libertad, Desens I/II y Leading básicos"],
-        safety: ["Dosificar para evitar fatiga mental", "Cortar si hay tensión sostenida"],
-        progressSigns: [
-          { label: "Fluidez", details: "Pasa de un ejercicio a otro sin perder calma" },
-          { label: "Conexión estable", details: "Recupera atención tras estímulos" }
-        ],
-        advanceCriteria: [
-          "Secuencia completa sin picos de tensión",
-          "Respuestas mayormente con ayudas sutiles"
+          "Sostiene 2–3 minutos de trabajo variado sin perder calma",
+          "Responde a voz/postura > cuerda"
         ]
       }
     ],
     stages: [
-      { week: 1, title: "Vínculo", description: "Trabajo en libertad + lectura de señales.", exerciseIds: ["libertad"] },
-      { week: 2, title: "Desensibilización I", description: "Zonas de contacto, presión/soltar.", exerciseIds: ["desens"] },
-      { week: 3, title: "Desensibilización II", description: "Generalizar estímulos en movimiento.", exerciseIds: ["desens2"] },
-      { week: 4, title: "Leading", description: "Parar/Avanzar/Derecha/Izquierda a pie.", exerciseIds: ["leading"] },
-      { week: 5, title: "Transiciones", description: "Cambios suaves, atención sostenida.", exerciseIds: ["transition"] },
-      { week: 6, title: "Integración", description: "Secuencia fluida de ejercicios base.", exerciseIds: ["integration"] }
+      {
+        week: 1,
+        title: "Trabajo en libertad",
+        description: "Conexión, lectura de señales y regulación de energía.",
+        exerciseIds: ["taller-libertad"]
+      },
+      {
+        week: 2,
+        title: "Desensibilización",
+        description: "Zonas de contacto y principio presión–liberación en estático.",
+        exerciseIds: ["taller-desens"]
+      },
+      {
+        week: 3,
+        title: "Sensibilización",
+        description: "Ceder a presiones: avanzar/retroceder, ceder hombros y grupa, flexión.",
+        exerciseIds: [
+          "taller-sens-cabrestear",
+          "taller-sens-retroceso",
+          "taller-sens-giro-frente",
+          "taller-sens-giro-grupa",
+          "taller-sens-flexion-lateral"
+        ]
+      },
+      {
+        week: 4,
+        title: "Sensibilización en movimiento",
+        description: "Aplicar ayudas en marcha: cambios de dirección, paradas y retrocesos suaves.",
+        exerciseIds: ["taller-sens-mov"]
+      }
     ]
   },
-    // 🔧 Retraining
+  // 🔧 Retraining
   {
     id: 'retraining',
     category: 'Retraining',
