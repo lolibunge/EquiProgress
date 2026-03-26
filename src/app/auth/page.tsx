@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useState, type FormEvent } from 'react';
+import { Suspense, useEffect, useState, type FormEvent } from 'react';
 import {
   createUserWithEmailAndPassword,
   sendPasswordResetEmail,
@@ -26,6 +26,14 @@ type BusyMode = 'login' | 'signup' | 'reset' | 'logout' | null;
 type AuthTab = 'signup' | 'login' | 'reset';
 
 export default function AuthPage() {
+  return (
+    <Suspense fallback={<AuthPageLoading />}>
+      <AuthPageContent />
+    </Suspense>
+  );
+}
+
+function AuthPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
@@ -460,6 +468,21 @@ function firebaseErrorMessage(error: unknown): string {
     default:
       return `Please verify the data and try again (${code}).`;
   }
+}
+
+function AuthPageLoading() {
+  return (
+    <div className="min-h-screen bg-background text-foreground font-body antialiased">
+      <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-14">
+        <Card className="max-w-lg mx-auto">
+          <CardHeader>
+            <CardTitle>Loading account...</CardTitle>
+            <CardDescription>Checking your session.</CardDescription>
+          </CardHeader>
+        </Card>
+      </main>
+    </div>
+  );
 }
 
 function firestoreErrorMessage(error: unknown): string {

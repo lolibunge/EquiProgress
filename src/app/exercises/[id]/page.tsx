@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Clock, Target, ListChecks, Info, AlertTriangle, Check } from 'lucide-react';
+import { Suspense } from 'react';
 
 // Busca el ejercicio por id y devuelve también el plan dueño (para breadcrumb)
 function findExercise(exId: string) {
@@ -20,6 +21,14 @@ function findExercise(exId: string) {
 }
 
 export default function ExerciseDetailPage() {
+  return (
+    <Suspense fallback={<ExerciseDetailPageLoading />}>
+      <ExerciseDetailPageContent />
+    </Suspense>
+  );
+}
+
+function ExerciseDetailPageContent() {
   const { id } = useParams<{ id: string }>();
   const search = useSearchParams();
   const fromPlanId = search.get('from'); // ?from=<planId> para “volver”
@@ -227,4 +236,27 @@ export default function ExerciseDetailPage() {
     </div>
   );
 }
-    
+
+function ExerciseDetailPageLoading() {
+  return (
+    <div className="min-h-screen bg-background text-foreground font-body antialiased">
+      <header className="sticky top-0 z-20 bg-background/80 backdrop-blur-sm border-b border-primary/20">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+          <Link href="/" className="text-sm text-muted-foreground hover:text-primary">
+            &larr; Volver
+          </Link>
+          <h1 className="text-lg font-headline font-semibold">Cargando ejercicio...</h1>
+          <div />
+        </div>
+      </header>
+      <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <Card>
+          <CardHeader>
+            <CardTitle>Cargando ejercicio...</CardTitle>
+            <CardDescription>Estamos preparando los detalles.</CardDescription>
+          </CardHeader>
+        </Card>
+      </main>
+    </div>
+  );
+}
