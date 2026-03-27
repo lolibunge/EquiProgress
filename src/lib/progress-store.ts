@@ -3,6 +3,7 @@ import {
   collection,
   doc,
   getDoc,
+  getDocs,
   limit,
   onSnapshot,
   orderBy,
@@ -42,6 +43,10 @@ export type ProgressHistoryEntry = {
   createdAt: Date | null;
 };
 
+type StoredHistoryEntry = Omit<ProgressHistoryEntry, 'createdAt'> & {
+  createdAtIso: string | null;
+};
+
 type SaveProgressArgs = {
   uid: string;
   planId: string;
@@ -52,6 +57,14 @@ type SaveProgressArgs = {
     week?: number | null;
     note?: string | null;
   };
+};
+
+export type PlanProgressSummary = {
+  planId: string;
+  planName: string;
+  startAt: string | null;
+  currentWeek: number;
+  completedWeeks: number[];
 };
 
 export const PROGRESS_ACTION_LABELS: Record<ProgressAction, string> = {
@@ -70,6 +83,8 @@ const EMPTY_PROGRESS: SavedPlan = {
   completedWeeks: [],
   daysByWeek: {},
 };
+
+const LOCAL_HISTORY_KEY_PREFIX = 'equi:history:';
 
 export function createEmptyProgress(): SavedPlan {
   return { ...EMPTY_PROGRESS, completedWeeks: [], daysByWeek: {} };
@@ -141,6 +156,28 @@ export async function loadRemotePlanProgress(
   return normalizeSavedPlan(snap.data() as Partial<SavedPlan>);
 }
 
+export async function loadPlanProgressSummaries(uid: string): Promise<PlanProgressSummary[]> {
+  if (!db || !USE_FIRESTORE || !uid) return [];
+
+  const snapshot = await getDocs(collection(db, 'users', uid, 'planProgress'));
+
+  return snapshot.docs.map((docSnap) => {
+    const data = docSnap.data() as Partial<SavedPlan> & {
+      planId?: unknown;
+      planName?: unknown;
+    };
+    const normalized = normalizeSavedPlan(data);
+
+    return {
+      planId: String(data.planId ?? docSnap.id),
+      planName: String(data.planName ?? data.planId ?? docSnap.id),
+      startAt: normalized.startAt ?? null,
+      currentWeek: normalized.currentWeek,
+      completedWeeks: normalized.completedWeeks,
+    } satisfies PlanProgressSummary;
+  });
+}
+
 export async function savePlanProgress({
   uid,
   planId,
@@ -183,10 +220,16 @@ export async function savePlanProgress({
 export function subscribeHistory(
   uid: string,
   onChange: (entries: ProgressHistoryEntry[]) => void,
-  maxEntries = 100
+  maxEntries = 100,
+  onError?: (error: unknown) => void
 ): Unsubscribe {
-  if (!db || !USE_FIRESTORE) {
+  if (!uid) {
     onChange([]);
+    return () => undefined;
+  }
+
+  if (!db || !USE_FIRESTORE) {
+    onChange(readLocalHistory(uid, maxEntries));
     return () => undefined;
   }
 
@@ -196,33 +239,106 @@ export function subscribeHistory(
     limit(maxEntries)
   );
 
-  return onSnapshot(historyQuery, (snapshot) => {
-    const entries = snapshot.docs.map((docSnap) => {
-      const data = docSnap.data() as Record<string, unknown>;
+  return onSnapshot(
+    historyQuery,
+    (snapshot) => {
+      const cloudEntries = snapshot.docs.map((docSnap) => {
+        const data = docSnap.data() as Record<string, unknown>;
 
-      return {
-        id: docSnap.id,
-        planId: String(data.planId ?? ''),
-        planName: String(data.planName ?? ''),
-        action: normalizeAction(data.action),
-        week: typeof data.week === 'number' ? data.week : null,
-        currentWeek:
-          typeof data.currentWeek === 'number'
-            ? Math.max(0, Math.floor(data.currentWeek))
-            : 0,
-        completedWeeks: Array.isArray(data.completedWeeks)
-          ? data.completedWeeks
-              .map((week) => Number(week))
-              .filter((week) => Number.isFinite(week) && week > 0)
-              .sort((a, b) => a - b)
-          : [],
-        note: typeof data.note === 'string' ? data.note : null,
-        createdAt: toDate(data.createdAt),
-      } satisfies ProgressHistoryEntry;
-    });
+        return {
+          id: docSnap.id,
+          planId: String(data.planId ?? ''),
+          planName: String(data.planName ?? ''),
+          action: normalizeAction(data.action),
+          week: typeof data.week === 'number' ? data.week : null,
+          currentWeek:
+            typeof data.currentWeek === 'number'
+              ? Math.max(0, Math.floor(data.currentWeek))
+              : 0,
+          completedWeeks: Array.isArray(data.completedWeeks)
+            ? data.completedWeeks
+                .map((week) => Number(week))
+                .filter((week) => Number.isFinite(week) && week > 0)
+                .sort((a, b) => a - b)
+            : [],
+          note: typeof data.note === 'string' ? data.note : null,
+          createdAt: toDate(data.createdAt),
+        } satisfies ProgressHistoryEntry;
+      });
 
-    onChange(entries);
-  });
+      const mergedEntries = mergeHistoryEntries(
+        cloudEntries,
+        readLocalHistory(uid, maxEntries)
+      ).slice(0, maxEntries);
+
+      onChange(mergedEntries);
+    },
+    (error) => {
+      onError?.(error);
+      onChange(readLocalHistory(uid, maxEntries));
+    }
+  );
+}
+
+export function appendLocalHistoryEntry(args: {
+  uid: string;
+  planId: string;
+  planName: string;
+  progress: SavedPlan;
+  event: {
+    action: ProgressAction;
+    week?: number | null;
+    note?: string | null;
+  };
+}): void {
+  const { uid, planId, planName, progress, event } = args;
+  if (!uid) return;
+
+  const entry: ProgressHistoryEntry = {
+    id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+    planId,
+    planName,
+    action: event.action,
+    week: event.week ?? null,
+    currentWeek: progress.currentWeek,
+    completedWeeks: [...progress.completedWeeks],
+    note: event.note ?? null,
+    createdAt: new Date(),
+  };
+
+  const current = readLocalHistory(uid, 500);
+  const next = [entry, ...current].slice(0, 500);
+  writeLocalHistory(uid, next);
+}
+
+export function readLocalHistory(uid: string, maxEntries = 100): ProgressHistoryEntry[] {
+  if (!uid) return [];
+
+  try {
+    const raw = localStorage.getItem(getLocalHistoryKey(uid));
+    if (!raw) return [];
+
+    const parsed = JSON.parse(raw) as StoredHistoryEntry[];
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed
+      .map((entry) => {
+        const { createdAtIso, ...rest } = entry;
+        return {
+          ...rest,
+          createdAt: createdAtIso ? new Date(createdAtIso) : null,
+        };
+      })
+      .filter((entry) => entry.planId && entry.action)
+      .sort((a, b) => {
+        const aTime = a.createdAt?.getTime() ?? 0;
+        const bTime = b.createdAt?.getTime() ?? 0;
+        return bTime - aTime;
+      })
+      .slice(0, maxEntries);
+  } catch {
+    return [];
+  }
 }
 
 function toDate(value: unknown): Date | null {
@@ -234,6 +350,59 @@ function toDate(value: unknown): Date | null {
   }
 
   return null;
+}
+
+function getLocalHistoryKey(uid: string): string {
+  return `${LOCAL_HISTORY_KEY_PREFIX}${uid}`;
+}
+
+function writeLocalHistory(uid: string, entries: ProgressHistoryEntry[]): void {
+  try {
+    const serialized: StoredHistoryEntry[] = entries.map((entry) => {
+      const { createdAt, ...rest } = entry;
+      return {
+        ...rest,
+        createdAtIso: createdAt ? createdAt.toISOString() : null,
+      };
+    });
+    localStorage.setItem(getLocalHistoryKey(uid), JSON.stringify(serialized));
+  } catch {
+    // Ignorar fallos de almacenamiento local.
+  }
+}
+
+function mergeHistoryEntries(
+  primary: ProgressHistoryEntry[],
+  secondary: ProgressHistoryEntry[]
+): ProgressHistoryEntry[] {
+  const merged = [...primary];
+  const fingerprints = new Set(primary.map(getHistoryFingerprint));
+
+  for (const entry of secondary) {
+    const fingerprint = getHistoryFingerprint(entry);
+    if (fingerprints.has(fingerprint)) continue;
+
+    fingerprints.add(fingerprint);
+    merged.push(entry);
+  }
+
+  return merged.sort((a, b) => {
+    const aTime = a.createdAt?.getTime() ?? 0;
+    const bTime = b.createdAt?.getTime() ?? 0;
+    return bTime - aTime;
+  });
+}
+
+function getHistoryFingerprint(entry: ProgressHistoryEntry): string {
+  const createdAt = entry.createdAt?.getTime() ?? 0;
+  return [
+    entry.planId,
+    entry.action,
+    entry.week ?? '',
+    entry.currentWeek,
+    entry.completedWeeks.join(','),
+    createdAt,
+  ].join('|');
 }
 
 function normalizeAction(value: unknown): ProgressAction {

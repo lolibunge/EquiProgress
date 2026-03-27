@@ -25,6 +25,7 @@ import {
   getPlanDisplayName,
   isAdminUser,
 } from '@/lib/plan-visibility';
+import { PRICING, getTrialNotice } from '@/lib/pricing';
 import { useToast } from '@/hooks/use-toast';
 
 export default function Home() {
@@ -45,14 +46,14 @@ export default function Home() {
     try {
       await signOut(auth);
       toast({
-        title: 'Signed out',
-        description: 'The student session is now closed.',
+        title: 'Sesión cerrada',
+        description: 'La sesión del estudiante se cerró correctamente.',
       });
     } catch {
       toast({
         variant: 'destructive',
-        title: 'Could not sign out',
-        description: 'Please try again.',
+        title: 'No se pudo cerrar sesión',
+        description: 'Inténtalo de nuevo.',
       });
     } finally {
       setIsSigningOut(false);
@@ -69,7 +70,7 @@ export default function Home() {
             </div>
 
             {loading ? (
-              <span className="text-sm text-muted-foreground">Loading account...</span>
+              <span className="text-sm text-muted-foreground">Cargando cuenta...</span>
             ) : user ? (
               <div className="flex items-center gap-2">
                 <span className="hidden lg:inline text-xs text-muted-foreground max-w-[14rem] truncate">
@@ -78,18 +79,21 @@ export default function Home() {
                 <Button asChild variant="outline" size="sm">
                   <Link href="/history">Historia</Link>
                 </Button>
+                <Button asChild variant="outline" size="sm">
+                  <Link href="/feedback">Opinión</Link>
+                </Button>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={handleSignOut}
                   disabled={isSigningOut}
                 >
-                  {isSigningOut ? 'Signing out...' : 'Sign out'}
+                  {isSigningOut ? 'Cerrando sesión...' : 'Cerrar sesión'}
                 </Button>
               </div>
             ) : (
               <Button asChild size="sm">
-                <Link href="/login">Login</Link>
+                <Link href="/login">Iniciar sesión</Link>
               </Button>
             )}
           </div>
@@ -107,25 +111,42 @@ export default function Home() {
         </div>
 
         {!loading && !user && (
-          <Card className="mb-8 border-dashed">
-            <CardHeader>
-              <CardTitle>For your students</CardTitle>
-              <CardDescription>
-                Ask each student to create an account so their progress and history are saved per person.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col sm:flex-row gap-3">
-              <Button asChild>
-                <Link href="/register">Create account</Link>
-              </Button>
-              <Button asChild variant="outline">
-                <Link href="/login">Login</Link>
-              </Button>
-              <Button asChild variant="ghost">
-                <Link href="/reset-password">Reset password</Link>
-              </Button>
-            </CardContent>
-          </Card>
+          <>
+            <Card className="mb-6 border-dashed">
+              <CardHeader>
+                <CardTitle>Para tus estudiantes</CardTitle>
+                <CardDescription>
+                  Pide a cada estudiante que cree una cuenta para guardar su progreso e historial de forma individual.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-col sm:flex-row gap-3">
+                <Button asChild>
+                  <Link href="/register">Crear cuenta</Link>
+                </Button>
+                <Button asChild variant="outline">
+                  <Link href="/login">Iniciar sesión</Link>
+                </Button>
+                <Button asChild variant="ghost">
+                  <Link href="/reset-password">Restablecer contraseña</Link>
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card className="mb-8">
+              <CardHeader>
+                <CardTitle>Prueba gratis de {PRICING.trialDays} días</CardTitle>
+                <CardDescription>{getTrialNotice()}</CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-col sm:flex-row gap-3">
+                <Button asChild variant="outline">
+                  <Link href="/pricing">Ver detalles de la prueba</Link>
+                </Button>
+                <Button asChild variant="ghost">
+                  <Link href="/register">Comenzar prueba gratis</Link>
+                </Button>
+              </CardContent>
+            </Card>
+          </>
         )}
 
         {!loading && user && (
@@ -135,12 +156,15 @@ export default function Home() {
               <CardDescription>
                 {isAdmin
                   ? 'Puedes ver todos los planes y gestionar las asignaciones de estudiantes.'
-                  : `El progreso esta vinculado a ${user.displayName || user.email}. Los planes bloqueados se muestran como no disponibles.`}
+                  : `El progreso está vinculado a ${user.displayName || user.email}. Los planes bloqueados se muestran como no disponibles.`}
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="flex flex-col sm:flex-row gap-3">
               <Button asChild variant="outline">
                 <Link href="/history">Abrir historial de progreso</Link>
+              </Button>
+              <Button asChild variant="outline">
+                <Link href="/feedback">Enviar opinión</Link>
               </Button>
             </CardContent>
           </Card>

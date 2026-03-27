@@ -17,10 +17,12 @@ import {
 } from '@/components/ui/table';
 import {
   PROGRESS_ACTION_LABELS,
+  readLocalHistory,
   subscribeHistory,
   type ProgressHistoryEntry,
 } from '@/lib/progress-store';
 import { USE_FIRESTORE } from '@/lib/firebase';
+import { trainingPlans } from '@/data/training-plans';
 
 export default function HistoryPage() {
   const { user, loading: authLoading } = useAuth();
@@ -28,20 +30,47 @@ export default function HistoryPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!user || !USE_FIRESTORE) {
+    if (!user) {
       setEntries([]);
       setLoading(false);
       return;
     }
 
-    setLoading(true);
+    const localFallbackEntries = mergeHistoryEntries(
+      readLocalHistory(user.uid, 200),
+      buildHistoryFromLocalPlanStorage()
+    );
 
-    const unsubscribe = subscribeHistory(user.uid, (nextEntries) => {
-      setEntries(nextEntries);
+    setEntries(localFallbackEntries);
+    setLoading(false);
+
+    if (!USE_FIRESTORE) return;
+
+    const unblockTimer = window.setTimeout(() => {
       setLoading(false);
-    });
+    }, 3000);
 
-    return unsubscribe;
+    const unsubscribe = subscribeHistory(
+      user.uid,
+      (cloudEntries) => {
+        setEntries((currentEntries) =>
+          mergeHistoryEntries(
+            cloudEntries,
+            currentEntries.length > 0 ? currentEntries : localFallbackEntries
+          )
+        );
+        setLoading(false);
+      },
+      200,
+      () => {
+        setLoading(false);
+      }
+    );
+
+    return () => {
+      window.clearTimeout(unblockTimer);
+      unsubscribe();
+    };
   }, [user]);
 
   const completedWeeksCount = useMemo(
@@ -75,14 +104,14 @@ export default function HistoryPage() {
         <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-10">
           <Card className="max-w-xl mx-auto">
             <CardHeader>
-              <CardTitle>Inicio de sesion requerido</CardTitle>
+              <CardTitle>Inicio de sesión requerido</CardTitle>
               <CardDescription>
                 Los estudiantes necesitan una cuenta para ver su historial de progreso.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               <Button asChild className="w-full">
-                <Link href="/login">Ir a iniciar sesion / crear cuenta</Link>
+                <Link href="/login">Ir a iniciar sesión / crear cuenta</Link>
               </Button>
               <Button asChild variant="outline" className="w-full">
                 <Link href="/">Volver a planes de entrenamiento</Link>
@@ -110,7 +139,7 @@ export default function HistoryPage() {
         {!USE_FIRESTORE && (
           <Card>
             <CardHeader>
-              <CardTitle>La sincronizacion con Firestore esta desactivada</CardTitle>
+              <CardTitle>La sincronización con Firestore está desactivada</CardTitle>
               <CardDescription>
                 Define `NEXT_PUBLIC_USE_FIRESTORE=true` para que cada estudiante guarde su
                 historial en la nube.
@@ -151,17 +180,17 @@ export default function HistoryPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Linea de tiempo</CardTitle>
+            <CardTitle>Línea de tiempo</CardTitle>
             <CardDescription>
               Cada cambio que realiza el estudiante en el progreso de su plan.
             </CardDescription>
           </CardHeader>
           <CardContent>
             {loading ? (
-              <p className="text-sm text-muted-foreground">Cargando linea de tiempo...</p>
+              <p className="text-sm text-muted-foreground">Cargando línea de tiempo...</p>
             ) : entries.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                Todavia no hay historial. Inicia un plan y completa una semana para crear
+                Todavía no hay historial. Inicia un plan y completa una semana para crear
                 registros.
               </p>
             ) : (
@@ -170,7 +199,7 @@ export default function HistoryPage() {
                   <TableRow>
                     <TableHead>Fecha</TableHead>
                     <TableHead>Plan</TableHead>
-                    <TableHead>Accion</TableHead>
+                    <TableHead>Acción</TableHead>
                     <TableHead>Semana</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -206,4 +235,125 @@ function formatDateTime(date: Date | null): string {
     hour: '2-digit',
     minute: '2-digit',
   });
+}
+
+function buildHistoryFromLocalPlanStorage(): ProgressHistoryEntry[] {
+  if (typeof window === 'undefined') return [];
+
+  const entries: ProgressHistoryEntry[] = [];
+
+  for (const plan of trainingPlans) {
+    const key = `equi:plan:${plan.id}`;
+    const raw = localStorage.getItem(key);
+    if (!raw) continue;
+
+    try {
+      const parsed = JSON.parse(raw) as {
+        startAt?: string | null;
+        currentWeek?: number;
+        completedWeeks?: unknown[];
+        daysByWeek?: Record<string, unknown>;
+      };
+
+      const completedWeeks = extractCompletedWeeks(parsed);
+      if (completedWeeks.length === 0) continue;
+
+      const startDate = parsed.startAt ? new Date(parsed.startAt) : null;
+      const startMs = startDate?.getTime();
+      const hasValidStart = Number.isFinite(startMs);
+
+      for (const week of completedWeeks) {
+        const estimatedDate = hasValidStart
+          ? new Date((startMs as number) + (week - 1) * 7 * 24 * 60 * 60 * 1000)
+          : null;
+
+        entries.push({
+          id: `local-derived-${plan.id}-week-${week}`,
+          planId: plan.id,
+          planName: plan.name,
+          action: 'week_completed',
+          week,
+          currentWeek:
+            typeof parsed.currentWeek === 'number'
+              ? Math.max(0, Math.floor(parsed.currentWeek))
+              : 0,
+          completedWeeks,
+          note: null,
+          createdAt: estimatedDate,
+        });
+      }
+    } catch {
+      // Ignora datos locales corruptos de un plan y continúa con los demás.
+    }
+  }
+
+  return entries.sort((a, b) => {
+    const aTime = a.createdAt?.getTime() ?? 0;
+    const bTime = b.createdAt?.getTime() ?? 0;
+    return bTime - aTime;
+  });
+}
+
+function extractCompletedWeeks(input: {
+  completedWeeks?: unknown[];
+  daysByWeek?: Record<string, unknown>;
+}): number[] {
+  const explicit = Array.isArray(input.completedWeeks)
+    ? input.completedWeeks
+        .map((week) => Number(week))
+        .filter((week) => Number.isFinite(week) && week > 0)
+    : [];
+
+  if (explicit.length > 0) {
+    return [...new Set(explicit)].sort((a, b) => a - b);
+  }
+
+  const rawDaysByWeek =
+    input.daysByWeek && typeof input.daysByWeek === 'object' ? input.daysByWeek : {};
+
+  const inferred = Object.entries(rawDaysByWeek)
+    .map(([rawWeek, rawDays]) => {
+      const week = Number(rawWeek);
+      if (!Number.isFinite(week) || week <= 0) return null;
+      if (!Array.isArray(rawDays)) return null;
+
+      const firstFiveDays = rawDays.slice(0, 5);
+      return firstFiveDays.length === 5 && firstFiveDays.every(Boolean) ? week : null;
+    })
+    .filter((week): week is number => typeof week === 'number');
+
+  return [...new Set(inferred)].sort((a, b) => a - b);
+}
+
+function mergeHistoryEntries(
+  primary: ProgressHistoryEntry[],
+  secondary: ProgressHistoryEntry[]
+): ProgressHistoryEntry[] {
+  const merged = [...primary];
+  const fingerprints = new Set(primary.map(getHistoryFingerprint));
+
+  for (const entry of secondary) {
+    const fingerprint = getHistoryFingerprint(entry);
+    if (fingerprints.has(fingerprint)) continue;
+
+    fingerprints.add(fingerprint);
+    merged.push(entry);
+  }
+
+  return merged.sort((a, b) => {
+    const aTime = a.createdAt?.getTime() ?? 0;
+    const bTime = b.createdAt?.getTime() ?? 0;
+    return bTime - aTime;
+  });
+}
+
+function getHistoryFingerprint(entry: ProgressHistoryEntry): string {
+  return [
+    entry.planId,
+    entry.action,
+    entry.week ?? '',
+    entry.currentWeek,
+    entry.completedWeeks.join(','),
+    entry.createdAt?.toISOString() ?? '',
+  ].join('|');
 }

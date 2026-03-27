@@ -8,9 +8,9 @@ export const metadata: Metadata = {
   title: 'EquiProgress',
   description: 'Tracking your equestrian journey.',
   icons: {
-    icon: '/brand/favicon.png',
-    shortcut: '/brand/favicon.png',
-    apple: '/brand/favicon.png',
+    icon: '/brand/favicon.png?v=20260327',
+    shortcut: '/brand/favicon.png?v=20260327',
+    apple: '/brand/favicon.png?v=20260327',
   },
 };
 
