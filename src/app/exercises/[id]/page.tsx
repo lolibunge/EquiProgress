@@ -8,16 +8,32 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { Clock, Target, ListChecks, Info, AlertTriangle, Check } from 'lucide-react';
+import {
+  Clock,
+  Target,
+  ListChecks,
+  Info,
+  AlertTriangle,
+  Check,
+} from 'lucide-react';
 import { Suspense } from 'react';
 
-// Busca el ejercicio por id y devuelve también el plan dueño (para breadcrumb)
+// Busca el ejercicio por id y devuelve también el plan dueño
 function findExercise(exId: string) {
   for (const plan of trainingPlans) {
     const ex = plan.exercises.find((e: any) => e.id === exId);
     if (ex) return { plan, ex };
   }
   return null;
+}
+
+// Busca un ejercicio por id para mostrar su nombre en transitionTo
+function getExerciseNameById(exId: string) {
+  for (const plan of trainingPlans) {
+    const ex = plan.exercises.find((e: any) => e.id === exId);
+    if (ex) return ex.name;
+  }
+  return exId;
 }
 
 export default function ExerciseDetailPage() {
@@ -31,28 +47,30 @@ export default function ExerciseDetailPage() {
 function ExerciseDetailPageContent() {
   const { id } = useParams<{ id: string }>();
   const search = useSearchParams();
-  const fromPlanId = search.get('from'); // ?from=<planId> para “volver”
+  const fromPlanId = search.get('from');
 
   const found = findExercise(id);
   if (!found) notFound();
 
   const { plan, ex } = found as any;
 
-  // ====== Compatibilidad hacia atrás ======
+  // Compatibilidad hacia atrás
   const headline =
     ex.objective ??
     ex.longDescription ??
     ex.description ??
     '';
 
+  const focus: string = ex.focus ?? '';
+
   const steps: string[] =
-    ex.method /* nuevo */ ??
-    ex.steps  /* legado */ ??
+    ex.method ??
+    ex.steps ??
     [];
 
   const tips: string[] =
-    ex.cues /* nuevo (ayudas) */ ??
-    ex.tips /* legado */ ??
+    ex.cues ??
+    ex.tips ??
     [];
 
   const prereq: string[] = ex.prerequisites ?? [];
@@ -60,17 +78,21 @@ function ExerciseDetailPageContent() {
   const progress: { label: string; details?: string }[] = ex.progressSigns ?? [];
   const advance: string[] = ex.advanceCriteria ?? [];
   const gear: string[] = ex.gear ?? [];
-  const metaRight =
-    ex.duration /* nuevo */ ??
-    ex.reps     /* legado */ ??
-    '—';
+  const commonMistakes: string[] = ex.commonMistakes ?? [];
+  const instructorTips: string[] = ex.instructorTips ?? [];
+  const transitionTo: string[] = ex.transitionTo ?? [];
+
+  const duration = ex.duration ?? '';
+  const reps = ex.reps ?? '';
 
   return (
     <div className="min-h-screen bg-background text-foreground font-body antialiased">
-      {/* Header */}
       <header className="sticky top-0 z-20 bg-background/80 backdrop-blur-sm border-b border-primary/20">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <Link href={fromPlanId ? `/plans/${fromPlanId}` : '/'} className="text-sm text-muted-foreground hover:text-primary">
+          <Link
+            href={fromPlanId ? `/plans/${fromPlanId}` : '/'}
+            className="text-sm text-muted-foreground hover:text-primary"
+          >
             &larr; {fromPlanId ? 'Volver al plan' : 'Volver'}
           </Link>
           <h1 className="text-lg font-headline font-semibold">{ex.name}</h1>
@@ -79,33 +101,46 @@ function ExerciseDetailPageContent() {
       </header>
 
       <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-        {/* HERO del ejercicio */}
         {ex.image && (
           <div className="relative w-full aspect-square sm:aspect-[16/9] overflow-hidden rounded-2xl">
-            <Image src={ex.image} alt={ex.name} fill sizes="100vw" className="object-cover" />
+            <Image
+              src={ex.image}
+              alt={ex.name}
+              fill
+              sizes="100vw"
+              className="object-cover"
+            />
           </div>
         )}
 
         <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Columna principal */}
           <Card className="md:col-span-2">
             <CardHeader>
               <CardTitle>Descripción</CardTitle>
-              <CardDescription>{metaRight}</CardDescription>
+              <CardDescription>{duration || reps || '—'}</CardDescription>
             </CardHeader>
 
             <CardContent className="space-y-6">
-              {/* Píldoras meta: duración + gear */}
-              {(ex.duration || gear.length > 0) && (
+              {(duration || reps || gear.length > 0) && (
                 <div className="flex flex-wrap items-center gap-2">
-                  {ex.duration && (
+                  {duration && (
                     <Badge variant="secondary" className="rounded-2xl px-3 py-1 text-xs">
                       <span className="inline-flex items-center gap-1">
                         <Clock className="size-3.5" />
-                        {ex.duration}
+                        {duration}
                       </span>
                     </Badge>
                   )}
+
+                  {reps && (
+                    <Badge variant="secondary" className="rounded-2xl px-3 py-1 text-xs">
+                      <span className="inline-flex items-center gap-1">
+                        <ListChecks className="size-3.5" />
+                        {reps}
+                      </span>
+                    </Badge>
+                  )}
+
                   {gear.map((g: string, i: number) => (
                     <Badge key={i} variant="secondary" className="rounded-2xl px-3 py-1 text-xs">
                       {g}
@@ -114,7 +149,6 @@ function ExerciseDetailPageContent() {
                 </div>
               )}
 
-              {/* Objetivo / descripción principal */}
               {headline && (
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 text-sm font-semibold text-foreground/80">
@@ -125,9 +159,18 @@ function ExerciseDetailPageContent() {
                 </div>
               )}
 
+              {focus && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-foreground/80">
+                    <Target className="size-4" aria-hidden />
+                    <span>Enfoque</span>
+                  </div>
+                  <p className="text-muted-foreground">{focus}</p>
+                </div>
+              )}
+
               <Separator />
 
-              {/* Cómo se hace (método / pasos) */}
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-sm font-semibold text-foreground/80">
                   <ListChecks className="size-4" aria-hidden />
@@ -135,14 +178,15 @@ function ExerciseDetailPageContent() {
                 </div>
                 {steps.length > 0 ? (
                   <ol className="list-decimal pl-5 space-y-1 text-sm text-muted-foreground">
-                    {steps.map((s: string, i: number) => <li key={i}>{s}</li>)}
+                    {steps.map((s: string, i: number) => (
+                      <li key={i}>{s}</li>
+                    ))}
                   </ol>
                 ) : (
                   <p className="text-sm text-muted-foreground">Sin pasos definidos aún.</p>
                 )}
               </div>
 
-              {/* Ayudas / Consejos  +  Prerrequisitos */}
               <div className="grid gap-6 md:grid-cols-2">
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 text-sm font-semibold text-foreground/80">
@@ -151,9 +195,13 @@ function ExerciseDetailPageContent() {
                   </div>
                   {tips.length > 0 ? (
                     <ul className="list-disc pl-5 space-y-1 text-sm text-muted-foreground">
-                      {tips.map((t: string, i: number) => <li key={i}>{t}</li>)}
+                      {tips.map((t: string, i: number) => (
+                        <li key={i}>{t}</li>
+                      ))}
                     </ul>
-                  ) : <p className="text-sm text-muted-foreground">—</p>}
+                  ) : (
+                    <p className="text-sm text-muted-foreground">—</p>
+                  )}
                 </div>
 
                 <div className="space-y-2">
@@ -163,13 +211,16 @@ function ExerciseDetailPageContent() {
                   </div>
                   {prereq.length > 0 ? (
                     <ul className="list-disc pl-5 space-y-1 text-sm text-muted-foreground">
-                      {prereq.map((p: string, i: number) => <li key={i}>{p}</li>)}
+                      {prereq.map((p: string, i: number) => (
+                        <li key={i}>{p}</li>
+                      ))}
                     </ul>
-                  ) : <p className="text-sm text-muted-foreground">—</p>}
+                  ) : (
+                    <p className="text-sm text-muted-foreground">—</p>
+                  )}
                 </div>
               </div>
 
-              {/* Seguridad */}
               {safety.length > 0 && (
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 text-sm font-semibold text-foreground/80">
@@ -177,12 +228,41 @@ function ExerciseDetailPageContent() {
                     <span>Seguridad</span>
                   </div>
                   <ul className="list-disc pl-5 space-y-1 text-sm text-muted-foreground">
-                    {safety.map((s: string, i: number) => <li key={i}>{s}</li>)}
+                    {safety.map((s: string, i: number) => (
+                      <li key={i}>{s}</li>
+                    ))}
                   </ul>
                 </div>
               )}
 
-              {/* Señales de progreso */}
+              {commonMistakes.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-foreground/80">
+                    <AlertTriangle className="size-4" aria-hidden />
+                    <span>Errores comunes</span>
+                  </div>
+                  <ul className="list-disc pl-5 space-y-1 text-sm text-muted-foreground">
+                    {commonMistakes.map((m: string, i: number) => (
+                      <li key={i}>{m}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {instructorTips.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-foreground/80">
+                    <Info className="size-4" aria-hidden />
+                    <span>Tips del instructor</span>
+                  </div>
+                  <ul className="list-disc pl-5 space-y-1 text-sm text-muted-foreground">
+                    {instructorTips.map((tip: string, i: number) => (
+                      <li key={i}>{tip}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               {progress.length > 0 && (
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 text-sm font-semibold text-foreground/80">
@@ -195,7 +275,9 @@ function ExerciseDetailPageContent() {
                         <Check className="mt-0.5 size-4" aria-hidden />
                         <div>
                           <div className="font-medium">{s.label}</div>
-                          {s.details ? <div className="text-muted-foreground">{s.details}</div> : null}
+                          {s.details ? (
+                            <div className="text-muted-foreground">{s.details}</div>
+                          ) : null}
                         </div>
                       </li>
                     ))}
@@ -203,7 +285,6 @@ function ExerciseDetailPageContent() {
                 </div>
               )}
 
-              {/* Criterios para avanzar */}
               {advance.length > 0 && (
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 text-sm font-semibold text-foreground/80">
@@ -211,14 +292,39 @@ function ExerciseDetailPageContent() {
                     <span>Criterios para avanzar</span>
                   </div>
                   <ul className="list-disc pl-5 space-y-1 text-sm text-muted-foreground">
-                    {advance.map((a: string, i: number) => <li key={i}>{a}</li>)}
+                    {advance.map((a: string, i: number) => (
+                      <li key={i}>{a}</li>
+                    ))}
                   </ul>
+                </div>
+              )}
+
+              {transitionTo.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-foreground/80">
+                    <Check className="size-4" aria-hidden />
+                    <span>Sigue con</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {transitionTo.map((nextId: string) => (
+                      <Link
+                        key={nextId}
+                        href={`/exercises/${nextId}?from=${fromPlanId ?? plan.id}`}
+                      >
+                        <Badge
+                          variant="secondary"
+                          className="rounded-2xl px-3 py-1 text-xs hover:bg-primary/10 cursor-pointer"
+                        >
+                          {getExerciseNameById(nextId)}
+                        </Badge>
+                      </Link>
+                    ))}
+                  </div>
                 </div>
               )}
             </CardContent>
           </Card>
 
-          {/* Columna lateral: Plan dueño */}
           <Card>
             <CardHeader>
               <CardTitle>Pertenece al plan</CardTitle>
@@ -249,6 +355,7 @@ function ExerciseDetailPageLoading() {
           <div />
         </div>
       </header>
+
       <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Card>
           <CardHeader>

@@ -31,6 +31,7 @@ import {
   isAdminUser,
 } from '@/lib/plan-visibility';
 import {
+  appendLocalHistoryEntry,
   createEmptyProgress,
   loadRemotePlanProgress,
   normalizeSavedPlan,
@@ -108,7 +109,7 @@ export default function PlanDetailPage() {
           if (!cancelled && !hasShownSyncError) {
             toast({
               variant: 'destructive',
-              title: 'Fallo la sincronizacion en la nube',
+              title: 'Falló la sincronización en la nube',
               description: firestoreSyncErrorMessage(error),
             });
             setHasShownSyncError(true);
@@ -162,6 +163,16 @@ export default function PlanDetailPage() {
       progress: normalized,
       event,
     }).catch((error) => {
+      if (event) {
+        appendLocalHistoryEntry({
+          uid: user.uid,
+          planId: plan.id,
+          planName,
+          progress: normalized,
+          event,
+        });
+      }
+
       if (!hasShownSyncError) {
         toast({
           variant: 'destructive',
@@ -355,8 +366,8 @@ export default function PlanDetailPage() {
         <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <Card>
             <CardHeader>
-              <CardTitle>Loading plan...</CardTitle>
-              <CardDescription>Checking account access.</CardDescription>
+              <CardTitle>Cargando plan...</CardTitle>
+              <CardDescription>Verificando acceso de la cuenta.</CardDescription>
             </CardHeader>
           </Card>
         </main>
@@ -370,17 +381,17 @@ export default function PlanDetailPage() {
         <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <Card className="max-w-xl mx-auto">
             <CardHeader>
-              <CardTitle>Login required</CardTitle>
+              <CardTitle>Inicio de sesión requerido</CardTitle>
               <CardDescription>
-                Students must log in to open assigned training plans.
+                Los estudiantes deben iniciar sesión para abrir los planes asignados.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               <Button asChild className="w-full">
-                <Link href="/login">Go to login</Link>
+                <Link href="/login">Ir a iniciar sesión</Link>
               </Button>
               <Button asChild variant="outline" className="w-full">
-                <Link href="/">Back to home</Link>
+                <Link href="/">Volver al inicio</Link>
               </Button>
             </CardContent>
           </Card>
@@ -395,14 +406,14 @@ export default function PlanDetailPage() {
         <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <Card className="max-w-xl mx-auto">
             <CardHeader>
-              <CardTitle>Plan not assigned</CardTitle>
+              <CardTitle>Plan no asignado</CardTitle>
               <CardDescription>
-                This account does not have access to this plan.
+                Esta cuenta no tiene acceso a este plan.
               </CardDescription>
             </CardHeader>
             <CardContent>
               <Button asChild className="w-full">
-                <Link href="/">Back to assigned plans</Link>
+                <Link href="/">Volver a planes asignados</Link>
               </Button>
             </CardContent>
           </Card>
@@ -465,9 +476,9 @@ export default function PlanDetailPage() {
         <section>
           <Card>
             <CardHeader>
-              <CardTitle>{isAdmin ? 'Vista de administrador' : 'Sincronizacion de estudiante activa'}</CardTitle>
+              <CardTitle>{isAdmin ? 'Vista de administrador' : 'Sincronización de estudiante activa'}</CardTitle>
               <CardDescription>
-                El progreso esta vinculado a {user.displayName || user.email}.
+                El progreso está vinculado a {user.displayName || user.email}.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">
@@ -479,7 +490,7 @@ export default function PlanDetailPage() {
               </Button>
               {!USE_FIRESTORE && (
                 <p className="text-sm text-muted-foreground">
-                  La sincronizacion de Firestore esta desactivada. Define `NEXT_PUBLIC_USE_FIRESTORE=true` para guardar historial en la nube.
+                  La sincronización de Firestore está desactivada. Define `NEXT_PUBLIC_USE_FIRESTORE=true` para guardar historial en la nube.
                 </p>
               )}
             </CardContent>
@@ -580,7 +591,7 @@ export default function PlanDetailPage() {
                     Semana actual: <strong>{saved.currentWeek}</strong> de {plan.weeks}
                   </p>
                   <p className="text-sm font-medium">
-                    Semana {saved.currentWeek}: marcar dias trabajados
+                    Semana {saved.currentWeek}: marcar días trabajados
                   </p>
                   {!isCurrentWeekEditable && editableWeek > 0 && (
                     <p className="text-xs text-muted-foreground">
@@ -606,7 +617,7 @@ export default function PlanDetailPage() {
                     ))}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    {currentWeekDays.filter(Boolean).length} / {WORK_DAYS_PER_WEEK} dias trabajados
+                    {currentWeekDays.filter(Boolean).length} / {WORK_DAYS_PER_WEEK} días trabajados
                     en esta semana.
                   </p>
                 </div>
@@ -614,7 +625,7 @@ export default function PlanDetailPage() {
 
               <div className="mt-3 space-y-2">
                 <div className="flex items-center justify-between text-xs sm:text-sm text-muted-foreground">
-                  <span>{workedDays} / {totalDays} dias</span>
+                  <span>{workedDays} / {totalDays} días</span>
                   <span>{dayProgressPct}%</span>
                 </div>
                 <div className="w-full h-2 rounded-full bg-muted overflow-hidden">
@@ -668,10 +679,9 @@ export default function PlanDetailPage() {
                 const active = stage.week === saved.currentWeek;
                 const completed = isCompleted(stage.week);
                 const editable = isWeekEditable(stage.week);
-                const stagePrimaryExerciseId = stage.exerciseIds?.[0];
-                const stagePrimaryExercise = stagePrimaryExerciseId
-                  ? plan.exercises.find((entry) => entry.id === stagePrimaryExerciseId)
-                  : null;
+                const stageExercises = (stage.exerciseIds ?? [])
+                  .map((exerciseId) => plan.exercises.find((entry) => entry.id === exerciseId))
+                  .filter((entry): entry is (typeof plan.exercises)[number] => Boolean(entry));
                 return (
                   <li key={`${plan.id}-timeline-${stage.week}`} className="ml-2">
                     <div
@@ -704,13 +714,20 @@ export default function PlanDetailPage() {
                       >
                         Ir a esta semana
                       </Button>
-                      {stagePrimaryExercise && (
-                        <Button asChild size="sm" variant="secondary">
-                          <Link href={`/exercises/${stagePrimaryExercise.id}?from=${plan.id}`}>
-                            Ver ejercicio
-                          </Link>
-                        </Button>
-                      )}
+                      {stageExercises.length > 0
+                        ? stageExercises.map((exercise) => (
+                            <Button
+                              key={`${plan.id}-stage-${stage.week}-exercise-${exercise.id}`}
+                              asChild
+                              size="sm"
+                              variant="secondary"
+                            >
+                              <Link href={`/exercises/${exercise.id}?from=${plan.id}`}>
+                                Ver ejercicio: {exercise.name}
+                              </Link>
+                            </Button>
+                          ))
+                        : null}
                       <label className="flex items-center gap-2 text-sm text-muted-foreground select-none cursor-pointer">
                         <input
                           type="checkbox"
@@ -833,16 +850,16 @@ function firestoreSyncErrorMessage(error: unknown): string {
 
   switch (code) {
     case 'permission-denied':
-      return 'Firestore bloqueo el acceso. Revisa las reglas para users/{uid}.';
+      return 'Firestore bloqueó el acceso. Revisa las reglas para users/{uid}.';
     case 'failed-precondition':
-      return 'Firestore no esta habilitado en este proyecto. Activalo en Firebase Console.';
+      return 'Firestore no está habilitado en este proyecto. Actívalo en Firebase Console.';
     case 'unauthenticated':
-      return 'La sesion no es valida para escribir en Firestore. Inicia sesion de nuevo.';
+      return 'La sesión no es válida para escribir en Firestore. Inicia sesión de nuevo.';
     case 'unavailable':
-      return 'Firestore esta temporalmente no disponible. Intenta de nuevo en unos minutos.';
+      return 'Firestore está temporalmente no disponible. Intenta de nuevo en unos minutos.';
     case 'not-found':
-      return 'No se encontro la base de datos de Firestore para este proyecto.';
+      return 'No se encontró la base de datos de Firestore para este proyecto.';
     default:
-      return `Error de sincronizacion (${code}). Se guardara localmente por ahora.`;
+      return `Error de sincronización (${code}). Se guardará localmente por ahora.`;
   }
 }

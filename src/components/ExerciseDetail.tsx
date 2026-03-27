@@ -21,6 +21,9 @@ export type Exercise = {
   safety?: string[];
   progressSigns?: { label: string; details?: string }[];
   advanceCriteria?: string[];
+  commonMistakes?: string[];
+  instructorTips?: string[];
+  transitionTo?: string[];
 };
 
 /**
@@ -158,9 +161,13 @@ export function ExerciseDetail({ exercise }: { exercise: Exercise }) {
               </span>
             </Pill>
           ) : null}
-          {exercise.gear?.map((g, i) => (
-            <Pill key={i}>{g}</Pill>
-          ))}
+          {exercise.reps ? (
+            <Pill>
+              <span className="inline-flex items-center gap-1">
+                <ListChecks className="size-3.5" /> {exercise.reps}
+              </span>
+            </Pill>
+          ) : null}
         </div>
 
         <Separator />
@@ -170,6 +177,14 @@ export function ExerciseDetail({ exercise }: { exercise: Exercise }) {
           <div className="space-y-2">
             <SectionTitle icon={Target}>Objetivo</SectionTitle>
             <p className="text-sm leading-relaxed">{exercise.objective}</p>
+          </div>
+        ) : null}
+
+        {/* Focus */}
+        {exercise.focus ? (
+          <div className="space-y-2">
+            <SectionTitle icon={Target}>Enfoque</SectionTitle>
+            <p className="text-sm leading-relaxed">{exercise.focus}</p>
           </div>
         ) : null}
 
@@ -191,11 +206,25 @@ export function ExerciseDetail({ exercise }: { exercise: Exercise }) {
           </div>
         </div>
 
+        {exercise.commonMistakes?.length ? (
+          <div className="space-y-2">
+            <SectionTitle icon={AlertTriangle}>Errores comunes</SectionTitle>
+            <LabeledList items={exercise.commonMistakes} />
+          </div>
+        ) : null}
+
         {/* Seguridad */}
         {exercise.safety?.length ? (
           <div className="space-y-2">
             <SectionTitle icon={AlertTriangle}>Seguridad</SectionTitle>
             <LabeledList items={exercise.safety} />
+          </div>
+        ) : null}
+
+        {exercise.commonMistakes?.length ? (
+          <div className="space-y-2">
+            <SectionTitle icon={AlertTriangle}>Errores comunes</SectionTitle>
+            <LabeledList items={exercise.commonMistakes} />
           </div>
         ) : null}
 
@@ -207,11 +236,29 @@ export function ExerciseDetail({ exercise }: { exercise: Exercise }) {
           </div>
         ) : null}
 
+        {exercise.instructorTips?.length ? (
+          <div className="space-y-2">
+            <SectionTitle icon={Info}>Tips del instructor</SectionTitle>
+            <LabeledList items={exercise.instructorTips} />
+          </div>
+        ) : null}
+
         {/* Criterios para avanzar */}
         {exercise.advanceCriteria?.length ? (
           <div className="space-y-2">
             <SectionTitle icon={Check}>Criterios para avanzar</SectionTitle>
             <LabeledList items={exercise.advanceCriteria} />
+          </div>
+        ) : null}
+
+        {exercise.transitionTo?.length ? (
+          <div className="space-y-2">
+            <SectionTitle icon={Check}>Sigue con</SectionTitle>
+            <div className="flex flex-wrap gap-2">
+              {exercise.transitionTo.map((item, i) => (
+                <Pill key={i}>{item}</Pill>
+              ))}
+            </div>
           </div>
         ) : null}
       </CardContent>

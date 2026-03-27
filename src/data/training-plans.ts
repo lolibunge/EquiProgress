@@ -15,6 +15,9 @@ export interface Exercise {
   safety?: string[];         // Seguridad / consideraciones
   progressSigns?: Signal[];  // Señales de progreso
   advanceCriteria?: string[];// Criterios para pasar de fase
+  commonMistakes?: string[];// Criterios para pasar de fase
+  instructorTips?: string[];// Criterios para pasar de fase
+  transitionTo?: string[];// Criterios para pasar de fase
 };
 
 export type PlanStage = {
@@ -64,8 +67,10 @@ export const trainingPlans: TrainingPlan[] = [
         objective: "Generar vínculo, atención y autorregulación sin herramientas.",
         method: [
           "Iniciar en corral/redondo, permitir explorar y observar lenguaje corporal.",
+          "Pedir movimiento hacia una dirección y observar.",
           "Proponer cambios suaves de dirección y ritmo con tu postura y energía.",
-          "Recompensar mirar, acercarse, bajar la cabeza y regular el impulso."
+          "Observar señales corporales, poscición de las orejas, poscición de la cabeza, movimiento de la cola, respiración y boca.",
+          "Recompensar cuando vemos el caballo relajado y atento. parar y premiar mirar, acercarse, bajar la cabeza y regular el impulso."
         ],
         cues: ["Posición del cuerpo (invitar/alejar)", "Mirada suave", "Respiración lenta"],
         gear: ["Corral/redondo seguro"],
@@ -77,7 +82,7 @@ export const trainingPlans: TrainingPlan[] = [
           { label: "Regulación", details: "Pasa de activo a calmado sin perder conexión" },
           { label: "Relaja cuello y dorso" },
           { label: "Baja la cabeza" },
-          { label: "Respiración más lenta" }
+          { label: "Respiración más lento" }
         ],
         advanceCriteria: [
           "Responde a cambios de dirección con fluidez",
@@ -85,29 +90,49 @@ export const trainingPlans: TrainingPlan[] = [
         ]
       },
       {
-        id: "desens",
+        id: "taller-desens",
         name: "Desensibilización",
         image: "/plans/exercise/desens.png",
-        objective: "Aceptar estímulos básicos en estático sin tensión.",
+        objective: "Aceptar estímulos básicos en estático sin reacción emocional, manteniendo relajación y atención.",
+        focus: "Regulación emocional y aceptación de presión",
         method: [
-          "Aplicar estímulos suaves con stick & string y mano (cuello, hombro, dorso).",
-          "Esperar señal de relajación y retirar estímulo (principio presión–liberación).",
-          "Repetir en ambos lados y zonas simétricas."
+          "Aplicar estímulos suaves y progresivos con stick & string y mano (cuello, hombro, dorso, manos y patas).",
+          "Si el caballo se mueve, acompañarlo manteniendo el estímulo de forma estable, sin aumentar la presión ni entrar en pelea.",
+          "Cuando el caballo se detiene, baja la tensión o muestra una señal de relajación, retirar el estímulo (principio presión–alivio).",
+          "Repetir en ambos lados y en zonas simétricas."
         ],
-        cues: ["Tocar–retirar", "Ritmo constante", "Exhalar al relajar"],
+        cues: ["Tocar–retirar", "Ritmo constante", "Esperar sin apurar", "Exhalar al relajar"],
         gear: ["Cabestro", "Stick & string"],
         duration: "10–12 min",
         prerequisites: ["Trabajo en libertad"],
-        safety: ["Evitar golpes con la cuerda", "No avanzar si hay tensión alta"],
+        safety: [
+          "Evitar golpes con la cuerda",
+          "No avanzar si hay tensión alta",
+          "No ubicarse frente al caballo en zona de riesgo"
+        ],
         progressSigns: [
           { label: "Relaja cuello y dorso" },
           { label: "Baja la cabeza" },
-          { label: "Respiración más lenta" }
+          { label: "Respiración más lenta" },
+          { label: "Lame y mastica" }
         ],
         advanceCriteria: [
           "Tolera contacto en 5–6 zonas sin mover los pies",
-          "Recupera la calma en < 5 segundos tras un pequeño sobresalto"
-        ]
+          "Recupera la calma en menos de 5 segundos tras un pequeño sobresalto",
+          "Permanece quieto durante el estímulo sin necesidad de corrección"
+        ],
+        commonMistakes: [
+          "Retirar el estímulo cuando el caballo aún está reaccionando",
+          "Aumentar la intensidad demasiado rápido",
+          "Perseguir al caballo en vez de esperar relajación",
+          "No observar señales de tensión antes de avanzar"
+        ],
+        instructorTips: [
+          "Si el caballo mueve los pies, acompañalo sin pelear ni aumentar la intensidad de golpe",
+          "El alivio debe llegar cuando aparece la quietud o baja la tensión, no en plena reacción",
+          "Observá el momento exacto en que el caballo vuelve a pensar"
+        ],
+        transitionTo: ["taller-sens-cabrestear", "taller-sens-retroceso", "taller-sens-giro-frente", "taller-sens-giro-grupa", "taller-sens-flexion-lateral"]
       },
       {
         id: "sens-cabrestear",
@@ -382,250 +407,383 @@ export const trainingPlans: TrainingPlan[] = [
 },
   // 🔧 Taller Método Mente y Movimiento (sin semanas 5 y 6)
   {
-    id: "taller-metodo-mente-movimiento",
-    name: "Taller Metodo Mente y Movimiento",
-    description: "Primer acercamiento al caballo con enfoque de manejo basico, calma y comunicacion.",
-    duration: "4 semanas",
-    weeks: 4,
-    image: "/plans/plan-de-iniciacion-caballo-joven.png",
-    category: "Unbroke",
-    exercises: [
-      {
-        id: "taller-libertad",
-        name: "Trabajo en libertad",
-        image: "/plans/exercise/libertad.png",
-        objective: "Generar vínculo, atención y autorregulación sin herramientas.",
-        method: [
-          "Iniciar en corral/redondo, permitir explorar y observar lenguaje corporal.",
-          "Proponer cambios suaves de dirección y ritmo con tu postura y energía.",
-          "Recompensar mirar, acercarse, bajar la cabeza y regular el impulso."
-        ],
-        cues: ["Posición del cuerpo (invitar/alejar)", "Mirada suave", "Respiración lenta"],
-        gear: ["Corral/redondo seguro"],
-        duration: "10–15 min",
-        prerequisites: [],
-        safety: ["Evitar rincones con objetos que puedan golpear", "Mantener salida libre"],
-        progressSigns: [
-          { label: "Enganche", details: "Te busca y te sigue por iniciativa propia" },
-          { label: "Regulación", details: "Pasa de activo a calmado sin perder conexión" },
-          { label: "Relaja cuello y dorso" },
-          { label: "Baja la cabeza" },
-          { label: "Respiración más lenta" }
-        ],
-        advanceCriteria: [
-          "Responde a cambios de dirección con fluidez",
-          "Mantiene atención 2–3 minutos seguidos"
-        ]
-      },
-      {
-        id: "taller-desens",
-        name: "Desensibilización",
-        image: "/plans/exercise/desens.png",
-        objective: "Aceptar estímulos básicos en estático sin tensión.",
-        method: [
-          "Aplicar estímulos suaves con stick & string y mano (cuello, hombro, dorso).",
-          "Esperar señal de relajación y retirar estímulo (principio presión–liberación).",
-          "Repetir en ambos lados y zonas simétricas."
-        ],
-        cues: ["Tocar–retirar", "Ritmo constante", "Exhalar al relajar"],
-        gear: ["Cabestro", "Stick & string"],
-        duration: "10–12 min",
-        prerequisites: ["Trabajo en libertad"],
-        safety: ["Evitar golpes con la cuerda", "No avanzar si hay tensión alta"],
-        progressSigns: [
-          { label: "Relaja cuello y dorso" },
-          { label: "Baja la cabeza" },
-          { label: "Respiración más lenta" }
-        ],
-        advanceCriteria: [
-          "Tolera contacto en 5–6 zonas sin mover los pies",
-          "Recupera la calma en < 5 segundos tras un pequeño sobresalto"
-        ]
-      },
-      {
-        id: "taller-sens-cabrestear",
-        name: "Cabrestear (avanzar a la par)",
-        image: "/plans/exercise/cabrestear.png",
-        objective: "Enseñar a iniciar la marcha con una indicación suave y avanzar a la par del guía.",
-        method: [
-          "Ubícate al costado del caballo, a la altura del hombro. Cabestro en la mano interna; stick/vara en la externa.",
-          "Prepara tu cuerpo en actitud de avanzar (pecho hacia delante y primer paso).",
-          "Si no responde, toca suavemente con el stick en flanco o grupa hasta que dé 1–2 pasos, y libera.",
-          "Camina relajada a su lado, detente y premia. Repite 3–5 veces buscando que inicie solo con tu postura."
-        ],
-        cues: ["Postura de avance", "Micro-tensión de cabestro si hace falta", "Toque suave con stick como refuerzo"],
-        gear: ["Cabestro", "Cuerda 3–4 m", "Stick/vara"],
-        duration: "6–8 min",
-        prerequisites: ["Desensibilización"],
-        safety: ["Mantener zona libre a los costados", "Evitar golpear con el stick, solo tocar si no hay respuesta"],
-        progressSigns: [
-          { label: "Inicia la marcha con tu postura" },
-          { label: "Camina a la par sin invadir" }
-        ],
-        advanceCriteria: [
-          "Avanza con indicación postural > stick",
-          "Se detiene y arranca sin tirones de cuerda"
-        ]
-      },
-      {
-        id: "taller-sens-retroceso",
-        name: "Retroceder",
-        image: "/plans/exercise/retroceder.png",
-        objective: "Que el caballo ceda espacio y retroceda con un estímulo mínimo desde el cabestro.",
-        method: [
-          "Párate frente al caballo a ~1,5 m. Cabestro en mano; stick en la otra (solo por seguridad).",
-          "Agita la cuerda desde la punta del cabestro en ondas horizontales para transmitirlas a la nariz.",
-          "Cuando dé 1–2 pasos atrás, detén las ondas y premia (baja tu energía).",
-          "Invítalo a volver hacia ti y, antes de llegar a tu espacio, eleva la mano para detenerlo y premia en la frente.",
-          "Repite hasta lograr 3–4 pasos suaves y fluidos."
-        ],
-        cues: ["Ondas de cuerda en cabestro", "Mano levantada para parar al volver", "Energía corporal baja para calmar"],
-        gear: ["Cabestro", "Cuerda 3–4 m", "Stick (opcional)"],
-        duration: "6–8 min",
-        prerequisites: ["Desensibilización"],
-        safety: ["No envolver la cuerda en la mano", "Mantener distancia para evitar pisadas"],
-        progressSigns: [
-          { label: "Retrocede con ondas pequeñas" },
-          { label: "Se detiene a tu señal antes de invadir tu espacio" }
-        ],
-        advanceCriteria: [
-          "Retrocede 3–4 pasos con ondas mínimas",
-          "Vuelve y se detiene con tu mano alzada"
-        ]
-      },
-      {
-        id: "taller-sens-giro-frente",
-        name: "Girar el frente (ceder hombros)",
-        image: "/plans/exercise/ceder-el-frente.png",
-        objective: "Ceder los hombros cruzando la mano externa sobre la interna, manteniendo la pata interna como pivote.",
-        method: [
-          "Colócate entre cabeza y hombro. Con tu mano interna, bloquea suavemente para que no avance.",
-          "Con tu mano externa, aplica presión ligera en el hombro para invitar el cruce hacia fuera.",
-          "Si no responde, agita brevemente la punta del cabestro entre oreja y ojo (sin golpear) y libera al primer cruce.",
-          "Da 1–2 pasos de cruce, suelta presión y premia. Repite al otro lado."
-        ],
-        cues: ["Bloque suave delante", "Presión ligera en hombro", "Micro estímulo visual con punta de cabestro"],
-        gear: ["Cabestro", "Cuerda 3–4 m"],
-        duration: "6–8 min",
-        prerequisites: ["Desensibilización"],
-        safety: ["No colocarte delante si empuja hombros", "Evita presión continua: pedir–soltar"],
-        progressSigns: [
-          { label: "Cruza hombros con presión mínima" },
-          { label: "Mantiene pata interna como pivote" }
-        ],
-        advanceCriteria: [
-          "2–3 pasos cruzados por lado sin tracción constante",
-          "Responde a señales cada vez más sutiles"
-        ]
-      },
-      {
-        id: "taller-sens-giro-grupa",
-        name: "Girar la grupa (ceder posteriores)",
-        image: "/plans/exercise/sens-giro-grupa.png",
-        objective: "Desplazar la grupa cruzando la pata interna sobre la externa, dejando los anteriores más fijos.",
-        method: [
-          "Colócate a la mitad del barril. Mano interna al cabestro; mano externa con el stick.",
-          "Orienta tu cuerpo hacia la grupa. Da 3–4 toques en el aire apuntando a la grupa; si no cede, toca suave.",
-          "Al primer cruce de pata interna sobre la externa, detén el estímulo y premia.",
-          "Repite 1–2 pasos por vez, alternando lados, hasta lograr fluidez."
-        ],
-        cues: ["Orientación corporal a grupa", "Toques al aire → toque suave como refuerzo", "Liberar al primer cruce"],
-        gear: ["Desensibilización"],
-        duration: "6–8 min",
-        prerequisites: ["Desensibilización"],
-        safety: ["Mantenerte fuera de la trayectoria de los posteriores", "No insistir con golpes: pedir–soltar"],
-        progressSigns: [
-          { label: "Cruza posteriores con señal leve" },
-          { label: "Anteriores quedan casi fijos" }
-        ],
-        advanceCriteria: [
-          "2–3 pasos de cruce por lado sin tensión",
-          "Responde primero al lenguaje corporal"
-        ]
-      },
-      {
-        id: "taller-sens-flexion-lateral",
-        name: "Flexión lateral",
-        image: "/plans/exercise/sens-flexion-lateral.png",
-        objective: "Mejorar la movilidad cervical y la suavidad del contacto, cediendo lateralmente.",
-        method: [
-          "Ubícate a la altura de la paleta/barril. Toma el cabestro y pide traer la nariz hacia tu costado.",
-          "Busca una pequeña flexión; al primer gesto de ceder, suelta y premia.",
-          "Aumenta gradualmente el rango hasta que la nariz se acerque al barril sin mover los pies.",
-          "Repite a ambos lados, alternando flexiones cortas y una más completa."
-        ],
-        cues: ["Toma corta del cabestro", "Presión–liberación inmediata", "Respiración tranquila"],
-        gear: ["Cabestro", "Cuerda corta (opcional)"],
-        duration: "4–6 min",
-        prerequisites: ["Desensibilización"],
-        safety: ["No tirar de golpe", "Detener si mueve pies: volver a pedir suave"],
-        progressSigns: [
-          { label: "Cede con presión mínima" },
-          { label: "Aumenta rango de flexión sin moverse" }
-        ],
-        advanceCriteria: [
-          "Flexión amplia y suave a ambos lados",
-          "Mantiene calma y respiración regular"
-        ]
-      },
-      {
-        id: "taller-sens-mov",
-        name: "Sensibilización en movimiento",
-        image: "/plans/exercise/sens-mov.png",
-        objective: "Mantener respuestas claras a las ayudas mientras se desplaza.",
-        method: [
-          "Caminar a la par con cambios de dirección y ritmo (corto/medio).",
-          "Paradas suaves desde la marcha usando voz y micro-tensión.",
-          "Retroceder 1–3 pasos y volver a avanzar sin perder la conexión.",
-        ],
-        cues: ["Ritmo del guía", "Voz (subir/bajar)", "Micro-tensión de cuerda"],
-        gear: ["Cabestro", "Cuerda 3–4 m"],
-        duration: "8–12 min",
-        prerequisites: ["Sensibilización (estático) consistente"],
-        safety: ["Evitar pisos resbaladizos", "Mantener espacio libre alrededor"],
-        progressSigns: [
-          { label: "Ritmo parejo sin tirones" },
-          { label: "Paradas y retrocesos limpios" }
-        ],
-        advanceCriteria: [
-          "Sostiene 2–3 minutos de trabajo variado sin perder calma",
-          "Responde a voz/postura > cuerda"
-        ]
-      }
-    ],
-    stages: [
-      {
-        week: 1,
-        title: "Trabajo en libertad",
-        description: "Conexión, lectura de señales y regulación de energía.",
-        exerciseIds: ["taller-libertad"]
-      },
-      {
-        week: 2,
-        title: "Desensibilización",
-        description: "Zonas de contacto y principio presión–liberación en estático.",
-        exerciseIds: ["taller-desens"]
-      },
-      {
-        week: 3,
-        title: "Sensibilización",
-        description: "Ceder a presiones: avanzar/retroceder, ceder hombros y grupa, flexión.",
-        exerciseIds: [
-          "taller-sens-cabrestear",
-          "taller-sens-retroceso",
-          "taller-sens-giro-frente",
-          "taller-sens-giro-grupa",
-          "taller-sens-flexion-lateral"
-        ]
-      },
-      {
-        week: 4,
-        title: "Sensibilización en movimiento",
-        description: "Aplicar ayudas en marcha: cambios de dirección, paradas y retrocesos suaves.",
-        exerciseIds: ["taller-sens-mov"]
-      }
-    ]
-  },
+  id: "taller-metodo-mente-movimiento",
+  name: "Taller Método Mente y Movimiento",
+  description: "Primer acercamiento al caballo con enfoque de manejo básico, calma y comunicación.",
+  duration: "4 semanas",
+  weeks: 4,
+  image: "/plans/plan-de-iniciacion-caballo-joven.png",
+  category: "Unbroke",
+  exercises: [
+    {
+      id: "taller-libertad",
+      name: "Trabajo en libertad",
+      image: "/plans/exercise/libertad.png",
+      objective: "Generar vínculo, atención y autorregulación sin herramientas.",
+      focus: "Conexión, lectura del caballo y regulación de energía",
+      method: [
+        "Iniciar en corral o redondo, permitir que el caballo explore y observar su lenguaje corporal.",
+        "Pedir movimiento hacia una dirección y observar su respuesta.",
+        "Proponer cambios suaves de dirección y ritmo con tu postura y energía.",
+        "Observar señales corporales: posición de las orejas, posición de la cabeza, movimiento de la cola, respiración y boca.",
+        "Reconocer y liberar en pequeños momentos de conexión y relajación, como cuando el caballo mira, se acerca, baja la cabeza o regula su impulso."
+      ],
+      cues: ["Posición del cuerpo (invitar/alejar)", "Mirada suave", "Respiración lenta"],
+      gear: ["Corral o redondo seguro"],
+      duration: "10–15 min",
+      prerequisites: [],
+      safety: ["Evitar rincones con objetos que puedan golpear", "Mantener una salida libre"],
+      progressSigns: [
+        { label: "Enganche", details: "Te busca y te sigue por iniciativa propia" },
+        { label: "Regulación", details: "Pasa de activo a calmado sin perder conexión" },
+        { label: "Relaja cuello y dorso" },
+        { label: "Baja la cabeza" },
+        { label: "Respiración más lenta" }
+      ],
+      advanceCriteria: [
+        "Responde a cambios de dirección con fluidez",
+        "Mantiene la atención durante 2–3 minutos seguidos"
+      ],
+      commonMistakes: [
+        "Mover al caballo sin observar primero su estado",
+        "Cambiar dirección demasiado rápido sin darle tiempo a procesar",
+        "Buscar que se mueva en vez de buscar conexión",
+        "No reconocer los momentos de atención o relajación"
+      ],
+
+      instructorTips: [
+        "Primero observá, después intervení",
+        "Buscá conexión antes que movimiento",
+        "Menos presión, más claridad",
+        "El caballo aprende cuando baja la energía, no cuando se agita"
+      ],
+
+      transitionTo: ["taller-desens"]
+    },
+    {
+      id: "taller-desens",
+      name: "Desensibilización",
+      image: "/plans/exercise/desens.png",
+      objective: "Aceptar estímulos básicos en estático sin reacción emocional, manteniendo relajación y atención.",
+      focus: "Regulación emocional y aceptación de presión",
+      method: [
+        "Aplicar estímulos suaves y progresivos con stick & string y mano (cuello, hombro, dorso, manos y patas).",
+        "Si el caballo se mueve, acompañarlo manteniendo el estímulo de forma estable, sin aumentar la presión ni entrar en pelea.",
+        "Cuando el caballo se detiene, baja la tensión o muestra una señal de relajación, retirar el estímulo (principio presión–alivio).",
+        "Repetir en ambos lados y en zonas simétricas."
+      ],
+      cues: ["Tocar–retirar", "Ritmo constante", "Esperar sin apurar", "Exhalar al relajar"],
+      gear: ["Cabestro", "Stick & string"],
+      duration: "10–12 min",
+      prerequisites: ["Trabajo en libertad"],
+      safety: [
+        "Evitar golpes con la cuerda",
+        "No avanzar si hay tensión alta",
+        "No ubicarse frente al caballo en zona de riesgo"
+      ],
+      progressSigns: [
+        { label: "Relaja cuello y dorso" },
+        { label: "Baja la cabeza" },
+        { label: "Respiración más lenta" },
+        { label: "Lame y mastica" }
+      ],
+      advanceCriteria: [
+        "Tolera contacto en 5–6 zonas sin mover los pies",
+        "Recupera la calma en menos de 5 segundos tras un pequeño sobresalto",
+        "Permanece quieto durante el estímulo sin necesidad de corrección"
+      ],
+      commonMistakes: [
+        "Retirar el estímulo cuando el caballo aún está reaccionando",
+        "Aumentar la intensidad demasiado rápido",
+        "Perseguir al caballo en vez de esperar relajación",
+        "No observar señales de tensión antes de avanzar"
+      ],
+      instructorTips: [
+        "Si el caballo mueve los pies, acompañalo sin pelear ni aumentar la intensidad de golpe",
+        "El alivio debe llegar cuando aparece la quietud o baja la tensión, no en plena reacción",
+        "Observá el momento exacto en que el caballo vuelve a pensar"
+      ],
+      transitionTo: ["taller-sens-cabrestear", "taller-sens-retroceso", "taller-sens-giro-frente", "taller-sens-giro-grupa", "taller-sens-flexion-lateral"]
+    },
+    {
+      id: "taller-sens-cabrestear",
+      name: "Cabrestear (avanzar a la par)",
+      image: "/plans/exercise/cabrestear.png",
+      objective: "Enseñar a iniciar la marcha con una indicación suave y avanzar a la par del guía.",
+      focus: "Respuesta a la intención corporal y respeto del espacio",
+      method: [
+        "Ubicate al costado del caballo, a la altura del hombro. Sostené el cabestro con la mano interna y el stick o vara con la externa.",
+        "Prepará tu cuerpo en actitud de avanzar (pecho hacia adelante y primer paso).",
+        "Si no responde, tocá suavemente con el stick en el flanco o la grupa hasta que dé 1–2 pasos, y liberá.",
+        "Caminá relajada a su lado, detenete y premiá. Repetí 3–5 veces buscando que inicie solo con tu postura."
+      ],
+      cues: ["Postura de avance", "Microtensión del cabestro si hace falta", "Toque suave con stick como refuerzo"],
+      gear: ["Cabestro", "Cuerda de 3–4 m", "Stick o vara"],
+      duration: "6–8 min",
+      prerequisites: ["Desensibilización"],
+      safety: ["Mantener una zona libre a los costados", "Evitar golpear con el stick; usarlo solo como toque de refuerzo"],
+      progressSigns: [
+        { label: "Inicia la marcha con tu postura" },
+        { label: "Camina a la par sin invadir" }
+      ],
+      advanceCriteria: [
+        "Avanza primero por indicación postural y no por presión del stick",
+        "Se detiene y arranca sin tirones de cuerda"
+      ],
+      commonMistakes: [
+        "Usar demasiado el stick en vez de la postura",
+        "Tirar del cabestro en vez de invitar",
+        "No liberar cuando el caballo responde",
+        "Caminar sin marcar claramente el inicio"
+      ],
+
+      instructorTips: [
+        "Tu cuerpo debe ser la señal principal",
+        "El stick es solo refuerzo, no la base",
+        "Premiá el primer intento, no la perfección",
+        "Buscá que el caballo te lea antes de reaccionar"
+      ],
+
+      transitionTo: ["taller-sens-retroceso", "taller-sens-giro-frente", "taller-sens-giro-grupa", "taller-sens-flexion-lateral", "taller-sens-mov"]
+    },
+    {
+      id: "taller-sens-retroceso",
+      name: "Retroceder",
+      image: "/plans/exercise/retroceder.png",
+      objective: "Que el caballo ceda espacio y retroceda con un estímulo mínimo desde el cabestro.",
+      focus: "Respeto del espacio y respuesta a presión frontal",
+      method: [
+        "Parate frente al caballo a aproximadamente 1,5 m. Cabestro en mano; stick en la otra solo por seguridad.",
+        "Agitá la cuerda desde la punta del cabestro en ondas horizontales para transmitirlas a la nariz.",
+        "Cuando dé 1–2 pasos hacia atrás, detené las ondas y premiá bajando tu energía.",
+        "Invitalo a volver hacia vos y, antes de que llegue a tu espacio, elevá la mano para detenerlo y premiá en la frente.",
+        "Repetí hasta lograr 3–4 pasos suaves y fluidos."
+      ],
+      cues: ["Ondas de cuerda en el cabestro", "Mano levantada para parar al volver", "Energía corporal baja para calmar"],
+      gear: ["Cabestro", "Cuerda de 3–4 m", "Stick (opcional)"],
+      duration: "6–8 min",
+      prerequisites: ["Desensibilización"],
+      safety: ["No envolver la cuerda en la mano", "Mantener distancia para evitar pisadas"],
+      progressSigns: [
+        { label: "Retrocede con ondas pequeñas" },
+        { label: "Se detiene a tu señal antes de invadir tu espacio" }
+      ],
+      advanceCriteria: [
+        "Retrocede 3–4 pasos con ondas mínimas",
+        "Vuelve y se detiene con tu mano alzada"
+      ],
+      commonMistakes: [
+        "Mover la cuerda demasiado fuerte desde el inicio",
+        "No parar cuando el caballo responde",
+        "Invadir el espacio del caballo",
+        "No diferenciar entre reacción y respuesta"
+      ],
+
+      instructorTips: [
+        "Empezá con la mínima señal posible",
+        "El timing del alivio es todo",
+        "Buscá pasos suaves, no cantidad",
+        "El caballo debe retroceder relajado, no escapando"
+      ],
+
+      transitionTo: ["taller-sens-cabrestear", "taller-sens-giro-frente", "taller-sens-giro-grupa", "taller-sens-flexion-lateral", "taller-sens-mov"]
+    },
+    {
+      id: "taller-sens-giro-frente",
+      name: "Ceder hombros",
+      image: "/plans/exercise/ceder-el-frente.png",
+      objective: "Desplazar los hombros con suavidad, manteniendo la pata interna como pivote.",
+      focus: "Control de hombros y dirección",
+      method: [
+        "Colocate entre la cabeza y el hombro. Con tu mano interna, bloqueá suavemente para evitar que avance.",
+        "Con tu mano externa, aplicá una presión ligera en el hombro para invitar el cruce hacia afuera.",
+        "Si no responde, agitá brevemente la punta del cabestro entre la oreja y el ojo, sin golpear, y liberá al primer cruce.",
+        "Pedí 1–2 pasos de cruce, soltá la presión y premiá. Repetí al otro lado."
+      ],
+      cues: ["Bloque suave adelante", "Presión ligera en el hombro", "Microestímulo visual con la punta del cabestro"],
+      gear: ["Cabestro", "Cuerda de 3–4 m"],
+      duration: "6–8 min",
+      prerequisites: ["Desensibilización"],
+      safety: ["No colocarte delante si empuja con los hombros", "Evitar presión continua: pedir y soltar"],
+      progressSigns: [
+        { label: "Cruza hombros con presión mínima" },
+        { label: "Mantiene la pata interna como pivote" }
+      ],
+      advanceCriteria: [
+        "Hace 2–3 pasos cruzados por lado sin tracción constante",
+        "Responde a señales cada vez más sutiles"
+      ],
+      commonMistakes: [
+        "Empujar demasiado fuerte el hombro",
+        "No bloquear el avance correctamente",
+        "Pedir demasiados pasos seguidos",
+        "No liberar al primer cruce"
+      ],
+
+      instructorTips: [
+        "Los hombros dirigen al caballo",
+        "Menos pasos, mejor calidad",
+        "Pedí y soltá, no empujes constante",
+        "Buscá suavidad antes que cantidad"
+      ],
+
+      transitionTo: ["taller-sens-cabrestear", "taller-sens-retroceso",  "taller-sens-giro-grupa", "taller-sens-flexion-lateral", "taller-sens-mov"]
+    },
+    {
+      id: "taller-sens-giro-grupa",
+      name: "Ceder grupa",
+      image: "/plans/exercise/sens-giro-grupa.png",
+      objective: "Desplazar la grupa cruzando la pata interna sobre la externa, con los anteriores más quietos.",
+      focus: "Control del motor y respuesta a presión lateral",
+      method: [
+        "Colocate a la mitad del barril. Mano interna al cabestro; mano externa con el stick.",
+        "Orientá tu cuerpo hacia la grupa. Hacé 3–4 toques en el aire apuntando a la grupa; si no cede, tocá suave.",
+        "Al primer cruce de la pata interna sobre la externa, detené el estímulo y premiá.",
+        "Repetí 1–2 pasos por vez, alternando lados, hasta lograr fluidez."
+      ],
+      cues: ["Orientación corporal hacia la grupa", "Toques al aire y luego toque suave como refuerzo", "Liberar al primer cruce"],
+      gear: ["Cabestro", "Cuerda de 3–4 m", "Stick"],
+      duration: "6–8 min",
+      prerequisites: ["Desensibilización"],
+      safety: ["Mantenerte fuera de la trayectoria de los posteriores", "No insistir con golpes: pedir y soltar"],
+      progressSigns: [
+        { label: "Cruza posteriores con señal leve" },
+        { label: "Los anteriores quedan casi fijos" }
+      ],
+      advanceCriteria: [
+        "Hace 2–3 pasos de cruce por lado sin tensión",
+        "Responde primero al lenguaje corporal"
+      ],
+      commonMistakes: [
+        "Pararse demasiado cerca de la grupa",
+        "Golpear en vez de sugerir",
+        "No liberar al primer cruce",
+        "Querer girar demasiado rápido"
+      ],
+
+      instructorTips: [
+        "Mover la grupa es controlar el motor",
+        "Buscá un paso correcto, no muchos",
+        "El caballo debe cruzar, no desplazarse rígido",
+        "Siempre trabajá ambos lados"
+      ],
+
+      transitionTo: ["taller-sens-cabrestear", "taller-sens-retroceso", "taller-sens-giro-frente", "taller-sens-flexion-lateral", "taller-sens-mov"]
+    },
+    {
+      id: "taller-sens-flexion-lateral",
+      name: "Flexión lateral",
+      image: "/plans/exercise/sens-flexion-lateral.png",
+      objective: "Mejorar la movilidad cervical y la suavidad del contacto, cediendo lateralmente.",
+      focus: "Suavidad, flexibilidad y atención a la presión",
+      method: [
+        "Ubicate a la altura de la paleta o barril. Tomá el cabestro y pedí traer la nariz hacia tu costado.",
+        "Buscá una pequeña flexión; al primer gesto de ceder, soltá y premiá.",
+        "Aumentá gradualmente el rango hasta que la nariz se acerque al barril sin mover los pies.",
+        "Repetí a ambos lados, alternando flexiones cortas y una más completa."
+      ],
+      cues: ["Toma corta del cabestro", "Presión y liberación inmediata", "Respiración tranquila"],
+      gear: ["Cabestro", "Cuerda corta (opcional)"],
+      duration: "4–6 min",
+      prerequisites: ["Desensibilización"],
+      safety: ["No tirar de golpe", "Si mueve los pies, volver a pedir más suave"],
+      progressSigns: [
+        { label: "Cede con presión mínima" },
+        { label: "Aumenta el rango de flexión sin moverse" }
+      ],
+      advanceCriteria: [
+        "Flexión amplia y suave a ambos lados",
+        "Mantiene calma y respiración regular"
+      ],
+      commonMistakes: [
+        "Tirar en vez de pedir",
+        "No soltar cuando el caballo cede",
+        "Exigir demasiada flexión demasiado rápido",
+        "Permitir que mueva los pies sin control"
+      ],
+
+      instructorTips: [
+        "Buscá una pequeña respuesta y soltá",
+        "La suavidad se construye de a poco",
+        "El caballo debe ceder, no resistir",
+        "Menos fuerza, más timing"
+      ],
+
+      transitionTo: ["taller-sens-cabrestear", "taller-sens-retroceso", "taller-sens-giro-frente", "taller-sens-giro-grupa", "taller-sens-mov"]
+    },
+    {
+      id: "taller-sens-mov",
+      name: "Sensibilización en movimiento",
+      image: "/plans/exercise/sens-mov.png",
+      objective: "Mantener respuestas claras a las ayudas mientras se desplaza.",
+      focus: "Conservar atención, dirección y ritmo durante el movimiento",
+      method: [
+        "Caminar a la par con cambios de dirección y ritmo (corto y medio).",
+        "Hacer paradas suaves desde la marcha usando voz y microtensión de la cuerda.",
+        "Retroceder 1–3 pasos y volver a avanzar sin perder la conexión."
+      ],
+      cues: ["Ritmo del guía", "Voz para subir o bajar energía", "Microtensión de cuerda"],
+      gear: ["Cabestro", "Cuerda de 3–4 m"],
+      duration: "8–12 min",
+      prerequisites: ["Sensibilización en estático consistente"],
+      safety: ["Evitar pisos resbaladizos", "Mantener espacio libre alrededor"],
+      progressSigns: [
+        { label: "Ritmo parejo sin tirones" },
+        { label: "Paradas y retrocesos limpios" }
+      ],
+      advanceCriteria: [
+        "Sostiene 2–3 minutos de trabajo variado sin perder la calma",
+        "Responde antes a voz y postura que a la cuerda"
+      ],
+      commonMistakes: [
+        "Perder control del ritmo",
+        "Dejar que el caballo se desconecte en movimiento",
+        "No corregir invasión de espacio",
+        "Usar solo la cuerda en vez del cuerpo"
+      ],
+
+      instructorTips: [
+        "El liderazgo real aparece en movimiento",
+        "Controlá primero el ritmo, después la dirección",
+        "Buscá consistencia, no perfección",
+        "El caballo debe mantenerse atento, no automático"
+      ],
+
+    }
+  ],
+  stages: [
+    {
+      week: 1,
+      title: "Trabajo en libertad",
+      description: "Conexión, lectura de señales y regulación de energía.",
+      exerciseIds: ["taller-libertad"]
+    },
+    {
+      week: 2,
+      title: "Desensibilización",
+      description: "Zonas de contacto y principio presión–alivio en estático.",
+      exerciseIds: ["taller-desens"]
+    },
+    {
+      week: 3,
+      title: "Sensibilización",
+      description: "Ceder a presiones: avanzar, retroceder, ceder hombros, grupa y flexión.",
+      exerciseIds: [
+        "taller-sens-cabrestear",
+        "taller-sens-retroceso",
+        "taller-sens-giro-frente",
+        "taller-sens-giro-grupa",
+        "taller-sens-flexion-lateral"
+      ]
+    },
+    {
+      week: 4,
+      title: "Sensibilización en movimiento",
+      description: "Aplicar ayudas en marcha: cambios de dirección, paradas y retrocesos suaves.",
+      exerciseIds: ["taller-sens-mov"]
+    }
+  ]
+},
   // 🔧 Retraining
   {
     id: 'retraining',

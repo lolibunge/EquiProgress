@@ -20,10 +20,17 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { auth, db, USE_FIRESTORE } from '@/lib/firebase';
 import { isAdminEmail } from '@/lib/plan-visibility';
+import { getTrialNotice } from '@/lib/pricing';
 import { useToast } from '@/hooks/use-toast';
 
 type BusyMode = 'login' | 'signup' | 'reset' | 'logout' | null;
 type AuthTab = 'signup' | 'login' | 'reset';
+type ResetStatus =
+  | {
+      type: 'success' | 'error';
+      message: string;
+    }
+  | null;
 
 export default function AuthPage() {
   return (
@@ -51,6 +58,7 @@ function AuthPageContent() {
   const [signupPasswordConfirm, setSignupPasswordConfirm] = useState('');
 
   const [resetEmail, setResetEmail] = useState('');
+  const [resetStatus, setResetStatus] = useState<ResetStatus>(null);
 
   useEffect(() => {
     const mode = searchParams.get('mode');
@@ -59,6 +67,16 @@ function AuthPageContent() {
     }
   }, [searchParams]);
 
+  useEffect(() => {
+    if (activeTab !== 'reset') {
+      return;
+    }
+
+    if (!resetEmail.trim() && loginEmail.trim()) {
+      setResetEmail(loginEmail.trim());
+    }
+  }, [activeTab, loginEmail, resetEmail]);
+
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusyMode('login');
@@ -66,14 +84,14 @@ function AuthPageContent() {
     try {
       await signInWithEmailAndPassword(auth, loginEmail.trim(), loginPassword);
       toast({
-        title: 'Welcome back',
-        description: 'You are now logged in.',
+        title: 'Bienvenida',
+        description: 'Sesión iniciada correctamente.',
       });
       router.push('/');
     } catch (error) {
       toast({
         variant: 'destructive',
-        title: 'Login failed',
+        title: 'No se pudo iniciar sesión',
         description: firebaseErrorMessage(error),
       });
     } finally {
@@ -90,8 +108,8 @@ function AuthPageContent() {
     if (cleanName.length < 2) {
       toast({
         variant: 'destructive',
-        title: 'Invalid name',
-        description: 'Please enter a student name with at least 2 characters.',
+        title: 'Nombre inválido',
+        description: 'Ingresa un nombre de estudiante con al menos 2 caracteres.',
       });
       return;
     }
@@ -99,8 +117,8 @@ function AuthPageContent() {
     if (signupPassword.length < 6) {
       toast({
         variant: 'destructive',
-        title: 'Weak password',
-        description: 'Password must have at least 6 characters.',
+        title: 'Contraseña débil',
+        description: 'La contraseña debe tener al menos 6 caracteres.',
       });
       return;
     }
@@ -108,8 +126,8 @@ function AuthPageContent() {
     if (signupPassword !== signupPasswordConfirm) {
       toast({
         variant: 'destructive',
-        title: 'Passwords do not match',
-        description: 'Please enter the same password in both fields.',
+        title: 'Las contraseñas no coinciden',
+        description: 'Ingresa la misma contraseña en ambos campos.',
       });
       return;
     }
@@ -139,21 +157,21 @@ function AuthPageContent() {
         } catch (syncError) {
           toast({
             variant: 'destructive',
-            title: 'Account created, but cloud sync failed',
+            title: 'Cuenta creada, pero falló la sincronización en la nube',
             description: firestoreErrorMessage(syncError),
           });
         }
       }
 
       toast({
-        title: 'Account created',
-        description: 'Student account is ready. You can now track progress history.',
+        title: 'Cuenta creada',
+        description: 'La cuenta del estudiante está lista. Ya puede registrar su progreso.',
       });
       router.push('/');
     } catch (error) {
       toast({
         variant: 'destructive',
-        title: 'Could not create account',
+        title: 'No se pudo crear la cuenta',
         description: firebaseErrorMessage(error),
       });
     } finally {
@@ -164,12 +182,19 @@ function AuthPageContent() {
   async function handleResetPassword(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    const cleanEmail = resetEmail.trim() || loginEmail.trim();
+    setResetStatus(null);
+
+    const cleanEmail = resetEmail.trim() || loginEmail.trim() || user?.email?.trim() || '';
     if (!cleanEmail) {
+      const message = 'Ingresa el email de la cuenta para restablecer la contraseña.';
+      setResetStatus({
+        type: 'error',
+        message,
+      });
       toast({
         variant: 'destructive',
-        title: 'Email required',
-        description: 'Please enter the account email to reset password.',
+        title: 'Email requerido',
+        description: message,
       });
       return;
     }
@@ -178,16 +203,25 @@ function AuthPageContent() {
 
     try {
       await sendPasswordResetEmail(auth, cleanEmail);
-      toast({
-        title: 'Reset link sent',
-        description: `A password reset email was sent to ${cleanEmail}.`,
+      setResetEmail(cleanEmail);
+      setResetStatus({
+        type: 'success',
+        message: `Enlace enviado a ${cleanEmail}. Revisa tu bandeja y carpeta de spam.`,
       });
-      setActiveTab('login');
+      toast({
+        title: 'Enlace enviado',
+        description: `Enviamos un email para restablecer la contraseña a ${cleanEmail}.`,
+      });
     } catch (error) {
+      const message = firebaseErrorMessage(error);
+      setResetStatus({
+        type: 'error',
+        message,
+      });
       toast({
         variant: 'destructive',
-        title: 'Reset failed',
-        description: firebaseErrorMessage(error),
+        title: 'No se pudo restablecer',
+        description: message,
       });
     } finally {
       setBusyMode(null);
@@ -199,13 +233,13 @@ function AuthPageContent() {
     try {
       await signOut(auth);
       toast({
-        title: 'Signed out',
-        description: 'Session closed successfully.',
+        title: 'Sesión cerrada',
+        description: 'La sesión se cerró correctamente.',
       });
     } catch (error) {
       toast({
         variant: 'destructive',
-        title: 'Sign out failed',
+        title: 'No se pudo cerrar sesión',
         description: firebaseErrorMessage(error),
       });
     } finally {
@@ -219,8 +253,8 @@ function AuthPageContent() {
         <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-14">
           <Card className="max-w-lg mx-auto">
             <CardHeader>
-              <CardTitle>Loading account...</CardTitle>
-              <CardDescription>Checking your session.</CardDescription>
+              <CardTitle>Cargando cuenta...</CardTitle>
+              <CardDescription>Verificando tu sesión.</CardDescription>
             </CardHeader>
           </Card>
         </main>
@@ -234,17 +268,20 @@ function AuthPageContent() {
         <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-14">
           <Card className="max-w-lg mx-auto">
             <CardHeader>
-              <CardTitle>Account active</CardTitle>
+              <CardTitle>Cuenta activa</CardTitle>
               <CardDescription>
-                Logged in as {user.displayName || user.email || 'student'}.
+                Sesión iniciada como {user.displayName || user.email || 'estudiante'}.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               <Button asChild className="w-full">
-                <Link href="/history">Open progress history</Link>
+                <Link href="/history">Abrir historial de progreso</Link>
               </Button>
               <Button asChild variant="outline" className="w-full">
-                <Link href="/">Back to training plans</Link>
+                <Link href="/">Volver a planes de entrenamiento</Link>
+              </Button>
+              <Button asChild variant="outline" className="w-full">
+                <Link href="/feedback">Enviar opinión</Link>
               </Button>
               <Button
                 variant="ghost"
@@ -252,7 +289,7 @@ function AuthPageContent() {
                 onClick={handleLogout}
                 disabled={busyMode === 'logout'}
               >
-                {busyMode === 'logout' ? 'Signing out...' : 'Sign out'}
+                {busyMode === 'logout' ? 'Cerrando sesión...' : 'Cerrar sesión'}
               </Button>
             </CardContent>
           </Card>
@@ -266,27 +303,33 @@ function AuthPageContent() {
       <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-14">
         <Card className="max-w-2xl mx-auto">
           <CardHeader>
-            <CardTitle>Student Accounts</CardTitle>
+            <CardTitle>Cuentas de estudiantes</CardTitle>
             <CardDescription>
-              Create a student account or sign in to keep progress history saved in the cloud.
+              Crea una cuenta de estudiante o inicia sesión para guardar el historial en la nube.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <Tabs
               value={activeTab}
-              onValueChange={(value) => setActiveTab(value as AuthTab)}
+              onValueChange={(value) => {
+                const nextTab = value as AuthTab;
+                setActiveTab(nextTab);
+                if (nextTab !== 'reset') {
+                  setResetStatus(null);
+                }
+              }}
               className="w-full"
             >
               <TabsList className="grid w-full grid-cols-3 h-auto">
-                <TabsTrigger value="signup">Create account</TabsTrigger>
-                <TabsTrigger value="login">Login</TabsTrigger>
-                <TabsTrigger value="reset">Reset password</TabsTrigger>
+                <TabsTrigger value="signup">Crear cuenta</TabsTrigger>
+                <TabsTrigger value="login">Iniciar sesión</TabsTrigger>
+                <TabsTrigger value="reset">Restablecer contraseña</TabsTrigger>
               </TabsList>
 
               <TabsContent value="signup">
                 <form className="space-y-4 pt-4" onSubmit={handleSignup}>
                   <div className="space-y-2">
-                    <Label htmlFor="signup-name">Student name</Label>
+                    <Label htmlFor="signup-name">Nombre del estudiante</Label>
                     <Input
                       id="signup-name"
                       autoComplete="name"
@@ -308,7 +351,7 @@ function AuthPageContent() {
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-2">
-                      <Label htmlFor="signup-password">Password</Label>
+                      <Label htmlFor="signup-password">Contraseña</Label>
                       <Input
                         id="signup-password"
                         type="password"
@@ -319,7 +362,7 @@ function AuthPageContent() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="signup-password-confirm">Confirm password</Label>
+                      <Label htmlFor="signup-password-confirm">Confirmar contraseña</Label>
                       <Input
                         id="signup-password-confirm"
                         type="password"
@@ -331,8 +374,15 @@ function AuthPageContent() {
                     </div>
                   </div>
                   <Button type="submit" className="w-full" disabled={busyMode === 'signup'}>
-                    {busyMode === 'signup' ? 'Creating account...' : 'Create account'}
+                    {busyMode === 'signup' ? 'Creando cuenta...' : 'Crear cuenta'}
                   </Button>
+                  <p className="text-xs text-muted-foreground">
+                    {getTrialNotice()}{' '}
+                    <Link href="/pricing" className="underline underline-offset-2 hover:text-primary">
+                      Ver detalles de la prueba
+                    </Link>
+                    .
+                  </p>
                 </form>
               </TabsContent>
 
@@ -350,7 +400,7 @@ function AuthPageContent() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="login-password">Password</Label>
+                    <Label htmlFor="login-password">Contraseña</Label>
                     <Input
                       id="login-password"
                       type="password"
@@ -366,13 +416,14 @@ function AuthPageContent() {
                     className="h-auto p-0 text-sm"
                     onClick={() => {
                       setResetEmail(loginEmail.trim());
+                      setResetStatus(null);
                       setActiveTab('reset');
                     }}
                   >
-                    Forgot password?
+                    Olvidé mi contraseña
                   </Button>
                   <Button type="submit" className="w-full" disabled={busyMode === 'login'}>
-                    {busyMode === 'login' ? 'Logging in...' : 'Login'}
+                    {busyMode === 'login' ? 'Iniciando sesión...' : 'Iniciar sesión'}
                   </Button>
                 </form>
               </TabsContent>
@@ -380,29 +431,38 @@ function AuthPageContent() {
               <TabsContent value="reset">
                 <form className="space-y-4 pt-4" onSubmit={handleResetPassword}>
                   <div className="space-y-2">
-                    <Label htmlFor="reset-email">Account email</Label>
+                    <Label htmlFor="reset-email">Email de la cuenta</Label>
                     <Input
                       id="reset-email"
                       type="email"
                       autoComplete="email"
                       value={resetEmail}
-                      onChange={(event) => setResetEmail(event.target.value)}
-                      required
+                      onChange={(event) => {
+                        setResetEmail(event.target.value);
+                        setResetStatus(null);
+                      }}
                     />
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    We will email a secure link so the student can choose a new password.
+                    Enviaremos un enlace seguro para que el estudiante elija una nueva contraseña.
                   </p>
+                  {resetStatus && (
+                    <p
+                      className={`text-sm rounded-md border px-3 py-2 ${
+                        resetStatus.type === 'success'
+                          ? 'border-emerald-300 bg-emerald-50 text-emerald-900'
+                          : 'border-destructive/30 bg-destructive/10 text-destructive'
+                      }`}
+                    >
+                      {resetStatus.message}
+                    </p>
+                  )}
                   <Button type="submit" className="w-full" disabled={busyMode === 'reset'}>
-                    {busyMode === 'reset' ? 'Sending reset link...' : 'Send reset link'}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full"
-                    onClick={() => setActiveTab('login')}
-                  >
-                    Back to login
+                    {busyMode === 'reset'
+                      ? 'Enviando enlace...'
+                      : resetStatus?.type === 'success'
+                        ? 'Reenviar enlace de restablecimiento'
+                        : 'Enviar enlace de restablecimiento'}
                   </Button>
                 </form>
               </TabsContent>
@@ -410,14 +470,14 @@ function AuthPageContent() {
 
             {!USE_FIRESTORE && (
               <p className="pt-4 text-sm text-muted-foreground">
-                Firestore sync is currently off. Set `NEXT_PUBLIC_USE_FIRESTORE=true` to save
-                student progress across devices.
+                La sincronización con Firestore está desactivada. Define `NEXT_PUBLIC_USE_FIRESTORE=true`
+                para guardar el progreso del estudiante entre dispositivos.
               </p>
             )}
 
             <div className="pt-4">
               <Button variant="ghost" asChild className="w-full">
-                <Link href="/">Back to home</Link>
+                <Link href="/">Volver al inicio</Link>
               </Button>
             </div>
           </CardContent>
@@ -429,44 +489,44 @@ function AuthPageContent() {
 
 function firebaseErrorMessage(error: unknown): string {
   if (typeof error !== 'object' || !error || !('code' in error)) {
-    return 'Please try again.';
+    return 'Inténtalo de nuevo.';
   }
 
   const code = String(error.code);
 
   switch (code) {
     case 'auth/email-already-in-use':
-      return 'This email is already used by another account.';
+      return 'Este email ya está siendo usado por otra cuenta.';
     case 'auth/invalid-email':
-      return 'This email address is invalid.';
+      return 'Este email no es válido.';
     case 'auth/missing-email':
-      return 'Please enter your account email.';
+      return 'Ingresa el email de la cuenta.';
     case 'auth/invalid-credential':
-      return 'Email or password is incorrect.';
+      return 'El email o la contraseña es incorrecto.';
     case 'auth/user-not-found':
-      return 'No account exists with this email.';
+      return 'No existe una cuenta con este email.';
     case 'auth/wrong-password':
-      return 'Incorrect password.';
+      return 'Contraseña incorrecta.';
     case 'auth/weak-password':
-      return 'Choose a stronger password (at least 6 characters).';
+      return 'Elige una contraseña más segura (al menos 6 caracteres).';
     case 'auth/operation-not-allowed':
-      return 'Email/password sign-in is disabled in Firebase Console.';
+      return 'El acceso por email/contraseña está desactivado en Firebase Console.';
     case 'auth/configuration-not-found':
-      return 'Firebase Auth is not configured for this project. In Firebase Console: Authentication -> Get started -> Sign-in method -> enable Email/Password.';
+      return 'Firebase Auth no está configurado para este proyecto. En Firebase Console: Authentication -> Get started -> Sign-in method -> habilita Email/Password.';
     case 'auth/app-not-authorized':
-      return 'This domain is not authorized in Firebase Auth settings.';
+      return 'Este dominio no está autorizado en la configuración de Firebase Auth.';
     case 'auth/network-request-failed':
-      return 'Network error. Check your internet connection and retry.';
+      return 'Error de red. Revisa tu conexión e intenta otra vez.';
     case 'auth/invalid-api-key':
-      return 'Firebase API key is invalid. Check your Firebase config.';
+      return 'La API key de Firebase no es válida. Revisa la configuración.';
     case 'auth/api-key-not-valid.-please-pass-a-valid-api-key.':
-      return 'Firebase API key is invalid or revoked. Update NEXT_PUBLIC_FIREBASE_API_KEY.';
+      return 'La API key de Firebase no es válida o fue revocada. Actualiza NEXT_PUBLIC_FIREBASE_API_KEY.';
     case 'auth/admin-restricted-operation':
-      return 'This operation is restricted by Firebase project settings.';
+      return 'Esta operación está restringida por la configuración del proyecto en Firebase.';
     case 'auth/too-many-requests':
-      return 'Too many attempts. Please wait a bit and try again.';
+      return 'Demasiados intentos. Espera un momento e inténtalo de nuevo.';
     default:
-      return `Please verify the data and try again (${code}).`;
+      return `Verifica los datos e intenta de nuevo (${code}).`;
   }
 }
 
@@ -474,12 +534,12 @@ function AuthPageLoading() {
   return (
     <div className="min-h-screen bg-background text-foreground font-body antialiased">
       <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-14">
-        <Card className="max-w-lg mx-auto">
-          <CardHeader>
-            <CardTitle>Loading account...</CardTitle>
-            <CardDescription>Checking your session.</CardDescription>
-          </CardHeader>
-        </Card>
+          <Card className="max-w-lg mx-auto">
+            <CardHeader>
+              <CardTitle>Cargando cuenta...</CardTitle>
+              <CardDescription>Verificando tu sesión.</CardDescription>
+            </CardHeader>
+          </Card>
       </main>
     </div>
   );
@@ -487,19 +547,19 @@ function AuthPageLoading() {
 
 function firestoreErrorMessage(error: unknown): string {
   if (typeof error !== 'object' || !error || !('code' in error)) {
-    return 'Firestore write failed. You can still log in with this account.';
+    return 'Falló la escritura en Firestore. Aún puedes iniciar sesión con esta cuenta.';
   }
 
   const code = String(error.code);
 
   switch (code) {
     case 'permission-denied':
-      return 'Firestore rules blocked the write. Review security rules for users/{uid}.';
+      return 'Las reglas de Firestore bloquearon la escritura. Revisa las reglas para users/{uid}.';
     case 'failed-precondition':
-      return 'Firestore is not fully set up. Create/enable Firestore in Firebase Console.';
+      return 'Firestore no está completamente configurado. Crea/habilita Firestore en Firebase Console.';
     case 'unavailable':
-      return 'Firestore is temporarily unavailable. Please retry in a moment.';
+      return 'Firestore está temporalmente no disponible. Intenta de nuevo en un momento.';
     default:
-      return `Firestore write failed (${code}). You can still log in with this account.`;
+      return `Falló la escritura en Firestore (${code}). Aún puedes iniciar sesión con esta cuenta.`;
   }
 }
