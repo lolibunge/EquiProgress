@@ -7,10 +7,12 @@ import { AuthProvider } from '@/components/auth-provider';
 export const metadata: Metadata = {
   title: 'EquiProgress',
   description: 'Tracking your equestrian journey.',
+  manifest: '/manifest.webmanifest',
+  applicationName: 'EquiProgress',
   icons: {
-    icon: '/brand/favicon.png?v=20260327',
-    shortcut: '/brand/favicon.png?v=20260327',
-    apple: '/brand/favicon.png?v=20260327',
+    icon: '/icon.png?v=20260327-2',
+    shortcut: '/icon.png?v=20260327-2',
+    apple: '/apple-icon.png?v=20260327-2',
   },
 };
 

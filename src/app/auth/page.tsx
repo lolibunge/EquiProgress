@@ -320,10 +320,25 @@ function AuthPageContent() {
               }}
               className="w-full"
             >
-              <TabsList className="grid w-full grid-cols-3 h-auto">
-                <TabsTrigger value="signup">Crear cuenta</TabsTrigger>
-                <TabsTrigger value="login">Iniciar sesión</TabsTrigger>
-                <TabsTrigger value="reset">Restablecer contraseña</TabsTrigger>
+              <TabsList className="grid w-full h-auto grid-cols-1 sm:grid-cols-3 gap-1">
+                <TabsTrigger
+                  value="signup"
+                  className="h-auto whitespace-normal text-center leading-tight px-3 py-2"
+                >
+                  Crear cuenta
+                </TabsTrigger>
+                <TabsTrigger
+                  value="login"
+                  className="h-auto whitespace-normal text-center leading-tight px-3 py-2"
+                >
+                  Iniciar sesión
+                </TabsTrigger>
+                <TabsTrigger
+                  value="reset"
+                  className="h-auto whitespace-normal text-center leading-tight px-3 py-2"
+                >
+                  Restablecer contraseña
+                </TabsTrigger>
               </TabsList>
 
               <TabsContent value="signup">
