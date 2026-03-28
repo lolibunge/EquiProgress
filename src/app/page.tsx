@@ -15,12 +15,10 @@ import {
 } from '@/data/training-plans';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Logo } from '@/components/logo';
 import { Carousel, CarouselContent, CarouselItem, CarouselPrevious, CarouselNext } from '@/components/ui/carousel';
 import { auth } from '@/lib/firebase';
 import {
-  canUserAccessPlan,
   getPlanDisplayDescription,
   getPlanDisplayName,
   isAdminUser,
@@ -35,7 +33,9 @@ export default function Home() {
   const [isSigningOut, setIsSigningOut] = useState(false);
 
   const isAdmin = isAdminUser(user);
-  const filteredPlans = trainingPlans.filter((plan) => plan.category === selectedCategory);
+  const featuredStudentPlanId = 'taller-metodo-mente-movimiento';
+  const featuredStudentPlan = trainingPlans.find((plan) => plan.id === featuredStudentPlanId);
+  const adminFilteredPlans = trainingPlans.filter((plan) => plan.category === selectedCategory);
 
   const autoplay = useRef(
     Autoplay({ delay: 2500, stopOnInteraction: false, stopOnMouseEnter: false, playOnInit: true })
@@ -156,7 +156,7 @@ export default function Home() {
               <CardDescription>
                 {isAdmin
                   ? 'Puedes ver todos los planes y gestionar las asignaciones de estudiantes.'
-                  : `El progreso está vinculado a ${user.displayName || user.email}. Los planes bloqueados se muestran como no disponibles.`}
+                  : `El progreso está vinculado a ${user.displayName || user.email}. Aquí verás solo el plan asignado a tus clases.`}
               </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col sm:flex-row gap-3">
@@ -170,7 +170,37 @@ export default function Home() {
           </Card>
         )}
 
-        {!loading && user && (
+        {!loading && user && !isAdmin && featuredStudentPlan && (
+          <section className="mb-8">
+            <Card className="border-primary/30 shadow-sm">
+              <CardHeader>
+                <CardTitle>Tu plan asignado</CardTitle>
+                <CardDescription>
+                  Enfócate en este plan para evitar confusiones con otros contenidos.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <p className="text-xl font-semibold">
+                    {getPlanDisplayName(featuredStudentPlan.id, featuredStudentPlan.name, false)}
+                  </p>
+                  <p className="text-muted-foreground mt-1">
+                    {getPlanDisplayDescription(
+                      featuredStudentPlan.id,
+                      featuredStudentPlan.description,
+                      false
+                    )}
+                  </p>
+                </div>
+                <Button asChild>
+                  <Link href={`/plans/${featuredStudentPlan.id}`}>Abrir plan ahora</Link>
+                </Button>
+              </CardContent>
+            </Card>
+          </section>
+        )}
+
+        {!loading && user && isAdmin && (
           <>
             <div className="relative mb-12 w-full max-w-2xl mx-auto">
               <Carousel
@@ -204,40 +234,13 @@ export default function Home() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {filteredPlans.map((plan: TrainingPlan) => {
-                const canAccess = canUserAccessPlan(plan.id, isAdmin);
+              {adminFilteredPlans.map((plan: TrainingPlan) => {
                 const planName = getPlanDisplayName(plan.id, plan.name, isAdmin);
                 const planDescription = getPlanDisplayDescription(
                   plan.id,
                   plan.description,
                   isAdmin
                 );
-
-                if (!canAccess) {
-                  return (
-                    <div key={plan.id} className="cursor-not-allowed">
-                      <Card className="flex h-full flex-col opacity-70 border-dashed">
-                        <CardHeader>
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="min-w-0">
-                              <CardTitle className="truncate">{plan.name}</CardTitle>
-                              <CardDescription>{plan.duration}</CardDescription>
-                            </div>
-                            <Badge variant="secondary">No disponible</Badge>
-                          </div>
-                        </CardHeader>
-                        <CardContent className="flex-grow">
-                          <p className="text-muted-foreground mb-4 line-clamp-3">
-                            {plan.description}
-                          </p>
-                          <Button variant="outline" className="mt-auto" disabled>
-                            No disponible
-                          </Button>
-                        </CardContent>
-                      </Card>
-                    </div>
-                  );
-                }
 
                 return (
                   <Link

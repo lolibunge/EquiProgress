@@ -139,10 +139,9 @@ export default function HistoryPage() {
         {!USE_FIRESTORE && (
           <Card>
             <CardHeader>
-              <CardTitle>La sincronización con Firestore está desactivada</CardTitle>
+              <CardTitle>Modo local activo</CardTitle>
               <CardDescription>
-                Define `NEXT_PUBLIC_USE_FIRESTORE=true` para que cada estudiante guarde su
-                historial en la nube.
+                El historial se guarda en este dispositivo. En otros dispositivos puede no verse.
               </CardDescription>
             </CardHeader>
           </Card>
