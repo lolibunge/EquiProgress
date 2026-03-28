@@ -16,7 +16,10 @@ const firebaseConfig = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID ?? 'G-ZZXBSJM295',
 };
 
-const USE_FIRESTORE = process.env.NEXT_PUBLIC_USE_FIRESTORE === 'true';
+// Firestore stays enabled by default to preserve cross-device history.
+// To disable intentionally, set NEXT_PUBLIC_USE_FIRESTORE=false.
+const firestoreFlag = process.env.NEXT_PUBLIC_USE_FIRESTORE?.trim().toLowerCase();
+const USE_FIRESTORE = !['false', '0', 'off', 'no'].includes(firestoreFlag ?? '');
 
 // Initialize Firebase
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
