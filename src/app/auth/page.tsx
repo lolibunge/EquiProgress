@@ -320,22 +320,22 @@ function AuthPageContent() {
               }}
               className="w-full"
             >
-              <TabsList className="grid w-full h-auto grid-cols-1 sm:grid-cols-3 gap-1">
+              <TabsList className="grid w-full h-auto grid-cols-2 sm:grid-cols-3 gap-1">
                 <TabsTrigger
                   value="signup"
-                  className="h-auto whitespace-normal text-center leading-tight px-3 py-2"
+                  className="h-auto text-center leading-tight px-3 py-2"
                 >
                   Crear cuenta
                 </TabsTrigger>
                 <TabsTrigger
                   value="login"
-                  className="h-auto whitespace-normal text-center leading-tight px-3 py-2"
+                  className="h-auto text-center leading-tight px-3 py-2"
                 >
                   Iniciar sesión
                 </TabsTrigger>
                 <TabsTrigger
                   value="reset"
-                  className="h-auto whitespace-normal text-center leading-tight px-3 py-2"
+                  className="h-auto text-center leading-tight px-3 py-2 col-span-2 sm:col-span-1"
                 >
                   Restablecer contraseña
                 </TabsTrigger>
@@ -482,13 +482,6 @@ function AuthPageContent() {
                 </form>
               </TabsContent>
             </Tabs>
-
-            {!USE_FIRESTORE && (
-              <p className="pt-4 text-sm text-muted-foreground">
-                La sincronización con Firestore está desactivada. Define `NEXT_PUBLIC_USE_FIRESTORE=true`
-                para guardar el progreso del estudiante entre dispositivos.
-              </p>
-            )}
 
             <div className="pt-4">
               <Button variant="ghost" asChild className="w-full">

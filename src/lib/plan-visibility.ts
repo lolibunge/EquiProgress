@@ -10,10 +10,15 @@ const STUDENT_PLAN_OVERRIDES: Record<string, { name?: string; description?: stri
   },
 };
 
-const ADMIN_EMAILS = (process.env.NEXT_PUBLIC_ADMIN_EMAILS ?? '')
-  .split(',')
-  .map((email) => email.trim().toLowerCase())
-  .filter(Boolean);
+const DEFAULT_ADMIN_EMAILS = ['loli@rebltech.com'];
+
+const ADMIN_EMAILS = [
+  ...new Set(
+    [...DEFAULT_ADMIN_EMAILS, ...(process.env.NEXT_PUBLIC_ADMIN_EMAILS ?? '').split(',')]
+      .map((email) => email.trim().toLowerCase())
+      .filter(Boolean)
+  ),
+];
 
 export function isAdminEmail(email: string | null | undefined): boolean {
   if (!email) return false;

@@ -490,7 +490,7 @@ export default function PlanDetailPage() {
               </Button>
               {!USE_FIRESTORE && (
                 <p className="text-sm text-muted-foreground">
-                  La sincronización de Firestore está desactivada. Define `NEXT_PUBLIC_USE_FIRESTORE=true` para guardar historial en la nube.
+                  Modo local activo: el historial se guarda en este dispositivo.
                 </p>
               )}
             </CardContent>
