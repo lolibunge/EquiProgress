@@ -127,6 +127,48 @@ export function normalizeSavedPlan(input: Partial<SavedPlan> | undefined | null)
   };
 }
 
+export function mergeSavedPlanProgress(
+  localInput: Partial<SavedPlan> | undefined | null,
+  remoteInput: Partial<SavedPlan> | undefined | null
+): SavedPlan {
+  const local = normalizeSavedPlan(localInput);
+  const remote = normalizeSavedPlan(remoteInput);
+
+  const mergedWeeks = [...new Set([...local.completedWeeks, ...remote.completedWeeks])].sort(
+    (a, b) => a - b
+  );
+
+  const allWeekKeys = [...new Set([...Object.keys(local.daysByWeek), ...Object.keys(remote.daysByWeek)])];
+  const mergedDaysByWeek = allWeekKeys.reduce<Record<string, boolean[]>>((acc, key) => {
+    const localDays = local.daysByWeek[key] ?? [];
+    const remoteDays = remote.daysByWeek[key] ?? [];
+    acc[key] = Array.from({ length: 5 }, (_, index) => Boolean(localDays[index] || remoteDays[index]));
+    return acc;
+  }, {});
+
+  return normalizeSavedPlan({
+    startAt: getEarliestStartAt(local.startAt ?? null, remote.startAt ?? null),
+    currentWeek: Math.max(local.currentWeek, remote.currentWeek),
+    completedWeeks: mergedWeeks,
+    daysByWeek: mergedDaysByWeek,
+  });
+}
+
+export function getSavedPlanFingerprint(input: Partial<SavedPlan> | undefined | null): string {
+  const normalized = normalizeSavedPlan(input);
+  const serializedDays = Object.entries(normalized.daysByWeek)
+    .sort(([a], [b]) => Number(a) - Number(b))
+    .map(([week, days]) => `${week}:${days.map((day) => (day ? '1' : '0')).join('')}`)
+    .join('|');
+
+  return [
+    normalized.startAt ?? '',
+    normalized.currentWeek,
+    normalized.completedWeeks.join(','),
+    serializedDays,
+  ].join('::');
+}
+
 export function readLocalPlanProgress(storageKey: string): SavedPlan {
   try {
     const raw = localStorage.getItem(storageKey);
@@ -403,6 +445,19 @@ function getHistoryFingerprint(entry: ProgressHistoryEntry): string {
     entry.completedWeeks.join(','),
     createdAt,
   ].join('|');
+}
+
+function getEarliestStartAt(a: string | null, b: string | null): string | null {
+  if (!a && !b) return null;
+  if (!a) return b;
+  if (!b) return a;
+
+  const aMs = new Date(a).getTime();
+  const bMs = new Date(b).getTime();
+
+  if (!Number.isFinite(aMs)) return b;
+  if (!Number.isFinite(bMs)) return a;
+  return aMs <= bMs ? a : b;
 }
 
 function normalizeAction(value: unknown): ProgressAction {
