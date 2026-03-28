@@ -18,8 +18,17 @@ import {
 } from 'lucide-react';
 import { Suspense } from 'react';
 
-// Busca el ejercicio por id y devuelve también el plan dueño
-function findExercise(exId: string) {
+// Busca el ejercicio por id y devuelve también el plan dueño.
+// Si llega `from`, se prioriza ese plan para evitar mezclar ids repetidos entre planes.
+function findExercise(exId: string, preferredPlanId?: string | null) {
+  if (preferredPlanId) {
+    const preferredPlan = trainingPlans.find((plan) => plan.id === preferredPlanId);
+    const preferredExercise = preferredPlan?.exercises.find((e: any) => e.id === exId);
+    if (preferredPlan && preferredExercise) {
+      return { plan: preferredPlan, ex: preferredExercise };
+    }
+  }
+
   for (const plan of trainingPlans) {
     const ex = plan.exercises.find((e: any) => e.id === exId);
     if (ex) return { plan, ex };
@@ -27,8 +36,15 @@ function findExercise(exId: string) {
   return null;
 }
 
-// Busca un ejercicio por id para mostrar su nombre en transitionTo
-function getExerciseNameById(exId: string) {
+// Busca un ejercicio por id para mostrar su nombre en transitionTo.
+// También prioriza el plan actual si se provee.
+function getExerciseNameById(exId: string, preferredPlanId?: string | null) {
+  if (preferredPlanId) {
+    const preferredPlan = trainingPlans.find((plan) => plan.id === preferredPlanId);
+    const preferredExercise = preferredPlan?.exercises.find((e: any) => e.id === exId);
+    if (preferredExercise) return preferredExercise.name;
+  }
+
   for (const plan of trainingPlans) {
     const ex = plan.exercises.find((e: any) => e.id === exId);
     if (ex) return ex.name;
@@ -49,10 +65,14 @@ function ExerciseDetailPageContent() {
   const search = useSearchParams();
   const fromPlanId = search.get('from');
 
-  const found = findExercise(id);
+  const found = findExercise(id, fromPlanId);
   if (!found) notFound();
 
   const { plan, ex } = found as any;
+  const sourcePlan = fromPlanId
+    ? trainingPlans.find((candidate) => candidate.id === fromPlanId) ?? plan
+    : plan;
+  const sourcePlanId = sourcePlan.id;
 
   // Compatibilidad hacia atrás
   const headline =
@@ -90,10 +110,10 @@ function ExerciseDetailPageContent() {
       <header className="sticky top-0 z-20 bg-background/80 backdrop-blur-sm border-b border-primary/20">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <Link
-            href={fromPlanId ? `/plans/${fromPlanId}` : '/'}
+            href={sourcePlanId ? `/plans/${sourcePlanId}` : '/'}
             className="text-sm text-muted-foreground hover:text-primary"
           >
-            &larr; {fromPlanId ? 'Volver al plan' : 'Volver'}
+            &larr; {sourcePlanId ? 'Volver al plan' : 'Volver'}
           </Link>
           <h1 className="text-lg font-headline font-semibold">{ex.name}</h1>
           <div />
@@ -309,13 +329,13 @@ function ExerciseDetailPageContent() {
                     {transitionTo.map((nextId: string) => (
                       <Link
                         key={nextId}
-                        href={`/exercises/${nextId}?from=${fromPlanId ?? plan.id}`}
+                        href={`/exercises/${nextId}?from=${sourcePlanId}`}
                       >
                         <Badge
                           variant="secondary"
                           className="rounded-2xl px-3 py-1 text-xs hover:bg-primary/10 cursor-pointer"
                         >
-                          {getExerciseNameById(nextId)}
+                          {getExerciseNameById(nextId, sourcePlanId)}
                         </Badge>
                       </Link>
                     ))}
@@ -328,12 +348,12 @@ function ExerciseDetailPageContent() {
           <Card>
             <CardHeader>
               <CardTitle>Pertenece al plan</CardTitle>
-              <CardDescription>{plan.duration}</CardDescription>
+              <CardDescription>{sourcePlan.duration}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              <p className="text-sm text-muted-foreground">{plan.name}</p>
+              <p className="text-sm text-muted-foreground">{sourcePlan.name}</p>
               <Button asChild className="w-full">
-                <Link href={`/plans/${plan.id}`}>Volver al plan</Link>
+                <Link href={`/plans/${sourcePlanId}`}>Volver al plan</Link>
               </Button>
             </CardContent>
           </Card>
