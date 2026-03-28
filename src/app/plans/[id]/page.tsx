@@ -33,7 +33,9 @@ import {
 import {
   appendLocalHistoryEntry,
   createEmptyProgress,
+  getSavedPlanFingerprint,
   loadRemotePlanProgress,
+  mergeSavedPlanProgress,
   normalizeSavedPlan,
   PROGRESS_ACTION_LABELS,
   readLocalPlanProgress,
@@ -96,7 +98,17 @@ export default function PlanDetailPage() {
           const remoteProgress = await loadRemotePlanProgress(user.uid, plan.id);
 
           if (remoteProgress) {
-            nextProgress = remoteProgress;
+            const mergedProgress = mergeSavedPlanProgress(localProgress, remoteProgress);
+            nextProgress = mergedProgress;
+
+            if (getSavedPlanFingerprint(mergedProgress) !== getSavedPlanFingerprint(remoteProgress)) {
+              await savePlanProgress({
+                uid: user.uid,
+                planId: plan.id,
+                planName,
+                progress: mergedProgress,
+              });
+            }
           } else if (hasAnyProgress(localProgress)) {
             await savePlanProgress({
               uid: user.uid,
@@ -121,7 +133,9 @@ export default function PlanDetailPage() {
 
       if (cancelled) return;
 
-      setSaved(normalizeSavedPlan(nextProgress));
+      const normalized = normalizeSavedPlan(nextProgress);
+      writeLocalPlanProgress(STORAGE_KEY, normalized);
+      setSaved(normalized);
       setIsLoadingProgress(false);
     }
 
