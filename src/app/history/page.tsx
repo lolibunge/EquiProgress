@@ -16,9 +16,11 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import {
+  loadPlanProgressSummaries,
   PROGRESS_ACTION_LABELS,
   readLocalHistory,
   subscribeHistory,
+  type PlanProgressSummary,
   type ProgressHistoryEntry,
 } from '@/lib/progress-store';
 import { USE_FIRESTORE } from '@/lib/firebase';
@@ -36,6 +38,8 @@ export default function HistoryPage() {
       return;
     }
 
+    let cancelled = false;
+
     const localFallbackEntries = mergeHistoryEntries(
       readLocalHistory(user.uid, 200),
       buildHistoryFromLocalPlanStorage()
@@ -49,6 +53,22 @@ export default function HistoryPage() {
     const unblockTimer = window.setTimeout(() => {
       setLoading(false);
     }, 3000);
+
+    void (async () => {
+      try {
+        const summaries = await loadPlanProgressSummaries(user.uid);
+        if (cancelled || summaries.length === 0) return;
+
+        const derivedFromCloudProgress = buildHistoryFromPlanSummaries(summaries);
+        if (derivedFromCloudProgress.length === 0) return;
+
+        setEntries((currentEntries) =>
+          mergeHistoryEntries(currentEntries, derivedFromCloudProgress)
+        );
+      } catch {
+        // Ignora fallback de resumen en nube si falla; el listener principal sigue activo.
+      }
+    })();
 
     const unsubscribe = subscribeHistory(
       user.uid,
@@ -68,6 +88,7 @@ export default function HistoryPage() {
     );
 
     return () => {
+      cancelled = true;
       window.clearTimeout(unblockTimer);
       unsubscribe();
     };
@@ -284,6 +305,55 @@ function buildHistoryFromLocalPlanStorage(): ProgressHistoryEntry[] {
       }
     } catch {
       // Ignora datos locales corruptos de un plan y continúa con los demás.
+    }
+  }
+
+  return entries.sort((a, b) => {
+    const aTime = a.createdAt?.getTime() ?? 0;
+    const bTime = b.createdAt?.getTime() ?? 0;
+    return bTime - aTime;
+  });
+}
+
+function buildHistoryFromPlanSummaries(summaries: PlanProgressSummary[]): ProgressHistoryEntry[] {
+  const entries: ProgressHistoryEntry[] = [];
+
+  for (const summary of summaries) {
+    const startDate = summary.startAt ? new Date(summary.startAt) : null;
+    const startMs = startDate?.getTime();
+    const hasValidStart = Number.isFinite(startMs);
+    const completedWeeks = [...new Set(summary.completedWeeks)].sort((a, b) => a - b);
+
+    if (hasValidStart) {
+      entries.push({
+        id: `cloud-derived-${summary.planId}-start`,
+        planId: summary.planId,
+        planName: summary.planName,
+        action: 'plan_started',
+        week: 1,
+        currentWeek: summary.currentWeek,
+        completedWeeks,
+        note: null,
+        createdAt: startDate,
+      });
+    }
+
+    for (const week of completedWeeks) {
+      const estimatedDate = hasValidStart
+        ? new Date((startMs as number) + (week - 1) * 7 * 24 * 60 * 60 * 1000)
+        : null;
+
+      entries.push({
+        id: `cloud-derived-${summary.planId}-week-${week}`,
+        planId: summary.planId,
+        planName: summary.planName,
+        action: 'week_completed',
+        week,
+        currentWeek: summary.currentWeek,
+        completedWeeks,
+        note: null,
+        createdAt: estimatedDate,
+      });
     }
   }
 
