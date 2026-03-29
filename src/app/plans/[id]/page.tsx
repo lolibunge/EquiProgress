@@ -730,30 +730,28 @@ export default function PlanDetailPage() {
                           {stageExercises.length > 0 ? (
                             <div className="space-y-2">
                               <p className="text-sm font-medium">Ejercicios de esta etapa</p>
-                              <div className="space-y-2">
+                              <Accordion type="multiple" className="space-y-2">
                                 {stageExercises.map((exercise) => {
                                   return (
-                                    <div
+                                    <AccordionItem
                                       key={`${plan.id}-stage-${stage.week}-exercise-tab-${exercise.id}`}
-                                      className="flex flex-col gap-2 rounded-lg border p-3"
+                                      value={`stage-${stage.week}-${exercise.id}`}
+                                      className="rounded-lg border px-3"
                                     >
-                                      <div className="min-w-0">
-                                        <p className="font-medium">{exercise.name}</p>
-                                        <p className="text-sm text-muted-foreground line-clamp-2">
+                                      <AccordionTrigger className="py-3 text-left hover:no-underline">
+                                        <span className="font-medium">{exercise.name}</span>
+                                      </AccordionTrigger>
+                                      <AccordionContent className="pb-3">
+                                        <p className="text-sm text-muted-foreground">
                                           {exercise.description ??
                                             exercise.objective ??
                                             'Ejercicio guiado de esta etapa.'}
                                         </p>
-                                      </div>
-                                      <Button asChild size="sm" className="w-full sm:w-auto">
-                                        <Link href={`/exercises/${exercise.id}?from=${plan.id}`}>
-                                          Ver ejercicio
-                                        </Link>
-                                      </Button>
-                                    </div>
+                                      </AccordionContent>
+                                    </AccordionItem>
                                   );
                                 })}
-                              </div>
+                              </Accordion>
                             </div>
                           ) : (
                             <p className="text-sm text-muted-foreground">
