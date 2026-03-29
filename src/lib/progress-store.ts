@@ -20,6 +20,7 @@ export type SavedPlan = {
   currentWeek: number;
   completedWeeks: number[];
   daysByWeek: Record<string, boolean[]>;
+  scoresByWeek: Record<string, Record<string, Array<number | null>>>;
 };
 
 export type ProgressAction =
@@ -29,6 +30,7 @@ export type ProgressAction =
   | 'week_unmarked'
   | 'day_checked'
   | 'day_unchecked'
+  | 'exercise_scored'
   | 'plan_reset';
 
 export type ProgressHistoryEntry = {
@@ -72,8 +74,9 @@ export const PROGRESS_ACTION_LABELS: Record<ProgressAction, string> = {
   week_selected: 'Semana seleccionada',
   week_completed: 'Semana completada',
   week_unmarked: 'Semana reabierta',
-  day_checked: 'Dia marcado',
-  day_unchecked: 'Dia desmarcado',
+  day_checked: 'Día marcado',
+  day_unchecked: 'Día desmarcado',
+  exercise_scored: 'Ejercicio puntuado',
   plan_reset: 'Plan reiniciado',
 };
 
@@ -82,12 +85,13 @@ const EMPTY_PROGRESS: SavedPlan = {
   currentWeek: 0,
   completedWeeks: [],
   daysByWeek: {},
+  scoresByWeek: {},
 };
 
 const LOCAL_HISTORY_KEY_PREFIX = 'equi:history:';
 
 export function createEmptyProgress(): SavedPlan {
-  return { ...EMPTY_PROGRESS, completedWeeks: [], daysByWeek: {} };
+  return { ...EMPTY_PROGRESS, completedWeeks: [], daysByWeek: {}, scoresByWeek: {} };
 }
 
 export function normalizeSavedPlan(input: Partial<SavedPlan> | undefined | null): SavedPlan {
@@ -106,6 +110,29 @@ export function normalizeSavedPlan(input: Partial<SavedPlan> | undefined | null)
     },
     {}
   );
+  const rawScoresByWeek =
+    input?.scoresByWeek && typeof input.scoresByWeek === 'object' ? input.scoresByWeek : {};
+
+  const scoresByWeek = Object.entries(rawScoresByWeek).reduce<
+    Record<string, Record<string, Array<number | null>>>
+  >((acc, [rawWeek, rawExercises]) => {
+    const week = Math.floor(Number(rawWeek));
+    if (!Number.isFinite(week) || week <= 0) return acc;
+    if (!rawExercises || typeof rawExercises !== 'object') return acc;
+
+    const normalizedWeekScores = Object.entries(rawExercises as Record<string, unknown>).reduce<
+      Record<string, Array<number | null>>
+    >((exerciseAcc, [exerciseId, rawScores]) => {
+      const sourceScores = Array.isArray(rawScores) ? rawScores : [];
+      exerciseAcc[exerciseId] = Array.from({ length: 5 }, (_, index) =>
+        normalizeScoreValue(sourceScores[index])
+      );
+      return exerciseAcc;
+    }, {});
+
+    acc[String(week)] = normalizedWeekScores;
+    return acc;
+  }, {});
 
   const normalizedCompletedWeeks = completedWeeks
     .map((week) => Number(week))
@@ -124,6 +151,7 @@ export function normalizeSavedPlan(input: Partial<SavedPlan> | undefined | null)
     currentWeek: Number.isFinite(input?.currentWeek) ? Math.max(0, Number(input?.currentWeek)) : 0,
     completedWeeks: normalizedCompletedWeeks,
     daysByWeek,
+    scoresByWeek,
   };
 }
 
@@ -145,12 +173,38 @@ export function mergeSavedPlanProgress(
     acc[key] = Array.from({ length: 5 }, (_, index) => Boolean(localDays[index] || remoteDays[index]));
     return acc;
   }, {});
+  const allScoreWeekKeys = [
+    ...new Set([...Object.keys(local.scoresByWeek), ...Object.keys(remote.scoresByWeek)]),
+  ];
+  const mergedScoresByWeek = allScoreWeekKeys.reduce<
+    Record<string, Record<string, Array<number | null>>>
+  >((acc, weekKey) => {
+    const localWeekScores = local.scoresByWeek[weekKey] ?? {};
+    const remoteWeekScores = remote.scoresByWeek[weekKey] ?? {};
+    const exerciseIds = [...new Set([...Object.keys(localWeekScores), ...Object.keys(remoteWeekScores)])];
+
+    acc[weekKey] = exerciseIds.reduce<Record<string, Array<number | null>>>((exerciseAcc, exerciseId) => {
+      const localScores = localWeekScores[exerciseId] ?? [];
+      const remoteScores = remoteWeekScores[exerciseId] ?? [];
+
+      exerciseAcc[exerciseId] = Array.from({ length: 5 }, (_, index) => {
+        const remoteValue = normalizeScoreValue(remoteScores[index]);
+        if (remoteValue !== null) return remoteValue;
+        return normalizeScoreValue(localScores[index]);
+      });
+
+      return exerciseAcc;
+    }, {});
+
+    return acc;
+  }, {});
 
   return normalizeSavedPlan({
     startAt: getEarliestStartAt(local.startAt ?? null, remote.startAt ?? null),
     currentWeek: Math.max(local.currentWeek, remote.currentWeek),
     completedWeeks: mergedWeeks,
     daysByWeek: mergedDaysByWeek,
+    scoresByWeek: mergedScoresByWeek,
   });
 }
 
@@ -160,12 +214,28 @@ export function getSavedPlanFingerprint(input: Partial<SavedPlan> | undefined | 
     .sort(([a], [b]) => Number(a) - Number(b))
     .map(([week, days]) => `${week}:${days.map((day) => (day ? '1' : '0')).join('')}`)
     .join('|');
+  const serializedScores = Object.entries(normalized.scoresByWeek)
+    .sort(([a], [b]) => Number(a) - Number(b))
+    .map(([week, exercises]) => {
+      const exerciseSerialized = Object.entries(exercises)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([exerciseId, scores]) => {
+          const value = Array.from({ length: 5 }, (_, index) => normalizeScoreValue(scores[index]))
+            .map((score) => (score === null ? '-' : String(score)))
+            .join('');
+          return `${exerciseId}:${value}`;
+        })
+        .join(',');
+      return `${week}[${exerciseSerialized}]`;
+    })
+    .join('|');
 
   return [
     normalized.startAt ?? '',
     normalized.currentWeek,
     normalized.completedWeeks.join(','),
     serializedDays,
+    serializedScores,
   ].join('::');
 }
 
@@ -240,6 +310,7 @@ export async function savePlanProgress({
       currentWeek: safeProgress.currentWeek,
       completedWeeks: safeProgress.completedWeeks,
       daysByWeek: safeProgress.daysByWeek,
+      scoresByWeek: safeProgress.scoresByWeek,
       updatedAt: serverTimestamp(),
     },
     { merge: true }
@@ -468,4 +539,12 @@ function normalizeAction(value: unknown): ProgressAction {
   }
 
   return 'week_selected';
+}
+
+function normalizeScoreValue(value: unknown): number | null {
+  const score = Number(value);
+  if (!Number.isFinite(score)) return null;
+  const rounded = Math.round(score);
+  if (rounded < 1 || rounded > 5) return null;
+  return rounded;
 }

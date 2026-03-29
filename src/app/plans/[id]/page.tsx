@@ -62,7 +62,8 @@ type ProgressEvent = {
 };
 
 const WORK_DAYS_PER_WEEK = 5;
-const WORKDAY_LABELS = ['Dia 1', 'Dia 2', 'Dia 3', 'Dia 4', 'Dia 5'];
+const WORKDAY_LABELS = ['Día 1', 'Día 2', 'Día 3', 'Día 4', 'Día 5'];
+const SCORE_VALUES = [1, 2, 3, 4, 5] as const;
 
 export default function PlanDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -82,6 +83,7 @@ export default function PlanDetailPage() {
   const [isLoadingProgress, setIsLoadingProgress] = useState(true);
   const [recentHistory, setRecentHistory] = useState<ProgressHistoryEntry[]>([]);
   const [hasShownSyncError, setHasShownSyncError] = useState(false);
+  const [selectedScoreDayByWeek, setSelectedScoreDayByWeek] = useState<Record<string, number>>({});
 
   useEffect(() => {
     if (authLoading) return;
@@ -230,6 +232,49 @@ export default function PlanDetailPage() {
     return Array.from({ length: WORK_DAYS_PER_WEEK }, (_, index) => Boolean(stored[index]));
   }
 
+  function getExerciseScores(week: number, exerciseId: string): Array<number | null> {
+    const weekKey = String(week);
+    const rawScores = saved.scoresByWeek[weekKey]?.[exerciseId] ?? [];
+    return Array.from({ length: WORK_DAYS_PER_WEEK }, (_, index) => {
+      const value = Number(rawScores[index]);
+      if (!Number.isFinite(value)) return null;
+      const rounded = Math.round(value);
+      return rounded >= 1 && rounded <= 5 ? rounded : null;
+    });
+  }
+
+  function getExerciseScoreAverage(week: number, exerciseId: string): number | null {
+    const values = getExerciseScores(week, exerciseId).filter(
+      (value): value is number => typeof value === 'number'
+    );
+    if (values.length === 0) return null;
+    const avg = values.reduce((sum, value) => sum + value, 0) / values.length;
+    return Math.round(avg * 10) / 10;
+  }
+
+  function getSelectedScoreDay(week: number): number {
+    const key = String(week);
+    const explicitDay = selectedScoreDayByWeek[key];
+    if (explicitDay && explicitDay >= 1 && explicitDay <= WORK_DAYS_PER_WEEK) return explicitDay;
+
+    const firstWorkedDay = getWeekDays(week).findIndex(Boolean);
+    if (firstWorkedDay >= 0) return firstWorkedDay + 1;
+    return 1;
+  }
+
+  function setSelectedScoreDay(week: number, dayNumber: number) {
+    const clampedDay = Math.max(1, Math.min(WORK_DAYS_PER_WEEK, dayNumber));
+    const key = String(week);
+    setSelectedScoreDayByWeek((previous) => ({ ...previous, [key]: clampedDay }));
+  }
+
+  function getStageExercises(week: number): (typeof plan.exercises)[number][] {
+    const stage = plan.stages?.find((entry) => entry.week === week);
+    return (stage?.exerciseIds ?? [])
+      .map((exerciseId) => plan.exercises.find((entry) => entry.id === exerciseId))
+      .filter((entry): entry is (typeof plan.exercises)[number] => Boolean(entry));
+  }
+
   function isCompleted(week: number) {
     return getWeekDays(week).every(Boolean);
   }
@@ -280,6 +325,9 @@ export default function PlanDetailPage() {
 
     const completedWeeks = saved.completedWeeks.filter((entry) => entry !== week);
     const resetDays = Array.from({ length: WORK_DAYS_PER_WEEK }, () => false);
+    const weekKey = String(week);
+    const nextScoresByWeek = { ...saved.scoresByWeek };
+    delete nextScoresByWeek[weekKey];
 
     persist(
       {
@@ -287,8 +335,9 @@ export default function PlanDetailPage() {
         completedWeeks,
         daysByWeek: {
           ...saved.daysByWeek,
-          [String(week)]: resetDays,
+          [weekKey]: resetDays,
         },
+        scoresByWeek: nextScoresByWeek,
       },
       {
         action: 'week_unmarked',
@@ -300,6 +349,7 @@ export default function PlanDetailPage() {
   function setWorkDay(week: number, dayIndex: number, checked: boolean) {
     if (!isWeekEditable(week)) return;
 
+    const weekKey = String(week);
     const currentDays = getWeekDays(week);
     if (currentDays[dayIndex] === checked) return;
 
@@ -329,6 +379,25 @@ export default function PlanDetailPage() {
       event = { action: 'week_unmarked', week };
     }
 
+    const nextScoresByWeek = { ...saved.scoresByWeek };
+    if (!checked) {
+      const weekScores = nextScoresByWeek[weekKey] ?? {};
+      const cleanedWeekScores = Object.entries(weekScores).reduce<
+        Record<string, Array<number | null>>
+      >((acc, [exerciseId, scores]) => {
+        const normalizedScores = Array.from({ length: WORK_DAYS_PER_WEEK }, (_, index) => {
+          const value = Number(scores[index]);
+          if (!Number.isFinite(value)) return null;
+          const rounded = Math.round(value);
+          return rounded >= 1 && rounded <= 5 ? rounded : null;
+        });
+        normalizedScores[dayIndex] = null;
+        acc[exerciseId] = normalizedScores;
+        return acc;
+      }, {});
+      nextScoresByWeek[weekKey] = cleanedWeekScores;
+    }
+
     persist(
       {
         ...saved,
@@ -336,10 +405,72 @@ export default function PlanDetailPage() {
         completedWeeks,
         daysByWeek: {
           ...saved.daysByWeek,
-          [String(week)]: nextDays,
+          [weekKey]: nextDays,
         },
+        scoresByWeek: nextScoresByWeek,
       },
       event
+    );
+  }
+
+  function setExerciseScore(week: number, exerciseId: string, dayIndex: number, score: number | null) {
+    if (!isWeekEditable(week)) return;
+
+    const normalizedScore =
+      typeof score === 'number' && score >= 1 && score <= 5 ? Math.round(score) : null;
+    const currentScores = getExerciseScores(week, exerciseId);
+    if (currentScores[dayIndex] === normalizedScore) return;
+
+    const currentDays = getWeekDays(week);
+    const dayWasWorked = currentDays[dayIndex];
+    const nextDays = [...currentDays];
+    if (!dayWasWorked) {
+      nextDays[dayIndex] = true;
+    }
+
+    const weekWasCompleted = currentDays.every(Boolean);
+    const weekIsCompleted = nextDays.every(Boolean);
+    let completedWeeks = saved.completedWeeks;
+    let currentWeek = saved.currentWeek;
+
+    if (weekIsCompleted && !weekWasCompleted) {
+      completedWeeks = [...new Set([...saved.completedWeeks, week])].sort((a, b) => a - b);
+      if (week === saved.currentWeek && saved.currentWeek < plan.weeks) {
+        currentWeek = saved.currentWeek + 1;
+      }
+    }
+
+    const nextScores = [...currentScores];
+    nextScores[dayIndex] = normalizedScore;
+
+    const weekKey = String(week);
+    const nextScoresByWeek = {
+      ...saved.scoresByWeek,
+      [weekKey]: {
+        ...(saved.scoresByWeek[weekKey] ?? {}),
+        [exerciseId]: nextScores,
+      },
+    };
+
+    persist(
+      {
+        ...saved,
+        currentWeek,
+        completedWeeks,
+        daysByWeek: {
+          ...saved.daysByWeek,
+          [weekKey]: nextDays,
+        },
+        scoresByWeek: nextScoresByWeek,
+      },
+      {
+        action: 'exercise_scored',
+        week,
+        note:
+          normalizedScore === null
+            ? `${exerciseId}:dia-${dayIndex + 1}:sin-puntaje`
+            : `${exerciseId}:dia-${dayIndex + 1}:${normalizedScore}${dayWasWorked ? '' : ':dia-auto-marcado'}`,
+      }
     );
   }
 
@@ -369,6 +500,12 @@ export default function PlanDetailPage() {
       ? getWeekDays(saved.currentWeek)
       : Array.from({ length: WORK_DAYS_PER_WEEK }, () => false);
   const isCurrentWeekEditable = isWeekEditable(saved.currentWeek);
+  const currentWeekExercises =
+    saved.currentWeek > 0 ? getStageExercises(saved.currentWeek) : [];
+  const selectedCurrentWeekScoreDay =
+    saved.currentWeek > 0 ? getSelectedScoreDay(saved.currentWeek) : 1;
+  const selectedCurrentWeekScoreDayIndex = selectedCurrentWeekScoreDay - 1;
+  const canScoreCurrentSelectedDay = isCurrentWeekEditable;
   const previousWeekTarget = Math.max(1, saved.currentWeek - 1);
   const nextWeekTarget = Math.min(plan.weeks, saved.currentWeek + 1);
   const canGoToPreviousWeek = !isLoadingProgress && saved.currentWeek > 1;
@@ -565,9 +702,7 @@ export default function PlanDetailPage() {
                   </div>
 
                   {plan.stages.map((stage) => {
-                    const stageExercises = (stage.exerciseIds ?? [])
-                      .map((exerciseId) => plan.exercises.find((entry) => entry.id === exerciseId))
-                      .filter((entry): entry is (typeof plan.exercises)[number] => Boolean(entry));
+                    const stageExercises = getStageExercises(stage.week);
 
                     return (
                       <TabsContent key={`${plan.id}-stage-content-${stage.week}`} value={`week-${stage.week}`}>
@@ -588,24 +723,28 @@ export default function PlanDetailPage() {
                             <div className="space-y-2">
                               <p className="text-sm font-medium">Ejercicios de esta etapa</p>
                               <div className="space-y-2">
-                                {stageExercises.map((exercise) => (
-                                  <div
-                                    key={`${plan.id}-stage-${stage.week}-exercise-tab-${exercise.id}`}
-                                    className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-lg border p-3"
-                                  >
-                                    <div className="min-w-0">
-                                      <p className="font-medium">{exercise.name}</p>
-                                      <p className="text-sm text-muted-foreground line-clamp-2">
-                                        {exercise.description}
-                                      </p>
+                                {stageExercises.map((exercise) => {
+                                  return (
+                                    <div
+                                      key={`${plan.id}-stage-${stage.week}-exercise-tab-${exercise.id}`}
+                                      className="flex flex-col gap-2 rounded-lg border p-3"
+                                    >
+                                      <div className="min-w-0">
+                                        <p className="font-medium">{exercise.name}</p>
+                                        <p className="text-sm text-muted-foreground line-clamp-2">
+                                          {exercise.description ??
+                                            exercise.objective ??
+                                            'Ejercicio guiado de esta etapa.'}
+                                        </p>
+                                      </div>
+                                      <Button asChild size="sm" className="w-full sm:w-auto">
+                                        <Link href={`/exercises/${exercise.id}?from=${plan.id}`}>
+                                          Ver ejercicio
+                                        </Link>
+                                      </Button>
                                     </div>
-                                    <Button asChild size="sm" className="w-full sm:w-auto">
-                                      <Link href={`/exercises/${exercise.id}?from=${plan.id}`}>
-                                        Ver ejercicio
-                                      </Link>
-                                    </Button>
-                                  </div>
-                                ))}
+                                  );
+                                })}
                               </div>
                             </div>
                           ) : (
@@ -742,6 +881,107 @@ export default function PlanDetailPage() {
                         {currentWeekDays.filter(Boolean).length} / {WORK_DAYS_PER_WEEK} días trabajados
                         en esta semana.
                       </p>
+
+                      {currentWeekExercises.length > 0 && (
+                        <div className="space-y-2 rounded-md border p-3">
+                          <p className="text-sm font-medium">Puntaje semanal por ejercicio</p>
+                          <div className="flex flex-wrap gap-1">
+                            {WORKDAY_LABELS.map((_, dayIdx) => (
+                              <Button
+                                key={`current-week-score-day-${dayIdx}`}
+                                type="button"
+                                variant={selectedCurrentWeekScoreDayIndex === dayIdx ? 'default' : 'outline'}
+                                size="sm"
+                                className="h-8 px-2 text-xs"
+                                onClick={() => setSelectedScoreDay(saved.currentWeek, dayIdx + 1)}
+                                disabled={saved.currentWeek <= 0}
+                              >
+                                D{dayIdx + 1}
+                                {currentWeekDays[dayIdx] ? '' : ' ·'}
+                              </Button>
+                            ))}
+                          </div>
+
+                          <p className="text-xs text-muted-foreground">
+                            Si puntúas un día no marcado, se marcará automáticamente como trabajado.
+                          </p>
+
+                          <Accordion type="multiple" className="space-y-2">
+                            {currentWeekExercises.map((exercise) => {
+                              const exerciseScores = getExerciseScores(saved.currentWeek, exercise.id);
+                              const selectedScore = exerciseScores[selectedCurrentWeekScoreDayIndex];
+                              const averageScore = getExerciseScoreAverage(saved.currentWeek, exercise.id);
+
+                              return (
+                                <AccordionItem
+                                  key={`${plan.id}-progress-week-${saved.currentWeek}-exercise-${exercise.id}`}
+                                  value={`score-${saved.currentWeek}-${exercise.id}`}
+                                  className="rounded-md border px-2"
+                                >
+                                  <AccordionTrigger className="py-2 hover:no-underline">
+                                    <div className="flex w-full items-center justify-between gap-2 pr-2">
+                                      <span className="text-sm font-medium text-left">
+                                        {exercise.name}
+                                      </span>
+                                      <span className="text-xs text-muted-foreground shrink-0">
+                                        {averageScore === null ? 'Sin puntaje' : `Prom: ${averageScore}/5`}
+                                      </span>
+                                    </div>
+                                  </AccordionTrigger>
+
+                                  <AccordionContent className="space-y-2 pb-2">
+                                    <p className="text-xs text-muted-foreground line-clamp-2">
+                                      {exercise.description ??
+                                        exercise.objective ??
+                                        'Ejercicio guiado de esta etapa.'}
+                                    </p>
+
+                                    <div className="flex flex-wrap gap-1">
+                                      {SCORE_VALUES.map((value) => (
+                                        <Button
+                                          key={`${exercise.id}-progress-score-${value}`}
+                                          type="button"
+                                          variant={selectedScore === value ? 'default' : 'outline'}
+                                          size="sm"
+                                          className="h-8 w-8 px-0 text-xs"
+                                          onClick={() =>
+                                            setExerciseScore(
+                                              saved.currentWeek,
+                                              exercise.id,
+                                              selectedCurrentWeekScoreDayIndex,
+                                              value
+                                            )
+                                          }
+                                          disabled={!canScoreCurrentSelectedDay}
+                                        >
+                                          {value}
+                                        </Button>
+                                      ))}
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-8 px-2 text-xs"
+                                        onClick={() =>
+                                          setExerciseScore(
+                                            saved.currentWeek,
+                                            exercise.id,
+                                            selectedCurrentWeekScoreDayIndex,
+                                            null
+                                          )
+                                        }
+                                        disabled={!canScoreCurrentSelectedDay}
+                                      >
+                                        Limpiar
+                                      </Button>
+                                    </div>
+                                  </AccordionContent>
+                                </AccordionItem>
+                              );
+                            })}
+                          </Accordion>
+                        </div>
+                      )}
                     </AccordionContent>
                   </AccordionItem>
                 </Accordion>
@@ -900,7 +1140,15 @@ function hasAnyProgress(saved: SavedPlan): boolean {
   const hasAnyDayChecked = Object.values(saved.daysByWeek ?? {}).some(
     (days) => Array.isArray(days) && days.some(Boolean)
   );
-  return Boolean(saved.startAt || saved.currentWeek > 0 || saved.completedWeeks.length > 0 || hasAnyDayChecked);
+  const hasAnyScore = Object.values(saved.scoresByWeek ?? {}).some((weekScores) =>
+    Object.values(weekScores ?? {}).some((scores) =>
+      Array.isArray(scores) && scores.some((value) => typeof value === 'number')
+    )
+  );
+
+  return Boolean(
+    saved.startAt || saved.currentWeek > 0 || saved.completedWeeks.length > 0 || hasAnyDayChecked || hasAnyScore
+  );
 }
 
 function formatDate(dateIso: string): string {
