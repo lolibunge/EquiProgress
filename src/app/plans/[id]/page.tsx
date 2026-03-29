@@ -7,6 +7,12 @@ import { useEffect, useState } from 'react';
 
 import { useAuth } from '@/components/auth-provider';
 import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion';
+import {
   Carousel,
   CarouselContent,
   CarouselItem,
@@ -22,6 +28,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { USE_FIRESTORE } from '@/lib/firebase';
 import {
@@ -55,7 +62,8 @@ type ProgressEvent = {
 };
 
 const WORK_DAYS_PER_WEEK = 5;
-const WORKDAY_LABELS = ['Dia 1', 'Dia 2', 'Dia 3', 'Dia 4', 'Dia 5'];
+const WORKDAY_LABELS = ['Día 1', 'Día 2', 'Día 3', 'Día 4', 'Día 5'];
+const SCORE_VALUES = [1, 2, 3, 4, 5] as const;
 
 export default function PlanDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -75,6 +83,7 @@ export default function PlanDetailPage() {
   const [isLoadingProgress, setIsLoadingProgress] = useState(true);
   const [recentHistory, setRecentHistory] = useState<ProgressHistoryEntry[]>([]);
   const [hasShownSyncError, setHasShownSyncError] = useState(false);
+  const [selectedScoreDayByWeek, setSelectedScoreDayByWeek] = useState<Record<string, number>>({});
 
   useEffect(() => {
     if (authLoading) return;
@@ -155,7 +164,7 @@ export default function PlanDetailPage() {
     const unsubscribe = subscribeHistory(user.uid, (entries) => {
       const filtered = entries
         .filter((entry) => entry.planId === plan.id)
-        .slice(0, 8);
+        .slice(0, 1);
       setRecentHistory(filtered);
     }, 120);
 
@@ -223,6 +232,49 @@ export default function PlanDetailPage() {
     return Array.from({ length: WORK_DAYS_PER_WEEK }, (_, index) => Boolean(stored[index]));
   }
 
+  function getExerciseScores(week: number, exerciseId: string): Array<number | null> {
+    const weekKey = String(week);
+    const rawScores = saved.scoresByWeek[weekKey]?.[exerciseId] ?? [];
+    return Array.from({ length: WORK_DAYS_PER_WEEK }, (_, index) => {
+      const value = Number(rawScores[index]);
+      if (!Number.isFinite(value)) return null;
+      const rounded = Math.round(value);
+      return rounded >= 1 && rounded <= 5 ? rounded : null;
+    });
+  }
+
+  function getExerciseScoreAverage(week: number, exerciseId: string): number | null {
+    const values = getExerciseScores(week, exerciseId).filter(
+      (value): value is number => typeof value === 'number'
+    );
+    if (values.length === 0) return null;
+    const avg = values.reduce((sum, value) => sum + value, 0) / values.length;
+    return Math.round(avg * 10) / 10;
+  }
+
+  function getSelectedScoreDay(week: number): number {
+    const key = String(week);
+    const explicitDay = selectedScoreDayByWeek[key];
+    if (explicitDay && explicitDay >= 1 && explicitDay <= WORK_DAYS_PER_WEEK) return explicitDay;
+
+    const firstWorkedDay = getWeekDays(week).findIndex(Boolean);
+    if (firstWorkedDay >= 0) return firstWorkedDay + 1;
+    return 1;
+  }
+
+  function setSelectedScoreDay(week: number, dayNumber: number) {
+    const clampedDay = Math.max(1, Math.min(WORK_DAYS_PER_WEEK, dayNumber));
+    const key = String(week);
+    setSelectedScoreDayByWeek((previous) => ({ ...previous, [key]: clampedDay }));
+  }
+
+  function getStageExercises(week: number): (typeof plan.exercises)[number][] {
+    const stage = plan.stages?.find((entry) => entry.week === week);
+    return (stage?.exerciseIds ?? [])
+      .map((exerciseId) => plan.exercises.find((entry) => entry.id === exerciseId))
+      .filter((entry): entry is (typeof plan.exercises)[number] => Boolean(entry));
+  }
+
   function isCompleted(week: number) {
     return getWeekDays(week).every(Boolean);
   }
@@ -273,6 +325,9 @@ export default function PlanDetailPage() {
 
     const completedWeeks = saved.completedWeeks.filter((entry) => entry !== week);
     const resetDays = Array.from({ length: WORK_DAYS_PER_WEEK }, () => false);
+    const weekKey = String(week);
+    const nextScoresByWeek = { ...saved.scoresByWeek };
+    delete nextScoresByWeek[weekKey];
 
     persist(
       {
@@ -280,8 +335,9 @@ export default function PlanDetailPage() {
         completedWeeks,
         daysByWeek: {
           ...saved.daysByWeek,
-          [String(week)]: resetDays,
+          [weekKey]: resetDays,
         },
+        scoresByWeek: nextScoresByWeek,
       },
       {
         action: 'week_unmarked',
@@ -293,6 +349,7 @@ export default function PlanDetailPage() {
   function setWorkDay(week: number, dayIndex: number, checked: boolean) {
     if (!isWeekEditable(week)) return;
 
+    const weekKey = String(week);
     const currentDays = getWeekDays(week);
     if (currentDays[dayIndex] === checked) return;
 
@@ -322,6 +379,25 @@ export default function PlanDetailPage() {
       event = { action: 'week_unmarked', week };
     }
 
+    const nextScoresByWeek = { ...saved.scoresByWeek };
+    if (!checked) {
+      const weekScores = nextScoresByWeek[weekKey] ?? {};
+      const cleanedWeekScores = Object.entries(weekScores).reduce<
+        Record<string, Array<number | null>>
+      >((acc, [exerciseId, scores]) => {
+        const normalizedScores = Array.from({ length: WORK_DAYS_PER_WEEK }, (_, index) => {
+          const value = Number(scores[index]);
+          if (!Number.isFinite(value)) return null;
+          const rounded = Math.round(value);
+          return rounded >= 1 && rounded <= 5 ? rounded : null;
+        });
+        normalizedScores[dayIndex] = null;
+        acc[exerciseId] = normalizedScores;
+        return acc;
+      }, {});
+      nextScoresByWeek[weekKey] = cleanedWeekScores;
+    }
+
     persist(
       {
         ...saved,
@@ -329,26 +405,84 @@ export default function PlanDetailPage() {
         completedWeeks,
         daysByWeek: {
           ...saved.daysByWeek,
-          [String(week)]: nextDays,
+          [weekKey]: nextDays,
         },
+        scoresByWeek: nextScoresByWeek,
       },
       event
     );
   }
 
-  function goToNextWeek() {
-    if (editableWeek <= 0) return;
+  function setExerciseScore(week: number, exerciseId: string, dayIndex: number, score: number | null) {
+    if (!isWeekScoreEditable(week)) return;
 
-    if (saved.currentWeek !== editableWeek) {
-      setCurrentWeek(editableWeek);
-      return;
+    const normalizedScore =
+      typeof score === 'number' && score >= 1 && score <= 5 ? Math.round(score) : null;
+    const currentScores = getExerciseScores(week, exerciseId);
+    if (currentScores[dayIndex] === normalizedScore) return;
+
+    const currentDays = getWeekDays(week);
+    const dayWasWorked = currentDays[dayIndex];
+    const nextDays = [...currentDays];
+    if (!dayWasWorked) {
+      nextDays[dayIndex] = true;
     }
 
-    markWeekDone(editableWeek);
+    const weekWasCompleted = currentDays.every(Boolean);
+    const weekIsCompleted = nextDays.every(Boolean);
+    let completedWeeks = saved.completedWeeks;
+    let currentWeek = saved.currentWeek;
+
+    if (weekIsCompleted && !weekWasCompleted) {
+      completedWeeks = [...new Set([...saved.completedWeeks, week])].sort((a, b) => a - b);
+      if (week === saved.currentWeek && saved.currentWeek < plan.weeks) {
+        currentWeek = saved.currentWeek + 1;
+      }
+    }
+
+    const nextScores = [...currentScores];
+    nextScores[dayIndex] = normalizedScore;
+
+    const weekKey = String(week);
+    const nextScoresByWeek = {
+      ...saved.scoresByWeek,
+      [weekKey]: {
+        ...(saved.scoresByWeek[weekKey] ?? {}),
+        [exerciseId]: nextScores,
+      },
+    };
+
+    persist(
+      {
+        ...saved,
+        currentWeek,
+        completedWeeks,
+        daysByWeek: {
+          ...saved.daysByWeek,
+          [weekKey]: nextDays,
+        },
+        scoresByWeek: nextScoresByWeek,
+      },
+      {
+        action: 'exercise_scored',
+        week,
+        note:
+          normalizedScore === null
+            ? `${exerciseId}:dia-${dayIndex + 1}:sin-puntaje`
+            : `${exerciseId}:dia-${dayIndex + 1}:${normalizedScore}${dayWasWorked ? '' : ':dia-auto-marcado'}`,
+      }
+    );
   }
 
   function isWeekEditable(week: number): boolean {
     return editableWeek > 0 && week === editableWeek;
+  }
+
+  function isWeekScoreEditable(week: number): boolean {
+    if (week <= 0) return false;
+    if (isWeekEditable(week)) return true;
+    if (editableWeek === 0) return true;
+    return week < editableWeek && isCompleted(week);
   }
 
   const weeksCompleted = Array.from({ length: plan.weeks }, (_, index) => index + 1).filter(
@@ -373,6 +507,24 @@ export default function PlanDetailPage() {
       ? getWeekDays(saved.currentWeek)
       : Array.from({ length: WORK_DAYS_PER_WEEK }, () => false);
   const isCurrentWeekEditable = isWeekEditable(saved.currentWeek);
+  const isCurrentWeekScoreEditable = isWeekScoreEditable(saved.currentWeek);
+  const currentWeekExercises =
+    saved.currentWeek > 0 ? getStageExercises(saved.currentWeek) : [];
+  const selectedCurrentWeekScoreDay =
+    saved.currentWeek > 0 ? getSelectedScoreDay(saved.currentWeek) : 1;
+  const selectedCurrentWeekScoreDayIndex = selectedCurrentWeekScoreDay - 1;
+  const canScoreCurrentSelectedDay = isCurrentWeekScoreEditable;
+  const previousWeekTarget = Math.max(1, saved.currentWeek - 1);
+  const nextWeekTarget = Math.min(plan.weeks, saved.currentWeek + 1);
+  const canGoToPreviousWeek = !isLoadingProgress && saved.currentWeek > 1;
+  const canGoToNextWeek =
+    !isLoadingProgress && saved.currentWeek > 0 && saved.currentWeek < plan.weeks;
+  const latestHistoryEntry = recentHistory[0] ?? null;
+  const stageTabDefault = `week-${
+    plan.stages?.find((stage) => stage.week === saved.currentWeek)?.week ??
+    plan.stages?.[0]?.week ??
+    1
+  }`;
 
   if (authLoading) {
     return (
@@ -449,67 +601,174 @@ export default function PlanDetailPage() {
       </header>
 
       <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-10">
-        {plan.image && (
-          <div className="relative w-full aspect-[1/1] overflow-hidden rounded-2xl">
-            <Image
-              src={plan.image}
-              alt={`Imagen de ${planName}`}
-              fill
-              priority
-              sizes="100vw"
-              className="object-cover"
-            />
-          </div>
+        {(plan.image || plan.exercises?.length) && (
+          <section>
+            <Carousel opts={{ loop: true, align: 'center' }}>
+              <CarouselContent>
+                <CarouselItem className="basis-full">
+                  <Card className="h-full overflow-hidden rounded-2xl">
+                    {plan.image && (
+                      <div className="relative w-full aspect-square overflow-hidden">
+                        <Image
+                          src={plan.image}
+                          alt={`Imagen de ${planName}`}
+                          fill
+                          priority
+                          sizes="100vw"
+                          className="object-cover"
+                        />
+                      </div>
+                    )}
+                    <CardHeader className="py-3">
+                      <CardTitle>{planName}</CardTitle>
+                      <CardDescription>{plan.duration}</CardDescription>
+                    </CardHeader>
+                    <CardContent className="pt-0 pb-4 space-y-4">
+                      <div className="space-y-2">
+                        <p className="text-xl font-semibold">Descripción general</p>
+                        <p className="text-muted-foreground leading-relaxed">
+                          {planDescription}
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-primary/20 p-3">
+                        <p className="text-sm text-muted-foreground">Duración</p>
+                        <p className="text-base font-medium">
+                          {plan.weeks} semana{plan.weeks === 1 ? '' : 's'} estimada{plan.weeks === 1 ? '' : 's'}
+                        </p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </CarouselItem>
+
+                {plan.exercises?.map((exercise, index) => (
+                  <CarouselItem
+                    key={`${plan.id}-hero-ex-${exercise.id ?? 'noid'}-${index}`}
+                    className="basis-full"
+                  >
+                    <Card className="h-full overflow-hidden rounded-2xl">
+                      <div className="relative w-full aspect-square overflow-hidden">
+                        <Image
+                          src={exercise.image || '/placeholder.jpg'}
+                          alt={exercise.name}
+                          fill
+                          className="object-cover"
+                          sizes="100vw"
+                        />
+                      </div>
+
+                      <CardHeader className="py-3">
+                        <CardTitle className="leading-tight">{exercise.name}</CardTitle>
+                        <CardDescription>
+                          {exercise.duration ?? exercise.reps ?? '—'}
+                        </CardDescription>
+                      </CardHeader>
+
+                      <CardContent className="pt-0 pb-3 space-y-3">
+                        <p className="text-sm text-muted-foreground line-clamp-3">
+                          {exercise.description ?? exercise.objective ?? 'Ejercicio guiado de esta etapa.'}
+                        </p>
+                        <Button asChild className="w-full">
+                          <Link href={`/exercises/${exercise.id}?from=${plan.id}`}>
+                            Ver ejercicio
+                          </Link>
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  </CarouselItem>
+                ))}
+              </CarouselContent>
+
+              <CarouselPrevious className="left-2 top-1/2 -translate-y-1/2 h-9 w-9" />
+              <CarouselNext className="right-2 top-1/2 -translate-y-1/2 h-9 w-9" />
+            </Carousel>
+          </section>
         )}
 
-        <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Card className="md:col-span-2">
-            <CardHeader>
-              <CardTitle>Descripción general</CardTitle>
-              <CardDescription>{plan.duration}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground leading-relaxed">
-                {planDescription}
-              </p>
-            </CardContent>
-          </Card>
+        {plan.stages?.length ? (
+          <section>
+            <Card>
+              <CardHeader>
+                <CardTitle>Etapas del programa</CardTitle>
+                <CardDescription>
+                  Resumen simple por semana para seguir el taller paso a paso.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Tabs key={`${plan.id}-${stageTabDefault}`} defaultValue={stageTabDefault}>
+                  <div className="overflow-x-auto pb-2">
+                    <TabsList className="h-auto min-w-max gap-1">
+                      {plan.stages.map((stage) => (
+                        <TabsTrigger
+                          key={`${plan.id}-stage-tab-${stage.week}`}
+                          value={`week-${stage.week}`}
+                          className="rounded-full px-4 py-2"
+                        >
+                          Semana {stage.week}
+                        </TabsTrigger>
+                      ))}
+                    </TabsList>
+                  </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Duración</CardTitle>
-              <CardDescription>Semanas estimadas</CardDescription>
-            </CardHeader>
-            <CardContent className="flex items-center gap-4">
-              <span className="text-4xl font-extrabold">{plan.weeks}</span>
-              <span className="text-muted-foreground">semanas</span>
-            </CardContent>
-          </Card>
-        </section>
+                  {plan.stages.map((stage) => {
+                    const stageExercises = getStageExercises(stage.week);
 
-        <section>
-          <Card>
-            <CardHeader>
-              <CardTitle>{isAdmin ? 'Vista de administrador' : 'Sincronización de estudiante activa'}</CardTitle>
-              <CardDescription>
-                El progreso está vinculado a {user.displayName || user.email}.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <p className="text-sm text-muted-foreground">
-                Cada avance diario y semanal se guarda y se agrega al historial de este estudiante.
-              </p>
-              <Button asChild variant="outline">
-                <Link href="/history">Abrir historial completo</Link>
-              </Button>
-              {!USE_FIRESTORE && (
-                <p className="text-sm text-muted-foreground">
-                  Modo local activo: el historial se guarda en este dispositivo.
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        </section>
+                    return (
+                      <TabsContent key={`${plan.id}-stage-content-${stage.week}`} value={`week-${stage.week}`}>
+                        <div className="rounded-xl border border-primary/20 p-4 space-y-4">
+                          <div className="space-y-2">
+                            <p className="text-xs font-medium text-muted-foreground">
+                              Etapa {stage.week}
+                            </p>
+                            <h3 className="text-lg font-semibold">
+                              {stage.title || `Semana ${stage.week}`}
+                            </h3>
+                            <p className="text-sm text-muted-foreground">
+                              {stage.description}
+                            </p>
+                          </div>
+
+                          {stageExercises.length > 0 ? (
+                            <div className="space-y-2">
+                              <p className="text-sm font-medium">Ejercicios de esta etapa</p>
+                              <div className="space-y-2">
+                                {stageExercises.map((exercise) => {
+                                  return (
+                                    <div
+                                      key={`${plan.id}-stage-${stage.week}-exercise-tab-${exercise.id}`}
+                                      className="flex flex-col gap-2 rounded-lg border p-3"
+                                    >
+                                      <div className="min-w-0">
+                                        <p className="font-medium">{exercise.name}</p>
+                                        <p className="text-sm text-muted-foreground line-clamp-2">
+                                          {exercise.description ??
+                                            exercise.objective ??
+                                            'Ejercicio guiado de esta etapa.'}
+                                        </p>
+                                      </div>
+                                      <Button asChild size="sm" className="w-full sm:w-auto">
+                                        <Link href={`/exercises/${exercise.id}?from=${plan.id}`}>
+                                          Ver ejercicio
+                                        </Link>
+                                      </Button>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="text-sm text-muted-foreground">
+                              Esta etapa no tiene ejercicios vinculados todavía.
+                            </p>
+                          )}
+                        </div>
+                      </TabsContent>
+                    );
+                  })}
+                </Tabs>
+              </CardContent>
+            </Card>
+          </section>
+        ) : null}
 
         <section>
           <Card>
@@ -536,29 +795,19 @@ export default function PlanDetailPage() {
                   <div className="flex w-full gap-2 min-w-0">
                     <Button
                       variant="outline"
-                      onClick={() => setCurrentWeek(saved.currentWeek - 1)}
-                      disabled={saved.currentWeek <= 1 || isLoadingProgress}
+                      onClick={() => setCurrentWeek(previousWeekTarget)}
+                      disabled={!canGoToPreviousWeek}
                       className="flex-1 sm:flex-none whitespace-normal text-center"
                     >
-                      Semana anterior
+                      Ver semana {previousWeekTarget}
                     </Button>
                     <Button
                       variant="outline"
-                      onClick={goToNextWeek}
-                      disabled={
-                        editableWeek <= 0 ||
-                        isLoadingProgress ||
-                        saved.currentWeek <= 0
-                      }
+                      onClick={() => setCurrentWeek(nextWeekTarget)}
+                      disabled={!canGoToNextWeek}
                       className="flex-1 sm:flex-none whitespace-normal text-center"
                     >
-                      {editableWeek <= 0
-                        ? 'Plan completado'
-                        : saved.currentWeek === editableWeek
-                          ? editableWeek >= plan.weeks
-                            ? 'Finalizar semana'
-                            : 'Siguiente semana'
-                          : `Ir a semana ${editableWeek}`}
+                      Ir a semana {nextWeekTarget}
                     </Button>
                   </div>
 
@@ -600,41 +849,155 @@ export default function PlanDetailPage() {
               </div>
 
               {saved.currentWeek > 0 && (
-                <div className="space-y-2 rounded-lg border border-primary/20 p-3">
-                  <p className="text-xs text-muted-foreground">
-                    Semana actual: <strong>{saved.currentWeek}</strong> de {plan.weeks}
-                  </p>
-                  <p className="text-sm font-medium">
-                    Semana {saved.currentWeek}: marcar días trabajados
-                  </p>
-                  {!isCurrentWeekEditable && editableWeek > 0 && (
-                    <p className="text-xs text-muted-foreground">
-                      Semana en solo lectura. La semana activa para editar es la {editableWeek}.
-                    </p>
-                  )}
-                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                    {WORKDAY_LABELS.map((label, dayIndex) => (
-                      <label
-                        key={`${saved.currentWeek}-${label}`}
-                        className="flex items-center gap-2 rounded-md border px-2 py-2 text-sm"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={currentWeekDays[dayIndex]}
-                          onChange={(event) =>
-                            setWorkDay(saved.currentWeek, dayIndex, event.target.checked)
-                          }
-                          disabled={isLoadingProgress || !isCurrentWeekEditable}
-                        />
-                        <span>{label}</span>
-                      </label>
-                    ))}
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    {currentWeekDays.filter(Boolean).length} / {WORK_DAYS_PER_WEEK} días trabajados
-                    en esta semana.
-                  </p>
-                </div>
+                <Accordion type="single" collapsible className="rounded-lg border border-primary/20 px-3">
+                  <AccordionItem value="week-detail" className="border-none">
+                    <AccordionTrigger className="py-3 text-left hover:no-underline">
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground">
+                          Semana actual: <strong>{saved.currentWeek}</strong> de {plan.weeks}
+                        </p>
+                        <p className="text-sm font-medium">
+                          Semana {saved.currentWeek}: marcar días trabajados
+                        </p>
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="space-y-2 pt-1">
+                      {!isCurrentWeekEditable && editableWeek > 0 && (
+                        <p className="text-xs text-muted-foreground">
+                          Semana en solo lectura. La semana activa para editar es la {editableWeek}.
+                        </p>
+                      )}
+                      {!isCurrentWeekEditable && isCurrentWeekScoreEditable && (
+                        <p className="text-xs text-muted-foreground">
+                          Puedes cargar puntajes en esta semana ya completada.
+                        </p>
+                      )}
+                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                        {WORKDAY_LABELS.map((label, dayIndex) => (
+                          <label
+                            key={`${saved.currentWeek}-${label}`}
+                            className="flex items-center gap-2 rounded-md border px-2 py-2 text-sm"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={currentWeekDays[dayIndex]}
+                              onChange={(event) =>
+                                setWorkDay(saved.currentWeek, dayIndex, event.target.checked)
+                              }
+                              disabled={isLoadingProgress || !isCurrentWeekEditable}
+                            />
+                            <span>{label}</span>
+                          </label>
+                        ))}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {currentWeekDays.filter(Boolean).length} / {WORK_DAYS_PER_WEEK} días trabajados
+                        en esta semana.
+                      </p>
+
+                      {currentWeekExercises.length > 0 && (
+                        <div className="space-y-2 rounded-md border p-3">
+                          <p className="text-sm font-medium">Puntaje semanal por ejercicio</p>
+                          <div className="flex flex-wrap gap-1">
+                            {WORKDAY_LABELS.map((_, dayIdx) => (
+                              <Button
+                                key={`current-week-score-day-${dayIdx}`}
+                                type="button"
+                                variant={selectedCurrentWeekScoreDayIndex === dayIdx ? 'default' : 'outline'}
+                                size="sm"
+                                className="h-8 px-2 text-xs"
+                                onClick={() => setSelectedScoreDay(saved.currentWeek, dayIdx + 1)}
+                                disabled={saved.currentWeek <= 0}
+                              >
+                                D{dayIdx + 1}
+                                {currentWeekDays[dayIdx] ? '' : ' ·'}
+                              </Button>
+                            ))}
+                          </div>
+
+                          <p className="text-xs text-muted-foreground">
+                            Si puntúas un día no marcado, se marcará automáticamente como trabajado.
+                          </p>
+
+                          <Accordion type="multiple" className="space-y-2">
+                            {currentWeekExercises.map((exercise) => {
+                              const exerciseScores = getExerciseScores(saved.currentWeek, exercise.id);
+                              const selectedScore = exerciseScores[selectedCurrentWeekScoreDayIndex];
+                              const averageScore = getExerciseScoreAverage(saved.currentWeek, exercise.id);
+
+                              return (
+                                <AccordionItem
+                                  key={`${plan.id}-progress-week-${saved.currentWeek}-exercise-${exercise.id}`}
+                                  value={`score-${saved.currentWeek}-${exercise.id}`}
+                                  className="rounded-md border px-2"
+                                >
+                                  <AccordionTrigger className="py-2 hover:no-underline">
+                                    <div className="flex w-full items-center justify-between gap-2 pr-2">
+                                      <span className="text-sm font-medium text-left">
+                                        {exercise.name}
+                                      </span>
+                                      <span className="text-xs text-muted-foreground shrink-0">
+                                        {averageScore === null ? 'Sin puntaje' : `Prom: ${averageScore}/5`}
+                                      </span>
+                                    </div>
+                                  </AccordionTrigger>
+
+                                  <AccordionContent className="space-y-2 pb-2">
+                                    <p className="text-xs text-muted-foreground line-clamp-2">
+                                      {exercise.description ??
+                                        exercise.objective ??
+                                        'Ejercicio guiado de esta etapa.'}
+                                    </p>
+
+                                    <div className="flex flex-wrap gap-1">
+                                      {SCORE_VALUES.map((value) => (
+                                        <Button
+                                          key={`${exercise.id}-progress-score-${value}`}
+                                          type="button"
+                                          variant={selectedScore === value ? 'default' : 'outline'}
+                                          size="sm"
+                                          className="h-8 w-8 px-0 text-xs"
+                                          onClick={() =>
+                                            setExerciseScore(
+                                              saved.currentWeek,
+                                              exercise.id,
+                                              selectedCurrentWeekScoreDayIndex,
+                                              value
+                                            )
+                                          }
+                                          disabled={!canScoreCurrentSelectedDay}
+                                        >
+                                          {value}
+                                        </Button>
+                                      ))}
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-8 px-2 text-xs"
+                                        onClick={() =>
+                                          setExerciseScore(
+                                            saved.currentWeek,
+                                            exercise.id,
+                                            selectedCurrentWeekScoreDayIndex,
+                                            null
+                                          )
+                                        }
+                                        disabled={!canScoreCurrentSelectedDay}
+                                      >
+                                        Limpiar
+                                      </Button>
+                                    </div>
+                                  </AccordionContent>
+                                </AccordionItem>
+                              );
+                            })}
+                          </Accordion>
+                        </div>
+                      )}
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
               )}
 
               <div className="mt-3 space-y-2">
@@ -659,33 +1022,34 @@ export default function PlanDetailPage() {
                 </p>
               </div>
 
-              {user && recentHistory.length > 0 && (
+              {user && latestHistoryEntry && (
                 <div className="pt-2">
-                  <h3 className="text-sm font-medium">Historial reciente</h3>
-                  <ul className="mt-2 space-y-2">
-                    {recentHistory.map((entry) => (
-                      <li key={entry.id} className="rounded-lg border p-2 text-xs sm:text-sm">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <span className="font-medium">
-                            {PROGRESS_ACTION_LABELS[entry.action]}
-                          </span>
-                          <span className="text-muted-foreground">
-                            {formatDateTime(entry.createdAt)}
-                          </span>
-                        </div>
-                        <p className="text-muted-foreground">
-                          Semana: {entry.week ?? '-'} | Actual: {entry.currentWeek}
-                        </p>
-                      </li>
-                    ))}
-                  </ul>
+                  <h3 className="text-sm font-medium">Último registro</h3>
+                  <div className="mt-2 rounded-lg border p-2 text-xs sm:text-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="font-medium">
+                        {PROGRESS_ACTION_LABELS[latestHistoryEntry.action]}
+                      </span>
+                      <span className="text-muted-foreground">
+                        {formatDateTime(latestHistoryEntry.createdAt)}
+                      </span>
+                    </div>
+                    <p className="text-muted-foreground">
+                      Semana: {latestHistoryEntry.week ?? '-'} | Actual: {latestHistoryEntry.currentWeek}
+                    </p>
+                  </div>
+                  <div className="mt-2">
+                    <Button asChild variant="outline" size="sm">
+                      <Link href="/history">Ver historial completo</Link>
+                    </Button>
+                  </div>
                 </div>
               )}
             </CardContent>
           </Card>
         </section>
 
-        {plan.stages?.length ? (
+        {plan.stages?.length && isAdmin ? (
           <section>
             <h2 className="text-xl font-semibold mb-4">Etapas del plan</h2>
             <ol className="relative border-l border-primary/30 space-y-6 pl-6">
@@ -720,14 +1084,6 @@ export default function PlanDetailPage() {
                     </div>
 
                     <div className="mt-2 flex flex-wrap items-center gap-3">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setCurrentWeek(stage.week)}
-                        disabled={isLoadingProgress}
-                      >
-                        Ir a esta semana
-                      </Button>
                       {stageExercises.length > 0
                         ? stageExercises.map((exercise) => (
                             <Button
@@ -767,63 +1123,27 @@ export default function PlanDetailPage() {
           </section>
         ) : null}
 
-        {plan.exercises?.length ? (
-          <section>
-            <div className="flex items-baseline justify-between mb-4">
-              <h2 className="text-xl font-semibold">Ejercicios del plan</h2>
-              <span className="text-sm text-muted-foreground">
-                {plan.exercises.length} ejercicios
-              </span>
-            </div>
-
-            <Carousel opts={{ loop: true, align: 'center' }}>
-              <CarouselContent>
-                {plan.exercises.map((exercise, index) => (
-                  <CarouselItem
-                    key={`${plan.id}-ex-${exercise.id ?? 'noid'}-${index}`}
-                    className="basis-[350px] sm:basis-[350px] md:basis-[350px] lg:basis-[350px] px-1 sm:px-2"
-                  >
-                    <Card className="h-full overflow-hidden rounded-lg">
-                      <div className="relative w-full aspect-square overflow-hidden">
-                        <Image
-                          src={exercise.image || '/placeholder.jpg'}
-                          alt={exercise.name}
-                          fill
-                          className="object-cover"
-                          sizes="(max-width: 640px) 160px, (max-width: 768px) 200px, (max-width: 1024px) 240px, 280px"
-                        />
-                      </div>
-
-                      <CardHeader className="py-2">
-                        <CardTitle className="text-sm leading-tight line-clamp-2">
-                          {exercise.name}
-                        </CardTitle>
-                        <CardDescription className="text-xs">
-                          {exercise.duration ?? exercise.reps ?? '—'}
-                        </CardDescription>
-                      </CardHeader>
-
-                      <CardContent className="pt-0 pb-2">
-                        <p className="text-xs text-muted-foreground line-clamp-3">
-                          {exercise.description}
-                        </p>
-                      </CardContent>
-                    </Card>
-                  </CarouselItem>
-                ))}
-              </CarouselContent>
-
-              <CarouselPrevious className="left-1 top-1/2 -translate-y-1/2 h-7 w-7" />
-              <CarouselNext className="right-1 top-1/2 -translate-y-1/2 h-7 w-7" />
-            </Carousel>
-          </section>
-        ) : null}
-
-        <section className="flex justify-end">
-          <Button asChild>
-            <Link href="/">Elegir otro plan</Link>
-          </Button>
+        <section>
+          <Card>
+            <CardHeader>
+              <CardTitle>{isAdmin ? 'Vista de administrador' : 'Sincronización de estudiante activa'}</CardTitle>
+              <CardDescription>
+                El progreso está vinculado a {user.displayName || user.email}.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <p className="text-sm text-muted-foreground">
+                Cada avance diario y semanal se guarda y se agrega al historial de este estudiante.
+              </p>
+              {!USE_FIRESTORE && (
+                <p className="text-sm text-muted-foreground">
+                  Modo local activo: el historial se guarda en este dispositivo.
+                </p>
+              )}
+            </CardContent>
+          </Card>
         </section>
+
       </main>
     </div>
   );
@@ -833,7 +1153,15 @@ function hasAnyProgress(saved: SavedPlan): boolean {
   const hasAnyDayChecked = Object.values(saved.daysByWeek ?? {}).some(
     (days) => Array.isArray(days) && days.some(Boolean)
   );
-  return Boolean(saved.startAt || saved.currentWeek > 0 || saved.completedWeeks.length > 0 || hasAnyDayChecked);
+  const hasAnyScore = Object.values(saved.scoresByWeek ?? {}).some((weekScores) =>
+    Object.values(weekScores ?? {}).some((scores) =>
+      Array.isArray(scores) && scores.some((value) => typeof value === 'number')
+    )
+  );
+
+  return Boolean(
+    saved.startAt || saved.currentWeek > 0 || saved.completedWeeks.length > 0 || hasAnyDayChecked || hasAnyScore
+  );
 }
 
 function formatDate(dateIso: string): string {
