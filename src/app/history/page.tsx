@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 
 import { useAuth } from '@/components/auth-provider';
@@ -27,9 +28,18 @@ import { USE_FIRESTORE } from '@/lib/firebase';
 import { trainingPlans } from '@/data/training-plans';
 
 export default function HistoryPage() {
+  const router = useRouter();
   const { user, loading: authLoading } = useAuth();
   const [entries, setEntries] = useState<ProgressHistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
+
+  function handleBack() {
+    if (typeof window !== 'undefined' && window.history.length > 1) {
+      router.back();
+      return;
+    }
+    router.push('/');
+  }
 
   useEffect(() => {
     if (!user) {
@@ -148,9 +158,13 @@ export default function HistoryPage() {
     <div className="min-h-screen bg-background text-foreground font-body antialiased">
       <header className="sticky top-0 z-20 bg-background/80 backdrop-blur-sm border-b border-primary/20">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <Link href="/" className="text-sm text-muted-foreground hover:text-primary">
+          <button
+            type="button"
+            onClick={handleBack}
+            className="text-sm text-muted-foreground hover:text-primary"
+          >
             &larr; Volver
-          </Link>
+          </button>
           <h1 className="text-lg font-headline font-semibold">Historial de progreso</h1>
           <div />
         </div>
