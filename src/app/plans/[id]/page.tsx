@@ -414,7 +414,7 @@ export default function PlanDetailPage() {
   }
 
   function setExerciseScore(week: number, exerciseId: string, dayIndex: number, score: number | null) {
-    if (!isWeekEditable(week)) return;
+    if (!isWeekScoreEditable(week)) return;
 
     const normalizedScore =
       typeof score === 'number' && score >= 1 && score <= 5 ? Math.round(score) : null;
@@ -478,6 +478,13 @@ export default function PlanDetailPage() {
     return editableWeek > 0 && week === editableWeek;
   }
 
+  function isWeekScoreEditable(week: number): boolean {
+    if (week <= 0) return false;
+    if (isWeekEditable(week)) return true;
+    if (editableWeek === 0) return true;
+    return week < editableWeek && isCompleted(week);
+  }
+
   const weeksCompleted = Array.from({ length: plan.weeks }, (_, index) => index + 1).filter(
     (week) => isCompleted(week)
   ).length;
@@ -500,12 +507,13 @@ export default function PlanDetailPage() {
       ? getWeekDays(saved.currentWeek)
       : Array.from({ length: WORK_DAYS_PER_WEEK }, () => false);
   const isCurrentWeekEditable = isWeekEditable(saved.currentWeek);
+  const isCurrentWeekScoreEditable = isWeekScoreEditable(saved.currentWeek);
   const currentWeekExercises =
     saved.currentWeek > 0 ? getStageExercises(saved.currentWeek) : [];
   const selectedCurrentWeekScoreDay =
     saved.currentWeek > 0 ? getSelectedScoreDay(saved.currentWeek) : 1;
   const selectedCurrentWeekScoreDayIndex = selectedCurrentWeekScoreDay - 1;
-  const canScoreCurrentSelectedDay = isCurrentWeekEditable;
+  const canScoreCurrentSelectedDay = isCurrentWeekScoreEditable;
   const previousWeekTarget = Math.max(1, saved.currentWeek - 1);
   const nextWeekTarget = Math.min(plan.weeks, saved.currentWeek + 1);
   const canGoToPreviousWeek = !isLoadingProgress && saved.currentWeek > 1;
@@ -857,6 +865,11 @@ export default function PlanDetailPage() {
                       {!isCurrentWeekEditable && editableWeek > 0 && (
                         <p className="text-xs text-muted-foreground">
                           Semana en solo lectura. La semana activa para editar es la {editableWeek}.
+                        </p>
+                      )}
+                      {!isCurrentWeekEditable && isCurrentWeekScoreEditable && (
+                        <p className="text-xs text-muted-foreground">
+                          Puedes cargar puntajes en esta semana ya completada.
                         </p>
                       )}
                       <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
