@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { notFound, useParams, useSearchParams } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 
 import { useAuth } from '@/components/auth-provider';
 import {
@@ -68,6 +68,14 @@ const WORKDAY_LABELS = ['Día 1', 'Día 2', 'Día 3', 'Día 4', 'Día 5'];
 const SCORE_VALUES = [1, 2, 3, 4, 5] as const;
 
 export default function PlanDetailPage() {
+  return (
+    <Suspense fallback={<PlanDetailPageLoading />}>
+      <PlanDetailPageContent />
+    </Suspense>
+  );
+}
+
+function PlanDetailPageContent() {
   const searchParams = useSearchParams();
   const { id } = useParams<{ id: string }>();
   const plan = trainingPlans.find((entry) => entry.id === id);
@@ -1207,6 +1215,21 @@ export default function PlanDetailPage() {
           </Card>
         </section>
 
+      </main>
+    </div>
+  );
+}
+
+function PlanDetailPageLoading() {
+  return (
+    <div className="min-h-screen bg-background text-foreground font-body antialiased">
+      <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <Card>
+          <CardHeader>
+            <CardTitle>Cargando plan...</CardTitle>
+            <CardDescription>Preparando detalles del plan.</CardDescription>
+          </CardHeader>
+        </Card>
       </main>
     </div>
   );

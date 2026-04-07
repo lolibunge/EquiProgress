@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, Suspense, useEffect, useState } from 'react';
 import { collection, doc, runTransaction, serverTimestamp } from 'firebase/firestore';
 
 import { useAuth } from '@/components/auth-provider';
@@ -17,6 +17,14 @@ import { getTrialLockStage, getTrialStatus } from '@/lib/pricing';
 type Rating = 1 | 2 | 3 | 4 | 5;
 
 export default function FeedbackPage() {
+  return (
+    <Suspense fallback={<FeedbackPageLoading />}>
+      <FeedbackPageContent />
+    </Suspense>
+  );
+}
+
+function FeedbackPageContent() {
   const router = useRouter();
   const { user, loading } = useAuth();
   const { toast } = useToast();
@@ -320,6 +328,21 @@ export default function FeedbackPage() {
               )}
             </form>
           </CardContent>
+        </Card>
+      </main>
+    </div>
+  );
+}
+
+function FeedbackPageLoading() {
+  return (
+    <div className="min-h-screen bg-background text-foreground font-body antialiased">
+      <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-10">
+        <Card className="max-w-xl mx-auto">
+          <CardHeader>
+            <CardTitle>Cargando comentarios...</CardTitle>
+            <CardDescription>Preparando formulario.</CardDescription>
+          </CardHeader>
         </Card>
       </main>
     </div>

@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { collection, doc, getDocs, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Autoplay from 'embla-carousel-autoplay';
 
 import { useAuth } from '@/components/auth-provider';
@@ -48,6 +48,14 @@ type AdminStudentTrialRow = {
 };
 
 export default function Home() {
+  return (
+    <Suspense fallback={<HomePageLoading />}>
+      <HomePageContent />
+    </Suspense>
+  );
+}
+
+function HomePageContent() {
   const searchParams = useSearchParams();
   const { user, loading } = useAuth();
   const { toast } = useToast();
@@ -560,6 +568,31 @@ export default function Home() {
             </div>
           </>
         )}
+      </main>
+    </div>
+  );
+}
+
+function HomePageLoading() {
+  return (
+    <div className="min-h-screen bg-background text-foreground font-body flex flex-col antialiased">
+      <header className="sticky top-0 z-20 w-full bg-background/80 backdrop-blur-sm border-b border-primary/20">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex h-16 items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Logo variant="full" className="h-12 w-auto max-w-[250px]" />
+            </div>
+            <span className="text-sm text-muted-foreground">Cargando cuenta...</span>
+          </div>
+        </div>
+      </header>
+      <main className="flex-grow w-full container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <Card className="max-w-2xl mx-auto">
+          <CardHeader>
+            <CardTitle>Cargando inicio...</CardTitle>
+            <CardDescription>Preparando panel y planes.</CardDescription>
+          </CardHeader>
+        </Card>
       </main>
     </div>
   );
