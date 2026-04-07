@@ -2,8 +2,8 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { notFound, useParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { notFound, useParams, useSearchParams } from 'next/navigation';
+import { useEffect, useMemo, useState } from 'react';
 
 import { useAuth } from '@/components/auth-provider';
 import {
@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
+import { useUserAccountMeta } from '@/hooks/use-user-account-meta';
 import { USE_FIRESTORE } from '@/lib/firebase';
 import {
   canUserAccessPlan,
@@ -37,6 +38,7 @@ import {
   getPlanDisplayName,
   isAdminUser,
 } from '@/lib/plan-visibility';
+import { getTrialLockStage, getTrialStatus } from '@/lib/pricing';
 import {
   appendLocalHistoryEntry,
   createEmptyProgress,
@@ -66,6 +68,7 @@ const WORKDAY_LABELS = ['Día 1', 'Día 2', 'Día 3', 'Día 4', 'Día 5'];
 const SCORE_VALUES = [1, 2, 3, 4, 5] as const;
 
 export default function PlanDetailPage() {
+  const searchParams = useSearchParams();
   const { id } = useParams<{ id: string }>();
   const plan = trainingPlans.find((entry) => entry.id === id);
   if (!plan) notFound();
@@ -73,9 +76,27 @@ export default function PlanDetailPage() {
   const STORAGE_KEY = `equi:plan:${plan.id}`;
 
   const { user, loading: authLoading } = useAuth();
+  const { trialExtensionDays, lastFeedbackAt, loading: accountMetaLoading } = useUserAccountMeta(user);
   const { toast } = useToast();
   const isAdmin = isAdminUser(user);
   const canAccessPlan = canUserAccessPlan(plan.id, isAdmin);
+  const simulatedTrialPreview = (() => {
+    const raw = searchParams.get('trialPreview');
+    return raw === 'expired' || raw === 'pending' ? raw : null;
+  })();
+  const trialStatus = useMemo(() => {
+    if (!user || isAdmin) return null;
+    return getTrialStatus(user.metadata.creationTime, { extraDays: trialExtensionDays });
+  }, [isAdmin, trialExtensionDays, user]);
+  const trialLockStage = useMemo(() => {
+    if (!trialStatus || isAdmin) return 'active';
+    return getTrialLockStage(trialStatus, {
+      lastFeedbackAt,
+      simulate: simulatedTrialPreview,
+    });
+  }, [isAdmin, lastFeedbackAt, simulatedTrialPreview, trialStatus]);
+  const isTrialLocked = !isAdmin && trialLockStage !== 'active';
+  const canOpenPlan = canAccessPlan && !isTrialLocked;
   const planName = getPlanDisplayName(plan.id, plan.name, isAdmin);
   const planDescription = getPlanDisplayDescription(plan.id, plan.description, isAdmin);
 
@@ -102,7 +123,7 @@ export default function PlanDetailPage() {
         setIsLoadingProgress(false);
       }, 3500);
 
-      if (user && canAccessPlan && USE_FIRESTORE) {
+      if (user && canOpenPlan && USE_FIRESTORE) {
         try {
           const remoteProgress = await loadRemotePlanProgress(user.uid, plan.id);
 
@@ -153,10 +174,10 @@ export default function PlanDetailPage() {
     return () => {
       cancelled = true;
     };
-  }, [STORAGE_KEY, authLoading, canAccessPlan, hasShownSyncError, plan.id, planName, toast, user]);
+  }, [STORAGE_KEY, authLoading, canOpenPlan, hasShownSyncError, plan.id, planName, toast, user]);
 
   useEffect(() => {
-    if (!user || !canAccessPlan || !USE_FIRESTORE || authLoading) {
+    if (!user || !canOpenPlan || !USE_FIRESTORE || authLoading) {
       setRecentHistory([]);
       return;
     }
@@ -169,7 +190,7 @@ export default function PlanDetailPage() {
     }, 120);
 
     return unsubscribe;
-  }, [authLoading, canAccessPlan, plan.id, user]);
+  }, [authLoading, canOpenPlan, plan.id, user]);
 
   function persist(next: SavedPlan, event?: ProgressEvent) {
     const normalized = normalizeSavedPlan(next);
@@ -526,7 +547,7 @@ export default function PlanDetailPage() {
     1
   }`;
 
-  if (authLoading) {
+  if (authLoading || (Boolean(user) && !isAdmin && accountMetaLoading)) {
     return (
       <div className="min-h-screen bg-background text-foreground font-body antialiased">
         <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -581,6 +602,50 @@ export default function PlanDetailPage() {
               <Button asChild className="w-full">
                 <Link href="/">Volver a planes asignados</Link>
               </Button>
+            </CardContent>
+          </Card>
+        </main>
+      </div>
+    );
+  }
+
+  if (isTrialLocked) {
+    return (
+      <div className="min-h-screen bg-background text-foreground font-body antialiased">
+        <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <Card className="max-w-xl mx-auto">
+            <CardHeader>
+              <CardTitle>
+                {trialLockStage === 'feedback_required'
+                  ? 'Acceso temporal finalizado'
+                  : 'Opinión recibida'}
+              </CardTitle>
+              <CardDescription>
+                {trialLockStage === 'feedback_required'
+                  ? `Tu período de ${trialStatus?.totalDays ?? 30} días terminó. Envía tu opinión para desbloquear 30 días más.`
+                  : 'Tu opinión ya fue enviada. Un administrador debe habilitar 30 días más para continuar.'}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {trialLockStage === 'feedback_required' ? (
+                <Button asChild className="w-full">
+                  <Link href={`/feedback?source=trial-lock&from=${encodeURIComponent(`/plans/${plan.id}`)}`}>
+                    Enviar opinión ahora
+                  </Link>
+                </Button>
+              ) : (
+                <Button asChild variant="outline" className="w-full">
+                  <Link href="/feedback">Ver/editar opinión enviada</Link>
+                </Button>
+              )}
+              <Button asChild variant="outline" className="w-full">
+                <Link href="/">Volver al inicio</Link>
+              </Button>
+              {simulatedTrialPreview && (
+                <p className="text-xs text-muted-foreground">
+                  Simulación activa: {simulatedTrialPreview}.
+                </p>
+              )}
             </CardContent>
           </Card>
         </main>

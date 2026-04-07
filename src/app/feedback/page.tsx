@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { FormEvent, useState } from 'react';
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { FormEvent, useEffect, useState } from 'react';
+import { collection, doc, runTransaction, serverTimestamp } from 'firebase/firestore';
 
 import { useAuth } from '@/components/auth-provider';
 import { Button } from '@/components/ui/button';
@@ -11,17 +12,35 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { db, USE_FIRESTORE } from '@/lib/firebase';
+import { getTrialLockStage, getTrialStatus } from '@/lib/pricing';
 
 type Rating = 1 | 2 | 3 | 4 | 5;
 
 export default function FeedbackPage() {
+  const router = useRouter();
   const { user, loading } = useAuth();
   const { toast } = useToast();
+  const searchParams = useSearchParams();
 
   const [rating, setRating] = useState<Rating>(5);
   const [comment, setComment] = useState('');
   const [saving, setSaving] = useState(false);
   const [sent, setSent] = useState(false);
+  const [grantedDays, setGrantedDays] = useState(0);
+  const source = searchParams.get('source');
+  const returnPath = sanitizeReturnPath(searchParams.get('from'));
+
+  useEffect(() => {
+    if (!sent) return;
+    if (source !== 'trial-lock' && grantedDays <= 0) return;
+
+    const redirectTo = returnPath ?? '/';
+    const timer = window.setTimeout(() => {
+      router.push(redirectTo);
+    }, 1200);
+
+    return () => window.clearTimeout(timer);
+  }, [grantedDays, returnPath, router, sent, source]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -48,16 +67,68 @@ export default function FeedbackPage() {
     setSaving(true);
 
     try {
+      let autoGrantedDays = 0;
+
       if (db && USE_FIRESTORE) {
-        await addDoc(collection(db, 'users', user.uid, 'feedback'), {
-          rating,
-          comment: cleanComment,
-          planContext: null,
-          userEmail: user.email ?? null,
-          userName: user.displayName ?? null,
-          createdAt: serverTimestamp(),
+        const userRef = doc(db, 'users', user.uid);
+        const feedbackRef = doc(collection(db, 'users', user.uid, 'feedback'));
+
+        await runTransaction(db, async (transaction) => {
+          const userSnapshot = await transaction.get(userRef);
+          const userData = (userSnapshot.data() ?? {}) as Record<string, unknown>;
+
+          const createdAt =
+            parseDateLike(userData.createdAt) ?? parseDateLike(user.metadata.creationTime);
+          const currentExtensionDays = parseNonNegativeInt(userData.trialExtensionDays);
+          const currentLastFeedbackAt = parseDateLike(userData.lastFeedbackAt);
+          const currentTrialStatus = getTrialStatus(createdAt, {
+            extraDays: currentExtensionDays,
+          });
+          const currentStage = getTrialLockStage(currentTrialStatus, {
+            lastFeedbackAt: currentLastFeedbackAt,
+          });
+          const shouldAutoGrant = currentStage === 'feedback_required';
+
+          if (shouldAutoGrant) {
+            autoGrantedDays = 30;
+          }
+
+          transaction.set(feedbackRef, {
+            rating,
+            comment: cleanComment,
+            planContext: null,
+            source: source ?? null,
+            userEmail: user.email ?? null,
+            userName: user.displayName ?? null,
+            createdAt: serverTimestamp(),
+          });
+
+          transaction.set(
+            userRef,
+            {
+              lastFeedbackAt: serverTimestamp(),
+              updatedAt: serverTimestamp(),
+              ...(shouldAutoGrant
+                ? {
+                    trialExtensionDays: currentExtensionDays + 30,
+                    trialExtendedAt: serverTimestamp(),
+                  }
+                : {}),
+            },
+            { merge: true }
+          );
         });
+
+        markLocalFeedbackSubmitted(user.uid);
+        if (autoGrantedDays > 0) {
+          addLocalTrialExtensionDays(user.uid, autoGrantedDays);
+        }
       } else {
+        const shouldAutoGrantLocally = shouldAutoGrantInLocalMode(
+          user.uid,
+          user.metadata.creationTime
+        );
+
         saveFeedbackLocally({
           rating,
           comment: cleanComment,
@@ -65,18 +136,33 @@ export default function FeedbackPage() {
           userName: user.displayName ?? null,
           createdAt: new Date().toISOString(),
         });
+        markLocalFeedbackSubmitted(user.uid);
+        if (shouldAutoGrantLocally) {
+          addLocalTrialExtensionDays(user.uid, 30);
+          autoGrantedDays = 30;
+        }
       }
 
+      setGrantedDays(autoGrantedDays);
       setSent(true);
       setComment('');
 
       toast({
         title: '¡Gracias por tu opinión!',
-        description: db && USE_FIRESTORE
-          ? 'Se guardó correctamente en la nube.'
-          : 'Se guardó localmente en este dispositivo.',
+        description:
+          autoGrantedDays > 0
+            ? `Acceso extendido: +${autoGrantedDays} días.`
+            : db && USE_FIRESTORE
+              ? 'Se guardó correctamente en la nube.'
+              : 'Se guardó localmente en este dispositivo.',
       });
     } catch (error) {
+      let fallbackGrantedDays = 0;
+      const shouldAutoGrantLocally = shouldAutoGrantInLocalMode(
+        user.uid,
+        user.metadata.creationTime
+      );
+
       saveFeedbackLocally({
         rating,
         comment: cleanComment,
@@ -84,11 +170,22 @@ export default function FeedbackPage() {
         userName: user.displayName ?? null,
         createdAt: new Date().toISOString(),
       });
+      markLocalFeedbackSubmitted(user.uid);
+      if (shouldAutoGrantLocally) {
+        addLocalTrialExtensionDays(user.uid, 30);
+        fallbackGrantedDays = 30;
+      }
+      setGrantedDays(fallbackGrantedDays);
+      setSent(true);
+      setComment('');
 
       toast({
         variant: 'destructive',
         title: 'No se pudo guardar en la nube',
-        description: `Lo guardamos localmente por ahora (${feedbackErrorCode(error)}).`,
+        description:
+          fallbackGrantedDays > 0
+            ? `Lo guardamos localmente y activamos +${fallbackGrantedDays} días (${feedbackErrorCode(error)}).`
+            : `Lo guardamos localmente por ahora (${feedbackErrorCode(error)}).`,
       });
     } finally {
       setSaving(false);
@@ -206,9 +303,20 @@ export default function FeedbackPage() {
               </div>
 
               {sent && (
-                <p className="text-sm text-muted-foreground">
-                  ¡Gracias! Tu opinión quedó registrada.
-                </p>
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground">
+                    {grantedDays > 0
+                      ? `¡Gracias! Tu opinión quedó registrada y se activaron +${grantedDays} días. Redirigiendo...`
+                      : source === 'trial-lock'
+                        ? '¡Gracias! Tu opinión quedó registrada. Redirigiendo...'
+                        : '¡Gracias! Tu opinión quedó registrada.'}
+                  </p>
+                  {returnPath && (
+                    <Button type="button" variant="outline" asChild>
+                      <Link href={returnPath}>Volver</Link>
+                    </Button>
+                  )}
+                </div>
               )}
             </form>
           </CardContent>
@@ -238,4 +346,121 @@ function saveFeedbackLocally(entry: {
 function feedbackErrorCode(error: unknown): string {
   if (typeof error !== 'object' || !error || !('code' in error)) return 'desconocido';
   return String(error.code);
+}
+
+function sanitizeReturnPath(value: string | null): string | null {
+  if (!value) return null;
+  if (!value.startsWith('/')) return null;
+  if (value.startsWith('//')) return null;
+  return value;
+}
+
+function markLocalFeedbackSubmitted(uid: string) {
+  if (typeof window === 'undefined') return;
+
+  try {
+    localStorage.setItem(`equi:lastFeedbackAt:${uid}`, new Date().toISOString());
+  } catch {
+    // Ignorado: no bloquea la experiencia del usuario.
+  }
+}
+
+function addLocalTrialExtensionDays(uid: string, days: number) {
+  if (typeof window === 'undefined') return;
+
+  const extraDays = Math.max(0, Math.floor(days));
+  if (extraDays <= 0) return;
+
+  try {
+    const key = `equi:trialExtensionDays:${uid}`;
+    const current = Number(localStorage.getItem(key));
+    const safeCurrent = Number.isFinite(current) ? Math.max(0, Math.floor(current)) : 0;
+    localStorage.setItem(key, String(safeCurrent + extraDays));
+  } catch {
+    // Ignorado: no bloquea la experiencia del usuario.
+  }
+}
+
+function shouldAutoGrantInLocalMode(uid: string, createdAt: string | null | undefined): boolean {
+  const currentExtensionDays = readLocalTrialExtensionDays(uid);
+  const currentLastFeedbackAt = readLocalFeedbackAt(uid);
+  const currentTrialStatus = getTrialStatus(createdAt, { extraDays: currentExtensionDays });
+  const currentStage = getTrialLockStage(currentTrialStatus, {
+    lastFeedbackAt: currentLastFeedbackAt,
+  });
+
+  return currentStage === 'feedback_required';
+}
+
+function readLocalTrialExtensionDays(uid: string): number {
+  if (typeof window === 'undefined') return 0;
+
+  try {
+    const raw = localStorage.getItem(`equi:trialExtensionDays:${uid}`);
+    return parseNonNegativeInt(raw);
+  } catch {
+    return 0;
+  }
+}
+
+function readLocalFeedbackAt(uid: string): Date | null {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const raw = localStorage.getItem(`equi:lastFeedbackAt:${uid}`);
+    return parseDateLike(raw);
+  } catch {
+    return null;
+  }
+}
+
+function parseNonNegativeInt(value: unknown): number {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return 0;
+  return Math.max(0, Math.floor(numeric));
+}
+
+function parseDateLike(value: unknown): Date | null {
+  if (!value) return null;
+
+  if (value instanceof Date) {
+    return Number.isFinite(value.getTime()) ? value : null;
+  }
+
+  if (typeof value === 'string' || typeof value === 'number') {
+    const parsed = new Date(value);
+    return Number.isFinite(parsed.getTime()) ? parsed : null;
+  }
+
+  if (typeof value === 'object' && value) {
+    const maybeTimestamp = value as {
+      toDate?: () => unknown;
+      toMillis?: () => unknown;
+    };
+
+    if (typeof maybeTimestamp.toDate === 'function') {
+      try {
+        const parsed = maybeTimestamp.toDate();
+        if (parsed instanceof Date && Number.isFinite(parsed.getTime())) {
+          return parsed;
+        }
+      } catch {
+        // Continues with other parsing strategies.
+      }
+    }
+
+    if (typeof maybeTimestamp.toMillis === 'function') {
+      try {
+        const millis = Number(maybeTimestamp.toMillis());
+        if (Number.isFinite(millis)) {
+          const parsed = new Date(millis);
+          return Number.isFinite(parsed.getTime()) ? parsed : null;
+        }
+      } catch {
+        // Ignore malformed timestamp-like values.
+      }
+    }
+  }
+
+  return null;
 }
