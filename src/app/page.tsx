@@ -1,8 +1,10 @@
 'use client';
 
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
+import { collection, doc, getDocs, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
-import { useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Autoplay from 'embla-carousel-autoplay';
 
 import { useAuth } from '@/components/auth-provider';
@@ -17,31 +19,76 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Logo } from '@/components/logo';
 import { Carousel, CarouselContent, CarouselItem, CarouselPrevious, CarouselNext } from '@/components/ui/carousel';
-import { auth } from '@/lib/firebase';
+import { auth, db, USE_FIRESTORE } from '@/lib/firebase';
 import {
   getPlanDisplayDescription,
   getPlanDisplayName,
   isAdminUser,
 } from '@/lib/plan-visibility';
-import { PRICING, getTrialNotice, getTrialStatus } from '@/lib/pricing';
+import {
+  PRICING,
+  getTrialLockStage,
+  getTrialNotice,
+  getTrialStatus,
+  type TrialLockStage,
+} from '@/lib/pricing';
 import { useToast } from '@/hooks/use-toast';
+import { useUserAccountMeta } from '@/hooks/use-user-account-meta';
+
+type AdminStudentTrialRow = {
+  uid: string;
+  displayName: string | null;
+  email: string | null;
+  createdAt: Date | null;
+  lastFeedbackAt: Date | null;
+  trialExtensionDays: number;
+  trialRemainingDays: number;
+  trialTotalDays: number;
+  lockStage: TrialLockStage;
+};
 
 export default function Home() {
+  const searchParams = useSearchParams();
   const { user, loading } = useAuth();
   const { toast } = useToast();
   const [selectedCategory, setSelectedCategory] = useState<Category>(CATEGORIES[0]);
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [adminStudents, setAdminStudents] = useState<AdminStudentTrialRow[]>([]);
+  const [isAdminStudentsLoading, setIsAdminStudentsLoading] = useState(false);
+  const [adminStudentsError, setAdminStudentsError] = useState<string | null>(null);
+  const [grantingStudentUid, setGrantingStudentUid] = useState<string | null>(null);
+  const { trialExtensionDays, lastFeedbackAt, loading: accountMetaLoading } = useUserAccountMeta(user);
 
   const isAdmin = isAdminUser(user);
+  const simulatedTrialPreview = (() => {
+    const raw = searchParams.get('trialPreview');
+    return raw === 'expired' || raw === 'pending' ? raw : null;
+  })();
   const featuredStudentPlanId = 'taller-metodo-mente-movimiento';
   const featuredStudentPlan = trainingPlans.find((plan) => plan.id === featuredStudentPlanId);
   const adminFilteredPlans = trainingPlans.filter((plan) => plan.category === selectedCategory);
   const trialStatus = useMemo(() => {
     if (!user || isAdmin) return null;
-    return getTrialStatus(user.metadata.creationTime);
-  }, [user, isAdmin]);
-  const remainingDaysLabel = trialStatus
-    ? String(Math.max(0, trialStatus.remainingDays)).padStart(2, '0')
+    return getTrialStatus(user.metadata.creationTime, { extraDays: trialExtensionDays });
+  }, [user, isAdmin, trialExtensionDays]);
+  const trialLockStage = useMemo(() => {
+    if (!trialStatus || isAdmin) return 'active';
+    return getTrialLockStage(trialStatus, {
+      lastFeedbackAt,
+      simulate: simulatedTrialPreview,
+    });
+  }, [isAdmin, lastFeedbackAt, simulatedTrialPreview, trialStatus]);
+  const effectiveTrialStatus = useMemo(() => {
+    if (!trialStatus) return null;
+    if (trialLockStage === 'active') return trialStatus;
+    return {
+      ...trialStatus,
+      remainingDays: 0,
+      isExpired: true,
+    };
+  }, [trialLockStage, trialStatus]);
+  const remainingDaysLabel = effectiveTrialStatus
+    ? String(Math.max(0, effectiveTrialStatus.remainingDays)).padStart(2, '0')
     : '00';
 
   const autoplay = useRef(
@@ -64,6 +111,82 @@ export default function Home() {
       });
     } finally {
       setIsSigningOut(false);
+    }
+  }
+
+  const loadAdminStudents = useCallback(async () => {
+    if (!isAdmin || !user || !db || !USE_FIRESTORE) {
+      setAdminStudents([]);
+      setAdminStudentsError(null);
+      setIsAdminStudentsLoading(false);
+      return;
+    }
+
+    setIsAdminStudentsLoading(true);
+    setAdminStudentsError(null);
+
+    try {
+      const snapshot = await getDocs(collection(db, 'users'));
+      const nextRows = snapshot.docs
+        .map((docSnapshot) => {
+          const data = docSnapshot.data() as Record<string, unknown>;
+          const role = String(data.role ?? '').trim().toLowerCase();
+          if (role === 'admin') return null;
+          return buildAdminStudentTrialRow(docSnapshot.id, data);
+        })
+        .filter((row): row is AdminStudentTrialRow => Boolean(row))
+        .sort((a, b) => {
+          const lockDelta = getLockStageRank(a.lockStage) - getLockStageRank(b.lockStage);
+          if (lockDelta !== 0) return lockDelta;
+          return (a.email ?? '').localeCompare(b.email ?? '');
+        });
+
+      setAdminStudents(nextRows);
+    } catch (error) {
+      setAdminStudentsError(firestoreAdminErrorMessage(error));
+    } finally {
+      setIsAdminStudentsLoading(false);
+    }
+  }, [isAdmin, user]);
+
+  useEffect(() => {
+    void loadAdminStudents();
+  }, [loadAdminStudents]);
+
+  async function handleGrantThirtyDays(student: AdminStudentTrialRow) {
+    if (!db || !USE_FIRESTORE) {
+      toast({
+        variant: 'destructive',
+        title: 'Firestore desactivado',
+        description: 'No se puede otorgar extensión sin Firestore activo.',
+      });
+      return;
+    }
+
+    setGrantingStudentUid(student.uid);
+
+    try {
+      const nextExtension = Math.max(0, student.trialExtensionDays) + 30;
+      await updateDoc(doc(db, 'users', student.uid), {
+        trialExtensionDays: nextExtension,
+        updatedAt: serverTimestamp(),
+        trialExtendedAt: serverTimestamp(),
+      });
+
+      toast({
+        title: 'Extensión aplicada',
+        description: `Se otorgaron 30 días extra a ${student.displayName || student.email || student.uid}.`,
+      });
+
+      await loadAdminStudents();
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'No se pudo otorgar extensión',
+        description: firestoreAdminErrorMessage(error),
+      });
+    } finally {
+      setGrantingStudentUid(null);
     }
   }
 
@@ -108,7 +231,7 @@ export default function Home() {
       </header>
 
       <main className="flex-grow w-full container mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {!loading && user && !isAdmin && trialStatus && (
+        {!loading && user && !isAdmin && !accountMetaLoading && effectiveTrialStatus && (
           <section className="mb-6">
             <Card className="mx-auto max-w-2xl border-primary/30 bg-card/80">
               <CardContent className="p-4 sm:p-5">
@@ -128,15 +251,27 @@ export default function Home() {
                   </div>
                   <div className="space-y-1">
                     <p className="text-base font-semibold">
-                      {trialStatus.isExpired
-                        ? `Tu prueba de ${trialStatus.totalDays} días finalizó.`
-                        : `${trialStatus.remainingDays} ${
-                            trialStatus.remainingDays === 1 ? 'día' : 'días'
-                          } restantes de prueba`}
+                      {trialLockStage === 'feedback_required'
+                        ? `Tu acceso de ${effectiveTrialStatus.totalDays} días finalizó.`
+                        : trialLockStage === 'pending_admin'
+                          ? 'Tu opinión ya fue enviada. Esperando habilitación del administrador.'
+                          : `${effectiveTrialStatus.remainingDays} ${
+                              effectiveTrialStatus.remainingDays === 1 ? 'día' : 'días'
+                            } restantes de prueba`}
                     </p>
-                    {!trialStatus.isExpired && trialStatus.endsAt && (
+                    {trialLockStage === 'feedback_required' && (
                       <p className="text-sm text-muted-foreground">
-                        Finaliza el {formatShortDate(trialStatus.endsAt)}.
+                        Envía tu opinión para desbloquear 30 días más.
+                      </p>
+                    )}
+                    {trialLockStage === 'active' && effectiveTrialStatus.endsAt && (
+                      <p className="text-sm text-muted-foreground">
+                        Finaliza el {formatShortDate(effectiveTrialStatus.endsAt)}.
+                      </p>
+                    )}
+                    {simulatedTrialPreview && (
+                      <p className="text-xs text-muted-foreground">
+                        Simulación activa: {simulatedTrialPreview}.
                       </p>
                     )}
                   </div>
@@ -217,7 +352,7 @@ export default function Home() {
           </Card>
         )}
 
-        {!loading && user && !isAdmin && featuredStudentPlan && (
+        {!loading && user && !isAdmin && !accountMetaLoading && featuredStudentPlan && (
           <section className="mb-8">
             <Card className="border-primary/30 shadow-sm">
               <CardHeader>
@@ -239,9 +374,23 @@ export default function Home() {
                     )}
                   </p>
                 </div>
-                <Button asChild>
-                  <Link href={`/plans/${featuredStudentPlan.id}`}>Abrir plan ahora</Link>
-                </Button>
+                {trialLockStage === 'active' ? (
+                  <Button asChild>
+                    <Link href={`/plans/${featuredStudentPlan.id}`}>Abrir plan ahora</Link>
+                  </Button>
+                ) : trialLockStage === 'feedback_required' ? (
+                  <Button asChild>
+                    <Link
+                      href={`/feedback?source=trial-lock&from=${encodeURIComponent(
+                        `/plans/${featuredStudentPlan.id}`
+                      )}`}
+                    >
+                      Enviar opinión para desbloquear +30 días
+                    </Link>
+                  </Button>
+                ) : (
+                  <Button disabled>Esperando habilitación del administrador</Button>
+                )}
               </CardContent>
             </Card>
           </section>
@@ -249,6 +398,99 @@ export default function Home() {
 
         {!loading && user && isAdmin && (
           <>
+            <section className="mb-8">
+              <Card className="border-primary/30">
+                <CardHeader>
+                  <CardTitle>Extensiones de prueba (Admin)</CardTitle>
+                  <CardDescription>
+                    Estudiantes bloqueados con opinión enviada pueden recibir +30 días con un clic.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm text-muted-foreground">
+                      {isAdminStudentsLoading
+                        ? 'Cargando estudiantes...'
+                        : `${adminStudents.length} cuentas de estudiante encontradas.`}
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void loadAdminStudents()}
+                      disabled={isAdminStudentsLoading || Boolean(grantingStudentUid)}
+                    >
+                      Recargar lista
+                    </Button>
+                  </div>
+
+                  {adminStudentsError && (
+                    <p className="text-sm text-destructive">{adminStudentsError}</p>
+                  )}
+
+                  {!db || !USE_FIRESTORE ? (
+                    <p className="text-sm text-muted-foreground">
+                      Firestore está desactivado. Este panel requiere nube activa.
+                    </p>
+                  ) : isAdminStudentsLoading ? (
+                    <p className="text-sm text-muted-foreground">Preparando panel...</p>
+                  ) : adminStudents.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      No se encontraron estudiantes todavía.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {adminStudents.map((student) => (
+                        <div
+                          key={student.uid}
+                          className="rounded-md border border-primary/20 bg-background px-3 py-3 space-y-2"
+                        >
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <p className="font-medium">
+                              {student.displayName || student.email || student.uid}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {student.lockStage === 'pending_admin'
+                                ? 'Pendiente de habilitación'
+                                : student.lockStage === 'feedback_required'
+                                  ? 'Bloqueado: falta opinión'
+                                  : 'Acceso activo'}
+                            </p>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {student.email || 'Sin email'}
+                            {student.createdAt ? ` · Alta: ${formatShortDate(student.createdAt)}` : ''}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Días extra: {student.trialExtensionDays} · Restantes: {student.trialRemainingDays}/
+                            {student.trialTotalDays}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Feedback: {student.lastFeedbackAt ? formatShortDate(student.lastFeedbackAt) : 'No enviado'}
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={() => void handleGrantThirtyDays(student)}
+                              disabled={Boolean(grantingStudentUid)}
+                            >
+                              {grantingStudentUid === student.uid ? 'Otorgando...' : 'Otorgar +30 días'}
+                            </Button>
+                            {student.lockStage === 'feedback_required' && (
+                              <Button type="button" size="sm" variant="outline" asChild>
+                                <Link href="/feedback">Abrir feedback</Link>
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </section>
+
             <div className="relative mb-12 w-full max-w-2xl mx-auto">
               <Carousel
                 opts={{ loop: true, align: 'center' }}
@@ -329,4 +571,104 @@ function formatShortDate(date: Date): string {
     month: 'short',
     day: 'numeric',
   });
+}
+
+function buildAdminStudentTrialRow(uid: string, data: Record<string, unknown>): AdminStudentTrialRow {
+  const createdAt = parseDateLike(data.createdAt);
+  const lastFeedbackAt = parseDateLike(data.lastFeedbackAt);
+  const trialExtensionDays = parseNonNegativeInt(data.trialExtensionDays);
+  const trialStatus = getTrialStatus(createdAt, { extraDays: trialExtensionDays });
+  const lockStage = getTrialLockStage(trialStatus, { lastFeedbackAt });
+
+  return {
+    uid,
+    displayName: typeof data.displayName === 'string' ? data.displayName : null,
+    email: typeof data.email === 'string' ? data.email : null,
+    createdAt,
+    lastFeedbackAt,
+    trialExtensionDays,
+    trialRemainingDays: trialStatus.remainingDays,
+    trialTotalDays: trialStatus.totalDays,
+    lockStage,
+  };
+}
+
+function parseDateLike(value: unknown): Date | null {
+  if (!value) return null;
+
+  if (value instanceof Date) {
+    return Number.isFinite(value.getTime()) ? value : null;
+  }
+
+  if (typeof value === 'string' || typeof value === 'number') {
+    const parsed = new Date(value);
+    return Number.isFinite(parsed.getTime()) ? parsed : null;
+  }
+
+  if (typeof value === 'object' && value) {
+    const maybeTimestamp = value as {
+      toDate?: () => unknown;
+      toMillis?: () => unknown;
+    };
+
+    if (typeof maybeTimestamp.toDate === 'function') {
+      try {
+        const parsed = maybeTimestamp.toDate();
+        if (parsed instanceof Date && Number.isFinite(parsed.getTime())) {
+          return parsed;
+        }
+      } catch {
+        // Continues with other parsing strategies.
+      }
+    }
+
+    if (typeof maybeTimestamp.toMillis === 'function') {
+      try {
+        const millis = Number(maybeTimestamp.toMillis());
+        if (Number.isFinite(millis)) {
+          const parsed = new Date(millis);
+          return Number.isFinite(parsed.getTime()) ? parsed : null;
+        }
+      } catch {
+        // Ignore malformed timestamp-like values.
+      }
+    }
+  }
+
+  return null;
+}
+
+function parseNonNegativeInt(value: unknown): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return 0;
+  return Math.max(0, Math.floor(parsed));
+}
+
+function getLockStageRank(stage: TrialLockStage): number {
+  switch (stage) {
+    case 'pending_admin':
+      return 0;
+    case 'feedback_required':
+      return 1;
+    case 'active':
+    default:
+      return 2;
+  }
+}
+
+function firestoreAdminErrorMessage(error: unknown): string {
+  if (typeof error !== 'object' || !error || !('code' in error)) {
+    return 'Inténtalo de nuevo.';
+  }
+
+  const code = String(error.code);
+
+  switch (code) {
+    case 'permission-denied':
+      return 'Tu cuenta no tiene permisos para leer/editar users en Firestore.';
+    case 'unavailable':
+      return 'Firestore no está disponible temporalmente.';
+    default:
+      return `Error de Firestore (${code}).`;
+  }
 }

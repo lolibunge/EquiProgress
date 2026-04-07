@@ -22,6 +22,7 @@ import { auth, db, USE_FIRESTORE } from '@/lib/firebase';
 import { isAdminEmail } from '@/lib/plan-visibility';
 import { PRICING, getTrialNotice, getTrialStatus } from '@/lib/pricing';
 import { useToast } from '@/hooks/use-toast';
+import { useUserAccountMeta } from '@/hooks/use-user-account-meta';
 
 type BusyMode = 'login' | 'signup' | 'reset' | 'logout' | null;
 type AuthTab = 'signup' | 'login' | 'reset';
@@ -45,6 +46,7 @@ function AuthPageContent() {
   const searchParams = useSearchParams();
   const { toast } = useToast();
   const { user, loading } = useAuth();
+  const { trialExtensionDays } = useUserAccountMeta(user);
 
   const [busyMode, setBusyMode] = useState<BusyMode>(null);
   const [activeTab, setActiveTab] = useState<AuthTab>('signup');
@@ -60,7 +62,9 @@ function AuthPageContent() {
   const [resetEmail, setResetEmail] = useState('');
   const [resetStatus, setResetStatus] = useState<ResetStatus>(null);
   const isAdmin = isAdminEmail(user?.email);
-  const trialStatus = !isAdmin && user ? getTrialStatus(user.metadata.creationTime) : null;
+  const trialStatus = !isAdmin && user
+    ? getTrialStatus(user.metadata.creationTime, { extraDays: trialExtensionDays })
+    : null;
 
   useEffect(() => {
     const mode = searchParams.get('mode');
@@ -151,6 +155,7 @@ function AuthPageContent() {
               displayName: cleanName,
               email: credentials.user.email,
               role,
+              trialExtensionDays: 0,
               createdAt: serverTimestamp(),
               updatedAt: serverTimestamp(),
             },
