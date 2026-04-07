@@ -20,7 +20,7 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { auth, db, USE_FIRESTORE } from '@/lib/firebase';
 import { isAdminEmail } from '@/lib/plan-visibility';
-import { getTrialNotice } from '@/lib/pricing';
+import { PRICING, getTrialNotice, getTrialStatus } from '@/lib/pricing';
 import { useToast } from '@/hooks/use-toast';
 
 type BusyMode = 'login' | 'signup' | 'reset' | 'logout' | null;
@@ -59,6 +59,8 @@ function AuthPageContent() {
 
   const [resetEmail, setResetEmail] = useState('');
   const [resetStatus, setResetStatus] = useState<ResetStatus>(null);
+  const isAdmin = isAdminEmail(user?.email);
+  const trialStatus = !isAdmin && user ? getTrialStatus(user.metadata.creationTime) : null;
 
   useEffect(() => {
     const mode = searchParams.get('mode');
@@ -274,6 +276,22 @@ function AuthPageContent() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
+              {!isAdmin && trialStatus && (
+                <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2">
+                  <p className="text-sm font-medium">
+                    {trialStatus.isExpired
+                      ? `Tu prueba de ${PRICING.trialDays} días finalizó.`
+                      : `Te quedan ${trialStatus.remainingDays} ${
+                          trialStatus.remainingDays === 1 ? 'día' : 'días'
+                        } para completar tu prueba de ${PRICING.trialDays} días.`}
+                  </p>
+                  {!trialStatus.isExpired && trialStatus.endsAt && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Finaliza el {formatShortDate(trialStatus.endsAt)}.
+                    </p>
+                  )}
+                </div>
+              )}
               <Button asChild className="w-full">
                 <Link href="/history">Abrir historial de progreso</Link>
               </Button>
@@ -493,6 +511,14 @@ function AuthPageContent() {
       </main>
     </div>
   );
+}
+
+function formatShortDate(date: Date): string {
+  return date.toLocaleDateString('es-UY', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
 }
 
 function firebaseErrorMessage(error: unknown): string {
