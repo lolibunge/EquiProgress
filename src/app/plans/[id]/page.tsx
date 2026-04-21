@@ -12,13 +12,6 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
-import {
-  Carousel,
-  CarouselContent,
-  CarouselItem,
-  CarouselNext,
-  CarouselPrevious,
-} from '@/components/ui/carousel';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -55,7 +48,13 @@ import {
   type ProgressHistoryEntry,
   type SavedPlan,
 } from '@/lib/progress-store';
-import { trainingPlans } from '@/data/training-plans';
+import {
+  getPlanDayExercises,
+  getPlanWeekExercises,
+  trainingPlans,
+  type TrainingPlan,
+  weekUsesMultiExerciseDays,
+} from '@/data/training-plans';
 
 type ProgressEvent = {
   action: ProgressAction;
@@ -66,6 +65,19 @@ type ProgressEvent = {
 const WORK_DAYS_PER_WEEK = 5;
 const WORKDAY_LABELS = ['Día 1', 'Día 2', 'Día 3', 'Día 4', 'Día 5'];
 const SCORE_VALUES = [1, 2, 3, 4, 5] as const;
+const STUDENT_PANEL_CLASS =
+  'rounded-[1.9rem] border border-[#dccab7] bg-[#fffaf2]/95 shadow-[0_18px_45px_rgba(120,92,68,0.10)]';
+const STUDENT_PANEL_INSET_CLASS =
+  'rounded-[1.5rem] border border-[#ddceb9] bg-white/55 shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]';
+const STUDENT_MUTED_PANEL_CLASS =
+  'rounded-[1.35rem] border border-[#e3d7c7] bg-[#f4ecde]/78';
+const STUDENT_PROGRESS_TRACK_CLASS = 'bg-[#e6dccb]';
+const STUDENT_PROGRESS_FILL_CLASS =
+  'bg-gradient-to-r from-[#a24a1d] via-[#d88348] to-[#f4c68b]';
+const STUDENT_PRIMARY_BUTTON_CLASS =
+  'h-16 w-full rounded-full border-0 bg-[#b99b6a] px-8 text-lg font-bold text-[#2f2118] shadow-none hover:bg-[#ad8d5d] hover:text-[#2f2118] sm:w-auto';
+const STUDENT_SECONDARY_BUTTON_CLASS =
+  'h-12 rounded-full border border-[#ddceb9] bg-[#fff8ee] px-6 text-base font-semibold text-[#5f4636] shadow-none hover:bg-[#f3eadc] hover:text-[#4c382c]';
 
 export default function PlanDetailPage() {
   return (
@@ -78,8 +90,11 @@ export default function PlanDetailPage() {
 function PlanDetailPageContent() {
   const searchParams = useSearchParams();
   const { id } = useParams<{ id: string }>();
-  const plan = trainingPlans.find((entry) => entry.id === id);
-  if (!plan) notFound();
+  const matchedPlan = trainingPlans.find((entry) => entry.id === id);
+  if (!matchedPlan) {
+    notFound();
+  }
+  const plan: TrainingPlan = matchedPlan;
 
   const STORAGE_KEY = `equi:plan:${plan.id}`;
 
@@ -298,10 +313,7 @@ function PlanDetailPageContent() {
   }
 
   function getStageExercises(week: number): (typeof plan.exercises)[number][] {
-    const stage = plan.stages?.find((entry) => entry.week === week);
-    return (stage?.exerciseIds ?? [])
-      .map((exerciseId) => plan.exercises.find((entry) => entry.id === exerciseId))
-      .filter((entry): entry is (typeof plan.exercises)[number] => Boolean(entry));
+    return getPlanWeekExercises(plan, week);
   }
 
   function isCompleted(week: number) {
@@ -554,6 +566,28 @@ function PlanDetailPageContent() {
     plan.stages?.[0]?.week ??
     1
   }`;
+  const spotlightWeek =
+    saved.currentWeek > 0 ? saved.currentWeek : editableWeek > 0 ? editableWeek : 1;
+  const spotlightStage =
+    plan.stages?.find((stage) => stage.week === spotlightWeek) ?? plan.stages?.[0] ?? null;
+  const spotlightWeekDays = getWeekDays(spotlightWeek);
+  const spotlightExercises = getStageExercises(spotlightWeek);
+  const spotlightUsesMultiExerciseDays = weekUsesMultiExerciseDays(plan, spotlightWeek);
+  const spotlightDayIndex = (() => {
+    const nextOpenDay = spotlightWeekDays.findIndex((done) => !done);
+    return nextOpenDay >= 0 ? nextOpenDay : 0;
+  })();
+  const spotlightDayNumber = spotlightDayIndex + 1;
+  const spotlightDayExercises = getPlanDayExercises(plan, spotlightWeek, spotlightDayNumber);
+  const spotlightExercise =
+    spotlightDayExercises[0] ??
+    spotlightExercises[0] ??
+    plan.exercises[0] ??
+    null;
+  const spotlightDayLabel = `session-day-${spotlightDayNumber}`;
+  const spotlightDaysWorked = spotlightWeekDays.filter(Boolean).length;
+  const spotlightWeekPct = Math.round((spotlightDaysWorked / WORK_DAYS_PER_WEEK) * 100);
+  const planHeroTone = getPlanHeroTone(plan.category);
 
   if (authLoading || (Boolean(user) && !isAdmin && accountMetaLoading)) {
     return (
@@ -674,92 +708,265 @@ function PlanDetailPageContent() {
       </header>
 
       <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-10">
-        {(plan.image || plan.exercises?.length) && (
-          <section>
-            <Carousel opts={{ loop: true, align: 'center' }}>
-              <CarouselContent>
-                <CarouselItem className="basis-full">
-                  <Card className="h-full overflow-hidden rounded-2xl">
-                    {plan.image && (
-                      <div className="relative w-full aspect-square overflow-hidden">
-                        <Image
-                          src={plan.image}
-                          alt={`Imagen de ${planName}`}
-                          fill
-                          priority
-                          sizes="100vw"
-                          className="object-cover"
-                        />
+        {(plan.image || spotlightExercise || plan.exercises?.length) && (
+          <section className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.3fr)_minmax(320px,0.85fr)]">
+            <div className="relative min-w-0 overflow-hidden rounded-[2rem] border border-primary/20 bg-[#211713] text-white shadow-[0_28px_70px_rgba(78,52,46,0.16)]">
+              <div className="absolute inset-0">
+                <Image
+                  src={spotlightExercise?.image || plan.image || '/placeholder.jpg'}
+                  alt={spotlightExercise?.name || planName}
+                  fill
+                  priority
+                  sizes="100vw"
+                  className="object-cover"
+                />
+                <div className="absolute inset-0 bg-gradient-to-b from-black/15 via-black/35 to-[#1c1411]/95" />
+                <div className={`absolute inset-0 bg-gradient-to-tr ${planHeroTone.heroGlow}`} />
+              </div>
+
+              <div className="relative flex min-h-[34rem] flex-col justify-between gap-8 p-5 sm:p-8">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="flex flex-wrap gap-2">
+                    <span className="rounded-full border border-white/20 bg-black/15 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.2em] text-white/95 backdrop-blur-sm [text-shadow:0_1px_8px_rgba(0,0,0,0.45)]">
+                      Plan activo
+                    </span>
+                    <span className="rounded-full border border-white/20 bg-black/15 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.2em] text-white/95 backdrop-blur-sm [text-shadow:0_1px_8px_rgba(0,0,0,0.45)]">
+                      Semana {spotlightWeek} de {plan.weeks}
+                    </span>
+                  </div>
+                  <div className="rounded-2xl border border-white/12 bg-black/15 px-4 py-3 text-right backdrop-blur-sm">
+                    <p className="text-[10px] uppercase tracking-[0.22em] text-white/78 [text-shadow:0_1px_8px_rgba(0,0,0,0.45)]">Semana</p>
+                    <p className="text-2xl font-semibold leading-none text-white [text-shadow:0_3px_16px_rgba(0,0,0,0.5)]">{spotlightDaysWorked}/{WORK_DAYS_PER_WEEK}</p>
+                    <p className="mt-1 text-xs text-white/90 [text-shadow:0_1px_8px_rgba(0,0,0,0.45)]">días trabajados</p>
+                  </div>
+                </div>
+
+                <div className="max-w-2xl space-y-4">
+                  <div className="space-y-2">
+                    <p className="text-xs uppercase tracking-[0.24em] text-white/82 [text-shadow:0_1px_8px_rgba(0,0,0,0.5)]">
+                      {spotlightStage?.title || 'Sesión recomendada'}
+                    </p>
+                    <h2 className="text-4xl font-black leading-[0.92] tracking-tight text-white [text-shadow:0_5px_22px_rgba(0,0,0,0.6)] sm:text-5xl">
+                      {spotlightUsesMultiExerciseDays
+                        ? `Sesión del día ${spotlightDayNumber}`
+                        : spotlightExercise?.name || planName}
+                    </h2>
+                    <p className="max-w-xl text-sm leading-relaxed text-white/92 [text-shadow:0_2px_12px_rgba(0,0,0,0.55)] sm:text-base">
+                      {spotlightUsesMultiExerciseDays
+                        ? `Hoy repites los ${spotlightDayExercises.length} ejercicios de ${spotlightStage?.title || 'esta etapa'}.`
+                        : spotlightExercise?.objective || spotlightStage?.description || planDescription}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 text-xs text-white/95 sm:text-sm">
+                    <span className="rounded-full bg-black/15 px-3 py-1 backdrop-blur-sm [text-shadow:0_1px_8px_rgba(0,0,0,0.45)]">
+                      {spotlightUsesMultiExerciseDays
+                        ? `${spotlightDayExercises.length} ejercicios`
+                        : spotlightExercise?.duration || plan.duration}
+                    </span>
+                    <span className="rounded-full bg-black/15 px-3 py-1 backdrop-blur-sm [text-shadow:0_1px_8px_rgba(0,0,0,0.45)]">
+                      {planName}
+                    </span>
+                    <span className="rounded-full bg-black/15 px-3 py-1 backdrop-blur-sm [text-shadow:0_1px_8px_rgba(0,0,0,0.45)]">
+                      {progressPct}% completado
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+                  <div className="min-w-0 rounded-[1.6rem] border border-white/12 bg-white/10 p-4 backdrop-blur-sm">
+                    <p className="text-[11px] uppercase tracking-[0.2em] text-white/82 [text-shadow:0_1px_8px_rgba(0,0,0,0.45)]">
+                      {spotlightUsesMultiExerciseDays ? 'Sesión del día' : 'En foco ahora'}
+                    </p>
+                    <div className="mt-3 flex items-start gap-3 sm:items-center">
+                      <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-[1rem] border border-white/12 bg-black/20 sm:h-20 sm:w-20 sm:rounded-[1.2rem]">
+                        {spotlightExercise?.image ? (
+                          <Image
+                            src={spotlightExercise.image}
+                            alt={spotlightExercise.name}
+                            fill
+                            sizes="80px"
+                            className="object-cover"
+                          />
+                        ) : (
+                          <div className={`h-full w-full bg-gradient-to-br ${planHeroTone.thumbGlow}`} />
+                        )}
                       </div>
+                      <div className="min-w-0">
+                        <p className="break-words text-base font-semibold leading-tight text-white [text-shadow:0_3px_16px_rgba(0,0,0,0.55)] sm:text-lg">
+                          {spotlightUsesMultiExerciseDays
+                            ? `Día ${spotlightDayNumber} · sesión completa`
+                            : spotlightExercise?.name || planName}
+                        </p>
+                        <p className="mt-1 text-sm text-white/92 [text-shadow:0_2px_10px_rgba(0,0,0,0.5)]">
+                          {spotlightUsesMultiExerciseDays
+                            ? `Incluye ${spotlightDayExercises.length} ejercicios`
+                            : spotlightExercise?.duration || spotlightStage?.title || 'Sesión destacada'}
+                        </p>
+                        {spotlightUsesMultiExerciseDays ? (
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {spotlightDayExercises.map((exercise) => (
+                              <span
+                                key={`${plan.id}-spotlight-hero-${exercise.id}`}
+                                className="rounded-full bg-black/15 px-3 py-1 text-xs text-white/95 backdrop-blur-sm [text-shadow:0_1px_8px_rgba(0,0,0,0.45)]"
+                              >
+                                {exercise.name}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="mt-2 text-xs text-white/82 [text-shadow:0_1px_8px_rgba(0,0,0,0.45)]">
+                            {spotlightStage?.description || planDescription}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-3 sm:flex-row">
+                    {spotlightUsesMultiExerciseDays ? (
+                      <Button
+                        type="button"
+                        className={STUDENT_PRIMARY_BUTTON_CLASS}
+                        onClick={() =>
+                          document.getElementById(spotlightDayLabel)?.scrollIntoView({ behavior: 'smooth' })
+                        }
+                      >
+                        Ver sesión del día
+                      </Button>
+                    ) : spotlightExercise?.id ? (
+                      <Button asChild className={STUDENT_PRIMARY_BUTTON_CLASS}>
+                        <Link href={`/exercises/${spotlightExercise.id}?from=${plan.id}&week=${spotlightWeek}&day=${spotlightDayNumber}`}>
+                          Abrir sesión
+                        </Link>
+                      </Button>
+                    ) : (
+                      <Button
+                        className={STUDENT_PRIMARY_BUTTON_CLASS}
+                        onClick={saved.startAt ? () => setCurrentWeek(spotlightWeek) : startPlan}
+                      >
+                        {saved.startAt ? 'Continuar semana' : 'Comenzar plan'}
+                      </Button>
                     )}
-                    <CardHeader className="py-3">
-                      <CardTitle>{planName}</CardTitle>
-                      <CardDescription>{plan.duration}</CardDescription>
-                    </CardHeader>
-                    <CardContent className="pt-0 pb-4 space-y-4">
-                      <div className="space-y-2">
-                        <p className="text-xl font-semibold">Descripción general</p>
-                        <p className="text-muted-foreground leading-relaxed">
-                          {planDescription}
-                        </p>
-                      </div>
-                      <div className="rounded-xl border border-primary/20 p-3">
-                        <p className="text-sm text-muted-foreground">Duración</p>
-                        <p className="text-base font-medium">
-                          {plan.weeks} semana{plan.weeks === 1 ? '' : 's'} estimada{plan.weeks === 1 ? '' : 's'}
-                        </p>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </CarouselItem>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-14 w-full rounded-full border-white/20 bg-white/5 px-7 text-base font-semibold text-white hover:bg-white/10 hover:text-white sm:w-auto"
+                      onClick={() =>
+                        document.getElementById('plan-progress')?.scrollIntoView({ behavior: 'smooth' })
+                      }
+                    >
+                      Ver progreso
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
 
-                {plan.exercises?.map((exercise, index) => (
-                  <CarouselItem
-                    key={`${plan.id}-hero-ex-${exercise.id ?? 'noid'}-${index}`}
-                    className="basis-full"
-                  >
-                    <Card className="h-full overflow-hidden rounded-2xl">
-                      <div className="relative w-full aspect-square overflow-hidden">
-                        <Image
-                          src={exercise.image || '/placeholder.jpg'}
-                          alt={exercise.name}
-                          fill
-                          className="object-cover"
-                          sizes="100vw"
-                        />
-                      </div>
+            <div className="min-w-0 space-y-4">
+              <Card className={`min-w-0 ${STUDENT_PANEL_CLASS}`}>
+                <CardHeader>
+                  <CardTitle>Resumen rápido</CardTitle>
+                  <CardDescription>Un vistazo claro de dónde estás dentro del plan.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className={`${STUDENT_MUTED_PANEL_CLASS} px-4 py-3`}>
+                      <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Semanas</p>
+                      <p className="mt-1 text-2xl font-semibold">{weeksCompleted}/{plan.weeks}</p>
+                    </div>
+                    <div className={`${STUDENT_MUTED_PANEL_CLASS} px-4 py-3`}>
+                      <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Días</p>
+                      <p className="mt-1 text-2xl font-semibold">{workedDays}/{totalDays}</p>
+                    </div>
+                  </div>
 
-                      <CardHeader className="py-3">
-                        <CardTitle className="leading-tight">{exercise.name}</CardTitle>
-                        <CardDescription>
-                          {exercise.duration ?? exercise.reps ?? '—'}
-                        </CardDescription>
-                      </CardHeader>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm text-muted-foreground">
+                      <span>Avance acumulado</span>
+                      <span>{progressPct}%</span>
+                    </div>
+                    <div className={`h-3 overflow-hidden rounded-full ${STUDENT_PROGRESS_TRACK_CLASS}`}>
+                      <div
+                        className={`h-full rounded-full ${STUDENT_PROGRESS_FILL_CLASS}`}
+                        style={{ width: `${progressPct}%` }}
+                      />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
 
-                      <CardContent className="pt-0 pb-3 space-y-3">
-                        <p className="text-sm text-muted-foreground line-clamp-3">
-                          {exercise.description ?? exercise.objective ?? 'Ejercicio guiado de esta etapa.'}
-                        </p>
-                        <Button asChild className="w-full">
-                          <Link href={`/exercises/${exercise.id}?from=${plan.id}`}>
-                            Ver ejercicio
-                          </Link>
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  </CarouselItem>
-                ))}
-              </CarouselContent>
+              <Card className={`min-w-0 ${STUDENT_PANEL_CLASS}`}>
+                <CardHeader>
+                  <CardTitle>Esta semana</CardTitle>
+                  <CardDescription>
+                    {spotlightStage?.title || `Semana ${spotlightWeek}`} · {spotlightWeekPct}% completada
+                    {spotlightUsesMultiExerciseDays
+                      ? ' · Los mismos 5 ejercicios se repiten cada día.'
+                      : ''}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {WORKDAY_LABELS.map((label, dayIndex) => (
+                    (() => {
+                      const dayExercises = getPlanDayExercises(plan, spotlightWeek, dayIndex + 1);
+                      const primaryExercise = dayExercises[0] ?? null;
 
-              <CarouselPrevious className="left-2 top-1/2 -translate-y-1/2 h-9 w-9" />
-              <CarouselNext className="right-2 top-1/2 -translate-y-1/2 h-9 w-9" />
-            </Carousel>
+                      return (
+                        <div
+                          key={`${plan.id}-spotlight-day-${dayIndex}`}
+                          id={`session-day-${dayIndex + 1}`}
+                          className={`flex flex-col items-start gap-2 rounded-2xl border px-3 py-3 ${
+                            spotlightWeekDays[dayIndex]
+                              ? 'border-[#d1dfc4] bg-[#eef4e7]'
+                              : 'border-primary/10 bg-background/75'
+                          }`}
+                        >
+                          <div className="flex w-full items-start justify-between gap-3">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                                {label}
+                              </p>
+                              {dayExercises.length > 1 ? (
+                                <div className="mt-1 space-y-1">
+                                  {dayExercises.map((exercise) => (
+                                    <p
+                                      key={`${plan.id}-spotlight-day-${dayIndex}-${exercise.id}`}
+                                      className="break-words text-sm font-medium"
+                                    >
+                                      {exercise.name}
+                                    </p>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="mt-1 break-words text-sm font-medium">
+                                  {primaryExercise?.name || 'Práctica del plan'}
+                                </p>
+                              )}
+                            </div>
+                            <span
+                              className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium ${
+                                spotlightWeekDays[dayIndex]
+                                  ? 'bg-[#dceacb] text-[#42552a]'
+                                  : 'bg-secondary text-secondary-foreground'
+                              }`}
+                            >
+                              {spotlightWeekDays[dayIndex] ? 'Hecho' : 'Pendiente'}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })()
+                  ))}
+                </CardContent>
+              </Card>
+            </div>
           </section>
         )}
 
         {plan.stages?.length ? (
           <section>
-            <Card>
+            <Card className={STUDENT_PANEL_CLASS}>
               <CardHeader>
                 <CardTitle>Etapas del programa</CardTitle>
                 <CardDescription>
@@ -769,12 +976,12 @@ function PlanDetailPageContent() {
               <CardContent>
                 <Tabs key={`${plan.id}-${stageTabDefault}`} defaultValue={stageTabDefault}>
                   <div className="overflow-x-auto pb-2">
-                    <TabsList className="h-auto min-w-max gap-1">
+                    <TabsList className="h-auto min-w-max gap-2 rounded-[1.4rem] bg-[#efe6d8] p-2">
                       {plan.stages.map((stage) => (
                         <TabsTrigger
                           key={`${plan.id}-stage-tab-${stage.week}`}
                           value={`week-${stage.week}`}
-                          className="rounded-full px-4 py-2"
+                          className="rounded-full px-5 py-2.5 text-base text-[#745340] data-[state=active]:bg-[#fffaf2] data-[state=active]:text-[#4f3629] data-[state=active]:shadow-[0_10px_22px_rgba(120,92,68,0.12)]"
                         >
                           Semana {stage.week}
                         </TabsTrigger>
@@ -786,40 +993,57 @@ function PlanDetailPageContent() {
                     const stageExercises = getStageExercises(stage.week);
 
                     return (
-                      <TabsContent key={`${plan.id}-stage-content-${stage.week}`} value={`week-${stage.week}`}>
-                        <div className="rounded-xl border border-primary/20 p-4 space-y-4">
+                      <TabsContent
+                        key={`${plan.id}-stage-content-${stage.week}`}
+                        value={`week-${stage.week}`}
+                        className="mt-5"
+                      >
+                        <div className={`${STUDENT_PANEL_INSET_CLASS} space-y-4 p-5`}>
                           <div className="space-y-2">
-                            <p className="text-xs font-medium text-muted-foreground">
+                            <p className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
                               Etapa {stage.week}
                             </p>
-                            <h3 className="text-lg font-semibold">
+                            <h3 className="text-2xl font-semibold">
                               {stage.title || `Semana ${stage.week}`}
                             </h3>
-                            <p className="text-sm text-muted-foreground">
+                            <p className="text-base text-muted-foreground">
                               {stage.description}
                             </p>
                           </div>
 
                           {stageExercises.length > 0 ? (
                             <div className="space-y-2">
-                              <p className="text-sm font-medium">Ejercicios de esta etapa</p>
+                              <p className="text-sm font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                                Ejercicios de esta etapa
+                              </p>
                               <Accordion type="multiple" className="space-y-2">
                                 {stageExercises.map((exercise) => {
                                   return (
                                     <AccordionItem
                                       key={`${plan.id}-stage-${stage.week}-exercise-tab-${exercise.id}`}
                                       value={`stage-${stage.week}-${exercise.id}`}
-                                      className="rounded-lg border px-3"
+                                      className="rounded-[1.3rem] border border-[#dccdb8] bg-white/60 px-4"
                                     >
-                                      <AccordionTrigger className="py-3 text-left hover:no-underline">
+                                      <AccordionTrigger className="py-4 text-left text-base font-medium hover:no-underline">
                                         <span className="font-medium">{exercise.name}</span>
                                       </AccordionTrigger>
-                                      <AccordionContent className="pb-3">
-                                        <p className="text-sm text-muted-foreground">
-                                          {exercise.description ??
-                                            exercise.objective ??
-                                            'Ejercicio guiado de esta etapa.'}
-                                        </p>
+                                      <AccordionContent className="pb-4">
+                                        <div className="space-y-3">
+                                          <p className="text-sm leading-relaxed text-muted-foreground">
+                                            {exercise.description ??
+                                              exercise.objective ??
+                                              'Ejercicio guiado de esta etapa.'}
+                                          </p>
+                                          <Button
+                                            asChild
+                                            variant="secondary"
+                                            className={`${STUDENT_SECONDARY_BUTTON_CLASS} h-11 px-5 text-sm`}
+                                          >
+                                            <Link href={`/exercises/${exercise.id}?from=${plan.id}`}>
+                                              Ver ficha completa
+                                            </Link>
+                                          </Button>
+                                        </div>
                                       </AccordionContent>
                                     </AccordionItem>
                                   );
@@ -841,8 +1065,8 @@ function PlanDetailPageContent() {
           </section>
         ) : null}
 
-        <section>
-          <Card>
+        <section id="plan-progress">
+          <Card className={STUDENT_PANEL_CLASS}>
             <CardHeader className="space-y-3 sm:space-y-0 sm:flex sm:items-start sm:justify-between">
               <div className="min-w-0">
                 <CardTitle>Progreso del plan</CardTitle>
@@ -855,40 +1079,53 @@ function PlanDetailPageContent() {
 
               {!saved.startAt || saved.currentWeek === 0 ? (
                 <Button
-                  className="w-full sm:w-auto"
+                  className={STUDENT_PRIMARY_BUTTON_CLASS}
                   onClick={startPlan}
                   disabled={isLoadingProgress}
                 >
                   Iniciar plan
                 </Button>
               ) : (
-                <div className="flex w-full sm:w-auto flex-col sm:flex-row gap-2 min-w-0">
-                  <div className="flex w-full gap-2 min-w-0">
+                <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto">
+                  <div className="grid w-full min-w-0 grid-cols-2 gap-2 sm:min-w-[24rem]">
                     <Button
+                      type="button"
                       variant="outline"
                       onClick={() => setCurrentWeek(previousWeekTarget)}
                       disabled={!canGoToPreviousWeek}
-                      className="flex-1 sm:flex-none whitespace-normal text-center"
+                      className="h-auto min-h-[4.25rem] w-full flex-col items-start justify-center rounded-[1.5rem] border-[#ddceb9] bg-white/55 px-4 py-3 text-left hover:bg-[#f6efe4] disabled:opacity-45"
                     >
-                      Ver semana {previousWeekTarget}
+                      <span className="text-[11px] uppercase tracking-[0.16em] text-[#8f7a67]">
+                        Anterior
+                      </span>
+                      <span className="text-base font-semibold leading-tight text-[#5f4636]">
+                        Semana {previousWeekTarget}
+                      </span>
                     </Button>
                     <Button
+                      type="button"
                       variant="outline"
                       onClick={() => setCurrentWeek(nextWeekTarget)}
                       disabled={!canGoToNextWeek}
-                      className="flex-1 sm:flex-none whitespace-normal text-center"
+                      className="h-auto min-h-[4.25rem] w-full flex-col items-start justify-center rounded-[1.5rem] border-[#ddceb9] bg-white/55 px-4 py-3 text-left hover:bg-[#f6efe4] disabled:opacity-45"
                     >
-                      Ir a semana {nextWeekTarget}
+                      <span className="text-[11px] uppercase tracking-[0.16em] text-[#8f7a67]">
+                        Siguiente
+                      </span>
+                      <span className="text-base font-semibold leading-tight text-[#5f4636]">
+                        Semana {nextWeekTarget}
+                      </span>
                     </Button>
                   </div>
 
                   <Button
+                    type="button"
                     variant="ghost"
                     onClick={resetPlan}
                     disabled={isLoadingProgress}
-                    className="w-full sm:w-auto whitespace-normal text-center"
+                    className="h-11 w-full rounded-full px-5 text-center text-[#6d4d3a] hover:bg-[#f6efe4] sm:w-auto"
                   >
-                    Reiniciar
+                    Reiniciar progreso
                   </Button>
                 </div>
               )}
@@ -908,9 +1145,9 @@ function PlanDetailPageContent() {
                 <span>{progressPct}%</span>
               </div>
 
-              <div className="w-full h-2 rounded-full bg-muted overflow-hidden">
+              <div className={`w-full h-2 overflow-hidden rounded-full ${STUDENT_PROGRESS_TRACK_CLASS}`}>
                 <div
-                  className="h-full bg-primary transition-all"
+                  className={`h-full transition-all ${STUDENT_PROGRESS_FILL_CLASS}`}
                   style={{ width: `${progressPct}%` }}
                   role="progressbar"
                   aria-valuenow={progressPct}
@@ -920,7 +1157,11 @@ function PlanDetailPageContent() {
               </div>
 
               {saved.currentWeek > 0 && (
-                <Accordion type="single" collapsible className="rounded-lg border border-primary/20 px-3">
+                <Accordion
+                  type="single"
+                  collapsible
+                  className="rounded-[1.45rem] border border-[#ddceb9] bg-white/55 px-4"
+                >
                   <AccordionItem value="week-detail" className="border-none">
                     <AccordionTrigger className="py-3 text-left hover:no-underline">
                       <div className="space-y-1">
@@ -943,11 +1184,11 @@ function PlanDetailPageContent() {
                           Puedes cargar puntajes en esta semana ya completada.
                         </p>
                       )}
-                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
                         {WORKDAY_LABELS.map((label, dayIndex) => (
                           <label
                             key={`${saved.currentWeek}-${label}`}
-                            className="flex items-center gap-2 rounded-md border px-2 py-2 text-sm"
+                            className={`${STUDENT_MUTED_PANEL_CLASS} flex items-center gap-2 px-3 py-3 text-sm`}
                           >
                             <input
                               type="checkbox"
@@ -967,8 +1208,10 @@ function PlanDetailPageContent() {
                       </p>
 
                       {currentWeekExercises.length > 0 && (
-                        <div className="space-y-2 rounded-md border p-3">
-                          <p className="text-sm font-medium">Puntaje semanal por ejercicio</p>
+                        <div className={`${STUDENT_PANEL_INSET_CLASS} space-y-3 p-4`}>
+                          <p className="text-sm font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                            Puntaje semanal por ejercicio
+                          </p>
                           <div className="flex flex-wrap gap-1">
                             {WORKDAY_LABELS.map((_, dayIdx) => (
                               <Button
@@ -976,7 +1219,7 @@ function PlanDetailPageContent() {
                                 type="button"
                                 variant={selectedCurrentWeekScoreDayIndex === dayIdx ? 'default' : 'outline'}
                                 size="sm"
-                                className="h-8 px-2 text-xs"
+                                className="h-8 rounded-full px-3 text-xs"
                                 onClick={() => setSelectedScoreDay(saved.currentWeek, dayIdx + 1)}
                                 disabled={saved.currentWeek <= 0}
                               >
@@ -1000,10 +1243,10 @@ function PlanDetailPageContent() {
                                 <AccordionItem
                                   key={`${plan.id}-progress-week-${saved.currentWeek}-exercise-${exercise.id}`}
                                   value={`score-${saved.currentWeek}-${exercise.id}`}
-                                  className="rounded-md border px-2"
-                                >
-                                  <AccordionTrigger className="py-2 hover:no-underline">
-                                    <div className="flex w-full items-center justify-between gap-2 pr-2">
+                                className="rounded-[1.2rem] border border-[#ddceb9] bg-white/60 px-3"
+                              >
+                                <AccordionTrigger className="py-2 hover:no-underline">
+                                  <div className="flex w-full items-center justify-between gap-2 pr-2">
                                       <span className="text-sm font-medium text-left">
                                         {exercise.name}
                                       </span>
@@ -1022,15 +1265,15 @@ function PlanDetailPageContent() {
 
                                     <div className="flex flex-wrap gap-1">
                                       {SCORE_VALUES.map((value) => (
-                                        <Button
-                                          key={`${exercise.id}-progress-score-${value}`}
-                                          type="button"
-                                          variant={selectedScore === value ? 'default' : 'outline'}
-                                          size="sm"
-                                          className="h-8 w-8 px-0 text-xs"
-                                          onClick={() =>
-                                            setExerciseScore(
-                                              saved.currentWeek,
+                                      <Button
+                                        key={`${exercise.id}-progress-score-${value}`}
+                                        type="button"
+                                        variant={selectedScore === value ? 'default' : 'outline'}
+                                        size="sm"
+                                        className="h-8 w-8 rounded-full px-0 text-xs"
+                                        onClick={() =>
+                                          setExerciseScore(
+                                            saved.currentWeek,
                                               exercise.id,
                                               selectedCurrentWeekScoreDayIndex,
                                               value
@@ -1045,7 +1288,7 @@ function PlanDetailPageContent() {
                                         type="button"
                                         variant="ghost"
                                         size="sm"
-                                        className="h-8 px-2 text-xs"
+                                        className="h-8 rounded-full px-3 text-xs"
                                         onClick={() =>
                                           setExerciseScore(
                                             saved.currentWeek,
@@ -1076,9 +1319,9 @@ function PlanDetailPageContent() {
                   <span>{workedDays} / {totalDays} días</span>
                   <span>{dayProgressPct}%</span>
                 </div>
-                <div className="w-full h-2 rounded-full bg-muted overflow-hidden">
+                <div className={`w-full h-2 overflow-hidden rounded-full ${STUDENT_PROGRESS_TRACK_CLASS}`}>
                   <div
-                    className="h-full bg-primary/70 transition-all"
+                    className={`h-full transition-all ${STUDENT_PROGRESS_FILL_CLASS}`}
                     style={{ width: `${dayProgressPct}%` }}
                     role="progressbar"
                     aria-valuenow={dayProgressPct}
@@ -1096,7 +1339,7 @@ function PlanDetailPageContent() {
               {user && latestHistoryEntry && (
                 <div className="pt-2">
                   <h3 className="text-sm font-medium">Último registro</h3>
-                  <div className="mt-2 rounded-lg border p-2 text-xs sm:text-sm">
+                  <div className="mt-2 rounded-[1.2rem] border border-[#ddceb9] bg-white/60 p-3 text-xs sm:text-sm">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <span className="font-medium">
                         {PROGRESS_ACTION_LABELS[latestHistoryEntry.action]}
@@ -1110,7 +1353,7 @@ function PlanDetailPageContent() {
                     </p>
                   </div>
                   <div className="mt-2">
-                    <Button asChild variant="outline" size="sm">
+                    <Button asChild variant="outline" className={STUDENT_SECONDARY_BUTTON_CLASS}>
                       <Link href="/history">Ver historial completo</Link>
                     </Button>
                   </div>
@@ -1195,7 +1438,7 @@ function PlanDetailPageContent() {
         ) : null}
 
         <section>
-          <Card>
+          <Card className={STUDENT_PANEL_CLASS}>
             <CardHeader>
               <CardTitle>{isAdmin ? 'Vista de administrador' : 'Sincronización de estudiante activa'}</CardTitle>
               <CardDescription>
@@ -1233,6 +1476,30 @@ function PlanDetailPageLoading() {
       </main>
     </div>
   );
+}
+
+function getPlanHeroTone(category: string) {
+  switch (category) {
+    case 'Retraining':
+      return {
+        heroGlow: 'from-[#d8ea65]/0 via-[#a7c338]/12 to-[#5f6e1d]/30',
+        barGlow: 'from-[#7c8d24] via-[#bfd84f] to-[#eef7b7]',
+        thumbGlow: 'from-[#7c8d24] to-[#d8ea65]',
+      };
+    case 'Continuing Training':
+      return {
+        heroGlow: 'from-[#f1d5b0]/0 via-[#a97c60]/12 to-[#4E342E]/28',
+        barGlow: 'from-[#7b5843] via-[#b48b68] to-[#f1d5b0]',
+        thumbGlow: 'from-[#7b5843] to-[#d8b28d]',
+      };
+    case 'Unbroke':
+    default:
+      return {
+        heroGlow: 'from-[#f8d7b0]/0 via-[#b85a2b]/10 to-[#6f2f16]/32',
+        barGlow: 'from-[#8f3c16] via-[#cf7842] to-[#efc596]',
+        thumbGlow: 'from-[#8f3c16] to-[#ddb07b]',
+      };
+  }
 }
 
 function hasAnyProgress(saved: SavedPlan): boolean {

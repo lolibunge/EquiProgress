@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { collection, doc, getDocs, serverTimestamp, updateDoc } from 'firebase/firestore';
@@ -11,9 +12,14 @@ import { useAuth } from '@/components/auth-provider';
 import {
   trainingPlans,
   type TrainingPlan,
+  type PlanStage,
   CATEGORIES,
   CATEGORY_LABELS,
+  getPlanDayExercises,
+  getPlanStage,
+  getPlanWeekExercises,
   type Category,
+  weekUsesMultiExerciseDays,
 } from '@/data/training-plans';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -32,6 +38,11 @@ import {
   getTrialStatus,
   type TrialLockStage,
 } from '@/lib/pricing';
+import {
+  createEmptyProgress,
+  readLocalPlanProgress,
+  type SavedPlan,
+} from '@/lib/progress-store';
 import { useToast } from '@/hooks/use-toast';
 import { useUserAccountMeta } from '@/hooks/use-user-account-meta';
 
@@ -46,6 +57,20 @@ type AdminStudentTrialRow = {
   trialTotalDays: number;
   lockStage: TrialLockStage;
 };
+
+const STUDENT_WORK_DAYS_PER_WEEK = 5;
+const STUDENT_SESSION_TONES = [
+  'from-[#8f3c16] via-[#b85a2b] to-[#ddb07b]',
+  'from-[#556018] via-[#90a328] to-[#d8ea65]',
+  'from-[#4E342E] via-[#8a664c] to-[#d3b38c]',
+  'from-[#6a3d26] via-[#aa6d46] to-[#e8c49a]',
+  'from-[#385247] via-[#5c8576] to-[#b8d7ca]',
+] as const;
+const STUDENT_PROGRESS_TRACK_CLASS = 'bg-[#e6dccb]';
+const STUDENT_PROGRESS_FILL_CLASS =
+  'bg-gradient-to-r from-[#a24a1d] via-[#d88348] to-[#f4c68b]';
+const STUDENT_PRIMARY_BUTTON_CLASS =
+  'h-16 w-full rounded-full border-0 bg-[#b99b6a] px-8 text-lg font-bold text-[#2f2118] shadow-none hover:bg-[#ad8d5d] hover:text-[#2f2118] sm:w-auto';
 
 export default function Home() {
   return (
@@ -65,6 +90,7 @@ function HomePageContent() {
   const [isAdminStudentsLoading, setIsAdminStudentsLoading] = useState(false);
   const [adminStudentsError, setAdminStudentsError] = useState<string | null>(null);
   const [grantingStudentUid, setGrantingStudentUid] = useState<string | null>(null);
+  const [studentPlanProgress, setStudentPlanProgress] = useState<SavedPlan>(createEmptyProgress());
   const { trialExtensionDays, lastFeedbackAt, loading: accountMetaLoading } = useUserAccountMeta(user);
 
   const isAdmin = isAdminUser(user);
@@ -74,6 +100,9 @@ function HomePageContent() {
   })();
   const featuredStudentPlanId = 'taller-metodo-mente-movimiento';
   const featuredStudentPlan = trainingPlans.find((plan) => plan.id === featuredStudentPlanId);
+  const featuredStudentPlanStorageKey = featuredStudentPlan
+    ? `equi:plan:${featuredStudentPlan.id}`
+    : null;
   const adminFilteredPlans = trainingPlans.filter((plan) => plan.category === selectedCategory);
   const trialStatus = useMemo(() => {
     if (!user || isAdmin) return null;
@@ -98,6 +127,88 @@ function HomePageContent() {
   const remainingDaysLabel = effectiveTrialStatus
     ? String(Math.max(0, effectiveTrialStatus.remainingDays)).padStart(2, '0')
     : '00';
+
+  useEffect(() => {
+    if (!featuredStudentPlanStorageKey || !user || isAdmin) {
+      setStudentPlanProgress(createEmptyProgress());
+      return;
+    }
+
+    setStudentPlanProgress(readLocalPlanProgress(featuredStudentPlanStorageKey));
+  }, [featuredStudentPlanStorageKey, isAdmin, user]);
+
+  const studentCurrentWeek = useMemo(() => {
+    if (!featuredStudentPlan) return 1;
+    if (studentPlanProgress.currentWeek > 0) {
+      return Math.min(featuredStudentPlan.weeks, studentPlanProgress.currentWeek);
+    }
+
+    const firstOpenWeek = Array.from({ length: featuredStudentPlan.weeks }, (_, index) => index + 1).find(
+      (week) => !isSavedWeekCompleted(studentPlanProgress, week)
+    );
+    return firstOpenWeek ?? 1;
+  }, [featuredStudentPlan, studentPlanProgress]);
+
+  const studentCurrentStage = useMemo(() => {
+    if (!featuredStudentPlan) return null;
+    return (
+      getPlanStage(featuredStudentPlan, studentCurrentWeek) ??
+      featuredStudentPlan.stages?.[0] ??
+      null
+    );
+  }, [featuredStudentPlan, studentCurrentWeek]);
+
+  const studentCurrentWeekDays = useMemo(
+    () => getSavedWeekDays(studentPlanProgress, studentCurrentWeek),
+    [studentCurrentWeek, studentPlanProgress]
+  );
+
+  const studentWeekExercises = useMemo(() => {
+    if (!featuredStudentPlan) return [];
+    return getPlanWeekExercises(featuredStudentPlan, studentCurrentWeek);
+  }, [featuredStudentPlan, studentCurrentWeek]);
+
+  const studentWorkedDaysTotal = useMemo(() => {
+    if (!featuredStudentPlan) return 0;
+    return countWorkedDays(studentPlanProgress, featuredStudentPlan.weeks);
+  }, [featuredStudentPlan, studentPlanProgress]);
+
+  const studentWeeksCompleted = useMemo(() => {
+    if (!featuredStudentPlan) return 0;
+    return countCompletedWeeks(studentPlanProgress, featuredStudentPlan.weeks);
+  }, [featuredStudentPlan, studentPlanProgress]);
+
+  const studentTotalDays = featuredStudentPlan
+    ? featuredStudentPlan.weeks * STUDENT_WORK_DAYS_PER_WEEK
+    : 0;
+  const studentProgressPct =
+    studentTotalDays > 0 ? Math.round((studentWorkedDaysTotal / studentTotalDays) * 100) : 0;
+  const studentWorkedThisWeek = studentCurrentWeekDays.filter(Boolean).length;
+  const studentNextSessionIndex = studentCurrentWeekDays.findIndex((day) => !day);
+  const studentRecommendedDayNumber =
+    studentNextSessionIndex >= 0 ? studentNextSessionIndex + 1 : studentWeekExercises.length > 0 ? 1 : null;
+  const studentRecommendedDayExercises = useMemo(() => {
+    if (!featuredStudentPlan || !studentRecommendedDayNumber) return [];
+    return getPlanDayExercises(featuredStudentPlan, studentCurrentWeek, studentRecommendedDayNumber);
+  }, [featuredStudentPlan, studentCurrentWeek, studentRecommendedDayNumber]);
+  const studentRecommendedExercise =
+    studentRecommendedDayExercises[0] ?? studentWeekExercises[0] ?? null;
+  const studentWeekUsesMultiExerciseDays = useMemo(() => {
+    if (!featuredStudentPlan) return false;
+    return weekUsesMultiExerciseDays(featuredStudentPlan, studentCurrentWeek);
+  }, [featuredStudentPlan, studentCurrentWeek]);
+  const studentSessionCards = useMemo(
+    () =>
+      Array.from({ length: STUDENT_WORK_DAYS_PER_WEEK }, (_, index) => ({
+        dayNumber: index + 1,
+        completed: Boolean(studentCurrentWeekDays[index]),
+        exercises: featuredStudentPlan
+          ? getPlanDayExercises(featuredStudentPlan, studentCurrentWeek, index + 1)
+          : [],
+        tone: STUDENT_SESSION_TONES[index % STUDENT_SESSION_TONES.length],
+      })),
+    [featuredStudentPlan, studentCurrentWeek, studentCurrentWeekDays]
+  );
 
   const autoplay = useRef(
     Autoplay({ delay: 2500, stopOnInteraction: false, stopOnMouseEnter: false, playOnInit: true })
@@ -289,14 +400,42 @@ function HomePageContent() {
           </section>
         )}
 
-        <div className="flex flex-col items-center text-center mb-12">
-          <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold font-headline tracking-tight text-foreground">
-            Planes de Entrenamiento para Caballos
-          </h2>
-          <p className="mt-4 max-w-2xl text-lg text-muted-foreground">
-            Desde iniciar un caballo joven hasta refinar movimientos avanzados, encuentra un plan que se adapte a tu viaje.
-          </p>
-        </div>
+        {!loading && user && !isAdmin && featuredStudentPlan && (
+          <StudentHomeHybrid
+            plan={featuredStudentPlan}
+            planName={getPlanDisplayName(featuredStudentPlan.id, featuredStudentPlan.name, false)}
+            planDescription={getPlanDisplayDescription(
+              featuredStudentPlan.id,
+              featuredStudentPlan.description,
+              false
+            )}
+            currentWeek={studentCurrentWeek}
+            currentStage={studentCurrentStage}
+            workedThisWeek={studentWorkedThisWeek}
+            weeksCompleted={studentWeeksCompleted}
+            progressPct={studentProgressPct}
+            workedDaysTotal={studentWorkedDaysTotal}
+            totalDays={studentTotalDays}
+            remainingTrialDaysLabel={remainingDaysLabel}
+            trialEndsAt={effectiveTrialStatus?.endsAt ?? null}
+            trialLockStage={trialLockStage}
+            recommendedExercise={studentRecommendedExercise}
+            recommendedDayNumber={studentRecommendedDayNumber}
+            sessionCards={studentSessionCards}
+            weekUsesMultiExerciseDays={studentWeekUsesMultiExerciseDays}
+          />
+        )}
+
+        {(!user || isAdmin) && (
+          <div className="flex flex-col items-center text-center mb-12">
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold font-headline tracking-tight text-foreground">
+              Planes de Entrenamiento para Caballos
+            </h2>
+            <p className="mt-4 max-w-2xl text-lg text-muted-foreground">
+              Desde iniciar un caballo joven hasta refinar movimientos avanzados, encuentra un plan que se adapte a tu viaje.
+            </p>
+          </div>
+        )}
 
         {!loading && !user && (
           <>
@@ -337,7 +476,7 @@ function HomePageContent() {
           </>
         )}
 
-        {!loading && user && (
+        {!loading && user && isAdmin && (
           <Card className="mb-8">
             <CardHeader>
               <CardTitle>{isAdmin ? 'Modo administrador activo' : 'Modo estudiante activo'}</CardTitle>
@@ -358,50 +497,6 @@ function HomePageContent() {
               </div>
             </CardContent>
           </Card>
-        )}
-
-        {!loading && user && !isAdmin && !accountMetaLoading && featuredStudentPlan && (
-          <section className="mb-8">
-            <Card className="border-primary/30 shadow-sm">
-              <CardHeader>
-                <CardTitle>Tu plan asignado</CardTitle>
-                <CardDescription>
-                  Enfócate en este plan para evitar confusiones con otros contenidos.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <p className="text-xl font-semibold">
-                    {getPlanDisplayName(featuredStudentPlan.id, featuredStudentPlan.name, false)}
-                  </p>
-                  <p className="text-muted-foreground mt-1">
-                    {getPlanDisplayDescription(
-                      featuredStudentPlan.id,
-                      featuredStudentPlan.description,
-                      false
-                    )}
-                  </p>
-                </div>
-                {trialLockStage === 'active' ? (
-                  <Button asChild>
-                    <Link href={`/plans/${featuredStudentPlan.id}`}>Abrir plan ahora</Link>
-                  </Button>
-                ) : trialLockStage === 'feedback_required' ? (
-                  <Button asChild>
-                    <Link
-                      href={`/feedback?source=trial-lock&from=${encodeURIComponent(
-                        `/plans/${featuredStudentPlan.id}`
-                      )}`}
-                    >
-                      Enviar opinión para desbloquear +30 días
-                    </Link>
-                  </Button>
-                ) : (
-                  <Button disabled>Esperando habilitación del administrador</Button>
-                )}
-              </CardContent>
-            </Card>
-          </section>
         )}
 
         {!loading && user && isAdmin && (
@@ -598,6 +693,373 @@ function HomePageLoading() {
   );
 }
 
+type StudentSessionCard = {
+  dayNumber: number;
+  completed: boolean;
+  exercises: TrainingPlan['exercises'];
+  tone: (typeof STUDENT_SESSION_TONES)[number];
+};
+
+function StudentHomeHybrid({
+  plan,
+  planName,
+  planDescription,
+  currentWeek,
+  currentStage,
+  workedThisWeek,
+  weeksCompleted,
+  progressPct,
+  workedDaysTotal,
+  totalDays,
+  remainingTrialDaysLabel,
+  trialEndsAt,
+  trialLockStage,
+  recommendedExercise,
+  recommendedDayNumber,
+  sessionCards,
+  weekUsesMultiExerciseDays,
+}: {
+  plan: TrainingPlan;
+  planName: string;
+  planDescription: string;
+  currentWeek: number;
+  currentStage: PlanStage | null;
+  workedThisWeek: number;
+  weeksCompleted: number;
+  progressPct: number;
+  workedDaysTotal: number;
+  totalDays: number;
+  remainingTrialDaysLabel: string;
+  trialEndsAt: Date | null;
+  trialLockStage: TrialLockStage;
+  recommendedExercise: TrainingPlan['exercises'][number] | null;
+  recommendedDayNumber: number | null;
+  sessionCards: StudentSessionCard[];
+  weekUsesMultiExerciseDays: boolean;
+}) {
+  const recommendedSessionExercises =
+    (recommendedDayNumber
+      ? sessionCards.find((session) => session.dayNumber === recommendedDayNumber)?.exercises
+      : null) ?? [];
+  const primaryHref =
+    trialLockStage === 'active'
+      ? weekUsesMultiExerciseDays
+        ? `/plans/${plan.id}?focusWeek=${currentWeek}#session-day-${recommendedDayNumber ?? 1}`
+        : recommendedExercise?.id
+        ? `/exercises/${recommendedExercise.id}?from=${plan.id}&week=${currentWeek}${
+            recommendedDayNumber ? `&day=${recommendedDayNumber}` : ''
+          }`
+        : `/plans/${plan.id}`
+      : trialLockStage === 'feedback_required'
+        ? `/feedback?source=trial-lock&from=${encodeURIComponent(`/plans/${plan.id}`)}`
+        : null;
+  const primaryLabel =
+    trialLockStage === 'active'
+      ? recommendedExercise
+        ? 'Empezar sesión'
+        : 'Abrir plan'
+      : trialLockStage === 'feedback_required'
+        ? 'Enviar opinión para seguir'
+        : 'Esperando habilitación';
+  const panelTone = getStudentPlanPanelTone(plan.category);
+
+  return (
+    <section className="mb-12 space-y-5">
+      <div className="relative overflow-hidden rounded-[2rem] border border-primary/25 bg-[#211714] text-white shadow-[0_28px_70px_rgba(78,52,46,0.18)]">
+        <div className="absolute inset-0">
+          {plan.image && (
+            <Image
+              src={plan.image}
+              alt={planName}
+              fill
+              priority
+              sizes="100vw"
+              className="object-cover"
+            />
+          )}
+          <div className="absolute inset-0 bg-gradient-to-b from-black/15 via-black/35 to-[#1c1411]/95" />
+          <div className={`absolute inset-0 bg-gradient-to-tr ${panelTone.heroGlow}`} />
+        </div>
+
+        <div className="relative flex min-h-[32rem] flex-col justify-between gap-8 p-5 sm:min-h-[35rem] sm:p-8">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex flex-wrap gap-2">
+              <span className="rounded-full border border-white/20 bg-black/15 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.2em] text-white/95 backdrop-blur-sm [text-shadow:0_1px_8px_rgba(0,0,0,0.45)]">
+                Tu sesión de hoy
+              </span>
+              <span className="rounded-full border border-white/20 bg-black/15 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.2em] text-white/95 backdrop-blur-sm [text-shadow:0_1px_8px_rgba(0,0,0,0.45)]">
+                Semana {currentWeek} de {plan.weeks}
+              </span>
+            </div>
+            <div className="rounded-2xl border border-white/12 bg-black/15 px-4 py-3 text-right backdrop-blur-sm">
+              <p className="text-[10px] uppercase tracking-[0.22em] text-white/78 [text-shadow:0_1px_8px_rgba(0,0,0,0.45)]">Prueba</p>
+              <p className="text-3xl font-semibold leading-none text-white [text-shadow:0_3px_16px_rgba(0,0,0,0.5)]">{remainingTrialDaysLabel}</p>
+              <p className="mt-1 text-xs text-white/90 [text-shadow:0_1px_8px_rgba(0,0,0,0.45)]">
+                {trialEndsAt ? `Hasta ${formatShortDate(trialEndsAt)}` : 'Activa ahora'}
+              </p>
+            </div>
+          </div>
+
+          <div className="max-w-2xl space-y-4">
+            <div className="space-y-2">
+              <p className="text-xs uppercase tracking-[0.25em] text-white/82 [text-shadow:0_1px_8px_rgba(0,0,0,0.45)]">
+                {currentStage?.title || 'Plan asignado'}
+              </p>
+              <h2 className="max-w-xl text-4xl font-black leading-[0.92] tracking-tight text-white [text-shadow:0_5px_22px_rgba(0,0,0,0.55)] sm:text-5xl">
+                {weekUsesMultiExerciseDays
+                  ? `Sesión del día ${recommendedDayNumber ?? 1}`
+                  : recommendedExercise?.name || planName}
+              </h2>
+              <p className="max-w-xl text-sm leading-relaxed text-white/92 [text-shadow:0_2px_12px_rgba(0,0,0,0.5)] sm:text-base">
+                {weekUsesMultiExerciseDays
+                  ? `Hoy repites los ${recommendedSessionExercises.length || 5} ejercicios de ${currentStage?.title || 'esta etapa'}.`
+                  : recommendedExercise?.objective || currentStage?.description || planDescription}
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-2 text-xs text-white/95 sm:text-sm">
+              <span className="rounded-full bg-black/15 px-3 py-1 backdrop-blur-sm [text-shadow:0_1px_8px_rgba(0,0,0,0.45)]">
+                {weekUsesMultiExerciseDays
+                  ? `${recommendedSessionExercises.length || 5} ejercicios`
+                  : recommendedExercise?.duration || plan.duration}
+              </span>
+              <span className="rounded-full bg-black/15 px-3 py-1 backdrop-blur-sm [text-shadow:0_1px_8px_rgba(0,0,0,0.45)]">
+                {planName}
+              </span>
+              <span className="rounded-full bg-black/15 px-3 py-1 backdrop-blur-sm [text-shadow:0_1px_8px_rgba(0,0,0,0.45)]">
+                {workedThisWeek} de {STUDENT_WORK_DAYS_PER_WEEK} sesiones hechas esta semana
+              </span>
+            </div>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+            <div className="min-w-0 rounded-[1.6rem] border border-white/12 bg-white/10 p-4 backdrop-blur-sm">
+              <p className="text-[11px] uppercase tracking-[0.2em] text-white/82 [text-shadow:0_1px_8px_rgba(0,0,0,0.45)]">
+                {weekUsesMultiExerciseDays ? 'Sesión del día' : 'Recomendación'}
+              </p>
+              <div className="mt-3 flex items-start gap-3 sm:items-center">
+                <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-[1rem] border border-white/12 bg-black/20 sm:h-20 sm:w-20 sm:rounded-[1.2rem]">
+                  {recommendedExercise?.image ? (
+                    <Image
+                      src={recommendedExercise.image}
+                      alt={recommendedExercise.name}
+                      fill
+                      sizes="80px"
+                      className="object-cover"
+                    />
+                  ) : (
+                    <div className={`h-full w-full bg-gradient-to-br ${panelTone.thumbGlow}`} />
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <p className="break-words text-base font-semibold leading-tight text-white [text-shadow:0_3px_16px_rgba(0,0,0,0.5)] sm:text-lg">
+                    {weekUsesMultiExerciseDays
+                      ? `Día ${recommendedDayNumber ?? 1} · sesión completa`
+                      : recommendedExercise?.name || planName}
+                  </p>
+                  <p className="mt-1 text-sm text-white/92 [text-shadow:0_2px_10px_rgba(0,0,0,0.5)]">
+                    {weekUsesMultiExerciseDays
+                      ? `Incluye ${recommendedSessionExercises.length || 5} ejercicios`
+                      : recommendedExercise?.duration || currentStage?.title || 'Sesión del plan'}
+                  </p>
+                  {weekUsesMultiExerciseDays && recommendedSessionExercises.length > 0 ? (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {recommendedSessionExercises.map((exercise) => (
+                        <span
+                          key={`${plan.id}-recommended-session-${exercise.id}`}
+                          className="rounded-full bg-black/15 px-3 py-1 text-xs text-white/95 backdrop-blur-sm [text-shadow:0_1px_8px_rgba(0,0,0,0.45)]"
+                        >
+                          {exercise.name}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-xs text-white/82 [text-shadow:0_1px_8px_rgba(0,0,0,0.45)]">
+                      {trialLockStage === 'active'
+                        ? 'Lista para empezar cuando quieras.'
+                        : trialLockStage === 'feedback_required'
+                          ? 'Necesitas enviar tu opinión para seguir avanzando.'
+                          : 'Tu cuenta quedó a la espera de habilitación del administrador.'}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-3 sm:flex-row">
+              {primaryHref ? (
+                <Button asChild className={STUDENT_PRIMARY_BUTTON_CLASS}>
+                  <Link href={primaryHref}>{primaryLabel}</Link>
+                </Button>
+              ) : (
+                <Button
+                  disabled
+                  className={`${STUDENT_PRIMARY_BUTTON_CLASS} disabled:bg-[#cdb892] disabled:text-[#5c4832]`}
+                >
+                  {primaryLabel}
+                </Button>
+              )}
+              <Button asChild variant="outline" className="h-14 w-full rounded-full border-white/20 bg-white/5 px-7 text-base font-semibold text-white hover:bg-white/10 hover:text-white sm:w-auto">
+                <Link href={`/plans/${plan.id}`}>Ver plan completo</Link>
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.8fr)]">
+        <div className="min-w-0 rounded-[1.8rem] border border-primary/20 bg-card/85 p-4 shadow-sm sm:p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Tu semana</p>
+              <h3 className="mt-2 break-words text-2xl font-semibold">Semana {currentWeek}</h3>
+              {weekUsesMultiExerciseDays ? (
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Cada día repasa los mismos 5 ejercicios de esta etapa.
+                </p>
+              ) : null}
+            </div>
+            <div className="w-full rounded-2xl bg-secondary/70 px-4 py-3 text-left sm:w-auto sm:text-right">
+              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Progreso</p>
+              <p className="text-xl font-semibold">{workedThisWeek}/{STUDENT_WORK_DAYS_PER_WEEK}</p>
+            </div>
+          </div>
+
+          <div className="mt-5 space-y-3">
+            {sessionCards.map((session) => {
+              const primaryExercise = session.exercises[0] ?? null;
+              const content = (
+                <div className="flex items-start gap-3 overflow-hidden rounded-[1.5rem] border border-primary/10 bg-background/80 px-3 py-3 transition-transform hover:-translate-y-0.5 sm:items-center">
+                  <div className={`relative h-16 w-16 shrink-0 overflow-hidden rounded-[1rem] bg-gradient-to-br ${session.tone} sm:h-20 sm:w-20 sm:rounded-[1.15rem]`}>
+                    {primaryExercise?.image ? (
+                      <Image
+                        src={primaryExercise.image}
+                        alt={primaryExercise.name}
+                        fill
+                        sizes="80px"
+                        className="object-cover mix-blend-multiply opacity-90"
+                      />
+                    ) : null}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/35 to-transparent" />
+                    <div className="absolute bottom-2 left-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-white">
+                      Día {session.dayNumber}
+                    </div>
+                  </div>
+
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                      {session.completed ? 'Completada' : 'Pendiente'}
+                    </p>
+                    {session.exercises.length > 1 ? (
+                      <div className="mt-1 space-y-1">
+                        {session.exercises.map((exercise) => (
+                          <p
+                            key={`${plan.id}-session-${session.dayNumber}-${exercise.id}`}
+                            className="break-words text-sm font-medium leading-tight text-foreground/90 sm:text-base"
+                          >
+                            {exercise.name}
+                          </p>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="mt-1 break-words text-base font-semibold leading-tight sm:text-lg">
+                        {primaryExercise?.name || 'Sesión guiada'}
+                      </p>
+                    )}
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <p className="text-sm text-muted-foreground">
+                        {session.exercises.length > 1
+                          ? 'Sesión completa de sensibilización'
+                          : primaryExercise?.duration || currentStage?.title || 'Práctica del plan'}
+                      </p>
+                      <span
+                        className={`rounded-full px-3 py-1 text-xs font-medium ${
+                          session.completed
+                            ? 'bg-[#e6efdf] text-[#44552b]'
+                            : 'bg-secondary text-secondary-foreground'
+                        }`}
+                      >
+                        {session.completed ? 'Hecha' : 'Hoy'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+
+              if (primaryExercise?.id) {
+                return (
+                  <Link
+                    key={`${plan.id}-session-${session.dayNumber}-${primaryExercise.id}`}
+                    href={
+                      session.exercises.length > 1
+                        ? `/plans/${plan.id}?focusWeek=${currentWeek}#session-day-${session.dayNumber}`
+                        : `/exercises/${primaryExercise.id}?from=${plan.id}&week=${currentWeek}&day=${session.dayNumber}`
+                    }
+                    className="block"
+                  >
+                    {content}
+                  </Link>
+                );
+              }
+
+              return (
+                <div key={`${plan.id}-session-${session.dayNumber}-fallback`}>
+                  {content}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="min-w-0 space-y-5">
+          <div className="min-w-0 rounded-[1.8rem] border border-primary/20 bg-card/85 p-4 shadow-sm sm:p-5">
+            <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Avance total</p>
+            <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div className="min-w-0">
+                <h3 className="text-4xl font-black tracking-tight">{progressPct}%</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {workedDaysTotal} de {totalDays} sesiones marcadas
+                </p>
+              </div>
+              <div className="w-full rounded-2xl bg-secondary/70 px-4 py-3 text-left sm:w-auto sm:text-right">
+                <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Semanas</p>
+                <p className="text-xl font-semibold">{weeksCompleted}/{plan.weeks}</p>
+              </div>
+            </div>
+
+            <div className={`mt-5 h-3 overflow-hidden rounded-full ${STUDENT_PROGRESS_TRACK_CLASS}`}>
+              <div
+                className={`h-full rounded-full ${STUDENT_PROGRESS_FILL_CLASS}`}
+                style={{ width: `${progressPct}%` }}
+              />
+            </div>
+          </div>
+
+          <div className="min-w-0 rounded-[1.8rem] border border-primary/20 bg-card/85 p-4 shadow-sm sm:p-5">
+            <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Etapa actual</p>
+            <h3 className="mt-2 text-2xl font-semibold">
+              {currentStage?.title || `Semana ${currentWeek}`}
+            </h3>
+            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+              {currentStage?.description || planDescription}
+            </p>
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="rounded-2xl bg-secondary/70 px-4 py-3">
+                <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Plan</p>
+                <p className="mt-1 font-semibold">{plan.duration}</p>
+              </div>
+              <div className="rounded-2xl bg-secondary/70 px-4 py-3">
+                <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Meta</p>
+                <p className="mt-1 font-semibold">{planName}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function formatShortDate(date: Date): string {
   return date.toLocaleDateString('es-UY', {
     year: 'numeric',
@@ -675,6 +1137,51 @@ function parseNonNegativeInt(value: unknown): number {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return 0;
   return Math.max(0, Math.floor(parsed));
+}
+
+function getSavedWeekDays(progress: SavedPlan, week: number): boolean[] {
+  const stored = progress.daysByWeek[String(week)] ?? [];
+  return Array.from({ length: STUDENT_WORK_DAYS_PER_WEEK }, (_, index) => Boolean(stored[index]));
+}
+
+function isSavedWeekCompleted(progress: SavedPlan, week: number): boolean {
+  return getSavedWeekDays(progress, week).every(Boolean);
+}
+
+function countWorkedDays(progress: SavedPlan, totalWeeks: number): number {
+  return Array.from({ length: totalWeeks }, (_, index) => index + 1)
+    .map((week) => getSavedWeekDays(progress, week).filter(Boolean).length)
+    .reduce((total, value) => total + value, 0);
+}
+
+function countCompletedWeeks(progress: SavedPlan, totalWeeks: number): number {
+  return Array.from({ length: totalWeeks }, (_, index) => index + 1).filter((week) =>
+    isSavedWeekCompleted(progress, week)
+  ).length;
+}
+
+function getStudentPlanPanelTone(category: Category) {
+  switch (category) {
+    case 'Retraining':
+      return {
+        heroGlow: 'from-[#d8ea65]/0 via-[#a7c338]/12 to-[#5f6e1d]/32',
+        barGlow: 'from-[#a7c338] via-[#cadf63] to-[#eef7b7]',
+        thumbGlow: 'from-[#7c8d24] to-[#d8ea65]',
+      };
+    case 'Continuing Training':
+      return {
+        heroGlow: 'from-[#f1d5b0]/0 via-[#b08363]/12 to-[#4E342E]/30',
+        barGlow: 'from-[#9b6b4a] via-[#c69a73] to-[#f1d5b0]',
+        thumbGlow: 'from-[#7b5a45] to-[#d7b08b]',
+      };
+    case 'Unbroke':
+    default:
+      return {
+        heroGlow: 'from-[#ffdfbf]/0 via-[#b85a2b]/10 to-[#6f2f16]/34',
+        barGlow: 'from-[#8f3c16] via-[#c36a35] to-[#efc596]',
+        thumbGlow: 'from-[#8f3c16] to-[#ddb07b]',
+      };
+  }
 }
 
 function getLockStageRank(stage: TrialLockStage): number {

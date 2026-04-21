@@ -6,7 +6,6 @@ import { useParams, notFound, useSearchParams } from 'next/navigation';
 import { trainingPlans } from '@/data/training-plans';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import {
   Clock,
@@ -17,6 +16,15 @@ import {
   Check,
 } from 'lucide-react';
 import { Suspense } from 'react';
+
+const EXERCISE_PANEL_CLASS =
+  'rounded-[1.9rem] border border-[#dccab7] bg-[#fffaf2]/95 shadow-[0_18px_45px_rgba(120,92,68,0.10)]';
+const EXERCISE_INSET_CLASS =
+  'rounded-[1.5rem] border border-[#ddceb9] bg-white/55 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]';
+const EXERCISE_PILL_CLASS =
+  'rounded-full border border-[#e2d5c3] bg-[#efe6d8]/92 px-4 py-2 text-sm font-semibold text-[#5f4636]';
+const EXERCISE_PRIMARY_BUTTON_CLASS =
+  'h-16 w-full rounded-full border-0 bg-[#b99b6a] px-8 text-lg font-bold text-[#2f2118] shadow-none hover:bg-[#ad8d5d] hover:text-[#2f2118]';
 
 // Busca el ejercicio por id y devuelve también el plan dueño.
 // Si llega `from`, se prioriza ese plan para evitar mezclar ids repetidos entre planes.
@@ -122,29 +130,31 @@ function ExerciseDetailPageContent() {
 
       <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
         {ex.image && (
-          <div className="relative w-full aspect-square sm:aspect-[16/9] overflow-hidden rounded-2xl">
-            <Image
-              src={ex.image}
-              alt={ex.name}
-              fill
-              sizes="100vw"
-              className="object-cover"
-            />
+          <div className={`${EXERCISE_PANEL_CLASS} overflow-hidden p-3`}>
+            <div className="relative w-full aspect-square overflow-hidden rounded-[1.5rem] sm:aspect-[16/10]">
+              <Image
+                src={ex.image}
+                alt={ex.name}
+                fill
+                sizes="100vw"
+                className="object-cover"
+              />
+            </div>
           </div>
         )}
 
         <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Card className="md:col-span-2">
-            <CardHeader>
+          <Card className={`md:col-span-2 ${EXERCISE_PANEL_CLASS}`}>
+            <CardHeader className="pb-0">
               <CardTitle>Descripción</CardTitle>
               <CardDescription>{duration || reps || '—'}</CardDescription>
             </CardHeader>
 
             <CardContent className="space-y-6">
               {(duration || reps || gear.length > 0) && (
-                <div className="flex flex-wrap items-center gap-2">
+                <div className={`${EXERCISE_INSET_CLASS} flex flex-wrap items-center gap-2`}>
                   {duration && (
-                    <Badge variant="secondary" className="rounded-2xl px-3 py-1 text-xs">
+                    <Badge variant="secondary" className={EXERCISE_PILL_CLASS}>
                       <span className="inline-flex items-center gap-1">
                         <Clock className="size-3.5" />
                         {duration}
@@ -153,7 +163,7 @@ function ExerciseDetailPageContent() {
                   )}
 
                   {reps && (
-                    <Badge variant="secondary" className="rounded-2xl px-3 py-1 text-xs">
+                    <Badge variant="secondary" className={EXERCISE_PILL_CLASS}>
                       <span className="inline-flex items-center gap-1">
                         <ListChecks className="size-3.5" />
                         {reps}
@@ -162,7 +172,7 @@ function ExerciseDetailPageContent() {
                   )}
 
                   {gear.map((g: string, i: number) => (
-                    <Badge key={i} variant="secondary" className="rounded-2xl px-3 py-1 text-xs">
+                    <Badge key={i} variant="secondary" className={EXERCISE_PILL_CLASS}>
                       {g}
                     </Badge>
                   ))}
@@ -170,7 +180,7 @@ function ExerciseDetailPageContent() {
               )}
 
               {headline && (
-                <div className="space-y-2">
+                <div className={`${EXERCISE_INSET_CLASS} space-y-2`}>
                   <div className="flex items-center gap-2 text-sm font-semibold text-foreground/80">
                     <Target className="size-4" aria-hidden />
                     <span>Objetivo</span>
@@ -180,7 +190,7 @@ function ExerciseDetailPageContent() {
               )}
 
               {focus && (
-                <div className="space-y-2">
+                <div className={`${EXERCISE_INSET_CLASS} space-y-2`}>
                   <div className="flex items-center gap-2 text-sm font-semibold text-foreground/80">
                     <Target className="size-4" aria-hidden />
                     <span>Enfoque</span>
@@ -189,9 +199,7 @@ function ExerciseDetailPageContent() {
                 </div>
               )}
 
-              <Separator />
-
-              <div className="space-y-2">
+              <div className={`${EXERCISE_INSET_CLASS} space-y-2`}>
                 <div className="flex items-center gap-2 text-sm font-semibold text-foreground/80">
                   <ListChecks className="size-4" aria-hidden />
                   <span>Cómo se hace</span>
@@ -208,7 +216,7 @@ function ExerciseDetailPageContent() {
               </div>
 
               <div className="grid gap-6 md:grid-cols-2">
-                <div className="space-y-2">
+                <div className={`${EXERCISE_INSET_CLASS} space-y-2`}>
                   <div className="flex items-center gap-2 text-sm font-semibold text-foreground/80">
                     <Info className="size-4" aria-hidden />
                     <span>Ayudas / Cues</span>
@@ -224,7 +232,7 @@ function ExerciseDetailPageContent() {
                   )}
                 </div>
 
-                <div className="space-y-2">
+                <div className={`${EXERCISE_INSET_CLASS} space-y-2`}>
                   <div className="flex items-center gap-2 text-sm font-semibold text-foreground/80">
                     <Info className="size-4" aria-hidden />
                     <span>Prerrequisitos</span>
@@ -242,7 +250,7 @@ function ExerciseDetailPageContent() {
               </div>
 
               {safety.length > 0 && (
-                <div className="space-y-2">
+                <div className={`${EXERCISE_INSET_CLASS} space-y-2`}>
                   <div className="flex items-center gap-2 text-sm font-semibold text-foreground/80">
                     <AlertTriangle className="size-4" aria-hidden />
                     <span>Seguridad</span>
@@ -256,7 +264,7 @@ function ExerciseDetailPageContent() {
               )}
 
               {commonMistakes.length > 0 && (
-                <div className="space-y-2">
+                <div className={`${EXERCISE_INSET_CLASS} space-y-2`}>
                   <div className="flex items-center gap-2 text-sm font-semibold text-foreground/80">
                     <AlertTriangle className="size-4" aria-hidden />
                     <span>Errores comunes</span>
@@ -270,7 +278,7 @@ function ExerciseDetailPageContent() {
               )}
 
               {instructorTips.length > 0 && (
-                <div className="space-y-2">
+                <div className={`${EXERCISE_INSET_CLASS} space-y-2`}>
                   <div className="flex items-center gap-2 text-sm font-semibold text-foreground/80">
                     <Info className="size-4" aria-hidden />
                     <span>Tips del instructor</span>
@@ -284,14 +292,14 @@ function ExerciseDetailPageContent() {
               )}
 
               {progress.length > 0 && (
-                <div className="space-y-2">
+                <div className={`${EXERCISE_INSET_CLASS} space-y-2`}>
                   <div className="flex items-center gap-2 text-sm font-semibold text-foreground/80">
                     <Check className="size-4" aria-hidden />
                     <span>Señales de progreso</span>
                   </div>
                   <ul className="grid gap-2 sm:grid-cols-2">
                     {progress.map((s: any, i: number) => (
-                      <li key={i} className="flex items-start gap-2 rounded-xl border p-3 text-sm">
+                      <li key={i} className="flex items-start gap-2 rounded-[1.2rem] border border-[#ddceb9] bg-white/60 p-4 text-sm">
                         <Check className="mt-0.5 size-4" aria-hidden />
                         <div>
                           <div className="font-medium">{s.label}</div>
@@ -306,7 +314,7 @@ function ExerciseDetailPageContent() {
               )}
 
               {advance.length > 0 && (
-                <div className="space-y-2">
+                <div className={`${EXERCISE_INSET_CLASS} space-y-2`}>
                   <div className="flex items-center gap-2 text-sm font-semibold text-foreground/80">
                     <Check className="size-4" aria-hidden />
                     <span>Criterios para avanzar</span>
@@ -320,7 +328,7 @@ function ExerciseDetailPageContent() {
               )}
 
               {transitionTo.length > 0 && (
-                <div className="space-y-2">
+                <div className={`${EXERCISE_INSET_CLASS} space-y-2`}>
                   <div className="flex items-center gap-2 text-sm font-semibold text-foreground/80">
                     <Check className="size-4" aria-hidden />
                     <span>Sigue con</span>
@@ -333,7 +341,7 @@ function ExerciseDetailPageContent() {
                       >
                         <Badge
                           variant="secondary"
-                          className="rounded-2xl px-3 py-1 text-xs hover:bg-primary/10 cursor-pointer"
+                          className={`${EXERCISE_PILL_CLASS} cursor-pointer hover:bg-[#e8dcc8]`}
                         >
                           {getExerciseNameById(nextId, sourcePlanId)}
                         </Badge>
@@ -345,14 +353,14 @@ function ExerciseDetailPageContent() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className={EXERCISE_PANEL_CLASS}>
             <CardHeader>
               <CardTitle>Pertenece al plan</CardTitle>
               <CardDescription>{sourcePlan.duration}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               <p className="text-sm text-muted-foreground">{sourcePlan.name}</p>
-              <Button asChild className="w-full">
+              <Button asChild className={EXERCISE_PRIMARY_BUTTON_CLASS}>
                 <Link href={`/plans/${sourcePlanId}`}>Volver al plan</Link>
               </Button>
             </CardContent>
