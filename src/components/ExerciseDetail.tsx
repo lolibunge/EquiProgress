@@ -13,10 +13,12 @@ export type Exercise = {
   image?: string;
   description?: string; // legacy
   objective?: string;
+  focus?: string;
   method?: string[];
   cues?: string[];
   gear?: string[];
   duration?: string;
+  reps?: string;
   prerequisites?: string[];
   safety?: string[];
   progressSigns?: { label: string; details?: string }[];

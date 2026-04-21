@@ -1,3 +1,8 @@
+export type Signal = {
+  label: string;
+  details?: string;
+};
+
 export interface Exercise {
   id: string;
   name: string;
@@ -7,10 +12,12 @@ export interface Exercise {
 
   // NUEVO (ficha técnica)
   objective?: string;        // Objetivo
+  focus?: string;            // Enfoque principal
   method?: string[];         // Pasos / Método
   cues?: string[];           // Ayudas / señales del guía
   gear?: string[];           // Material: cabestro, stick, etc.
   duration?: string;         // Tiempo sugerido por sesión
+  reps?: string;             // Repeticiones sugeridas
   prerequisites?: string[];  // Requisitos previos
   safety?: string[];         // Seguridad / consideraciones
   progressSigns?: Signal[];  // Señales de progreso
@@ -25,6 +32,7 @@ export type PlanStage = {
   title?: string;          // opcional (“Fundamentos”, etc.)
   description: string;     // qué se busca esta semana
   exerciseIds?: string[];  // opcional: ejercicios destacados esta semana
+  dayPlans?: string[][];   // opcional: qué ejercicios se practican cada día
 };
 
 
@@ -48,6 +56,46 @@ export const CATEGORY_LABELS_ES: Record<Category, string> = {
   Retraining: 'Reentrenamiento',
   'Continuing Training': 'Entrenamiento continuado',
 };
+
+const DEFAULT_STAGE_WORK_DAYS = 5;
+
+function mapPlanExercisesById(plan: TrainingPlan, exerciseIds: string[]): TrainingPlan['exercises'] {
+  return exerciseIds
+    .map((exerciseId) => plan.exercises.find((exercise) => exercise.id === exerciseId))
+    .filter((exercise): exercise is TrainingPlan['exercises'][number] => Boolean(exercise));
+}
+
+export function getPlanStage(plan: TrainingPlan, week: number): PlanStage | null {
+  return plan.stages?.find((stage) => stage.week === week) ?? null;
+}
+
+export function getPlanWeekExercises(plan: TrainingPlan, week: number): TrainingPlan['exercises'] {
+  const mapped = mapPlanExercisesById(plan, getPlanStage(plan, week)?.exerciseIds ?? []);
+  if (mapped.length > 0) return mapped;
+  return plan.exercises.slice(0, DEFAULT_STAGE_WORK_DAYS);
+}
+
+export function getPlanDayExercises(
+  plan: TrainingPlan,
+  week: number,
+  dayNumber: number
+): TrainingPlan['exercises'] {
+  const dayIndex = Math.max(0, Math.floor(dayNumber) - 1);
+  const explicitDayPlan = getPlanStage(plan, week)?.dayPlans?.[dayIndex] ?? null;
+
+  if (explicitDayPlan && explicitDayPlan.length > 0) {
+    const mapped = mapPlanExercisesById(plan, explicitDayPlan);
+    if (mapped.length > 0) return mapped;
+  }
+
+  const weekExercises = getPlanWeekExercises(plan, week);
+  const focusExercise = weekExercises[dayIndex % Math.max(1, weekExercises.length)];
+  return focusExercise ? [focusExercise] : [];
+}
+
+export function weekUsesMultiExerciseDays(plan: TrainingPlan, week: number): boolean {
+  return Boolean(getPlanStage(plan, week)?.dayPlans?.some((dayPlan) => dayPlan.length > 1));
+}
 
 export const trainingPlans: TrainingPlan[] = [
     {
@@ -774,6 +822,43 @@ export const trainingPlans: TrainingPlan[] = [
         "taller-sens-giro-frente",
         "taller-sens-giro-grupa",
         "taller-sens-flexion-lateral"
+      ],
+      dayPlans: [
+        [
+          "taller-sens-cabrestear",
+          "taller-sens-retroceso",
+          "taller-sens-giro-frente",
+          "taller-sens-giro-grupa",
+          "taller-sens-flexion-lateral"
+        ],
+        [
+          "taller-sens-cabrestear",
+          "taller-sens-retroceso",
+          "taller-sens-giro-frente",
+          "taller-sens-giro-grupa",
+          "taller-sens-flexion-lateral"
+        ],
+        [
+          "taller-sens-cabrestear",
+          "taller-sens-retroceso",
+          "taller-sens-giro-frente",
+          "taller-sens-giro-grupa",
+          "taller-sens-flexion-lateral"
+        ],
+        [
+          "taller-sens-cabrestear",
+          "taller-sens-retroceso",
+          "taller-sens-giro-frente",
+          "taller-sens-giro-grupa",
+          "taller-sens-flexion-lateral"
+        ],
+        [
+          "taller-sens-cabrestear",
+          "taller-sens-retroceso",
+          "taller-sens-giro-frente",
+          "taller-sens-giro-grupa",
+          "taller-sens-flexion-lateral"
+        ]
       ]
     },
     {
@@ -924,12 +1009,6 @@ export const trainingPlans: TrainingPlan[] = [
     ],
   }
 ];
-
-// Keep the type you already have:
-export type Category =
-  | 'Unbroke'
-  | 'Retraining'
-  | 'Continuing Training'
 
 // ✅ Export a stable, ordered list of categories (for the carousel)
 export const CATEGORIES = [
