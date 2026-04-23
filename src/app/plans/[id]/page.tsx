@@ -12,7 +12,6 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -968,7 +967,7 @@ function PlanDetailPageContent() {
           <section>
             <Card className={STUDENT_PANEL_CLASS}>
               <CardHeader>
-                <CardTitle>Etapas del programa</CardTitle>
+                <CardTitle>Etapas del plan</CardTitle>
                 <CardDescription>
                   Resumen simple por semana para seguir el taller paso a paso.
                 </CardDescription>
@@ -1362,80 +1361,6 @@ function PlanDetailPageContent() {
             </CardContent>
           </Card>
         </section>
-
-        {plan.stages?.length && isAdmin ? (
-          <section>
-            <h2 className="text-xl font-semibold mb-4">Etapas del plan</h2>
-            <ol className="relative border-l border-primary/30 space-y-6 pl-6">
-              {plan.stages.map((stage) => {
-                const active = stage.week === saved.currentWeek;
-                const completed = isCompleted(stage.week);
-                const editable = isWeekEditable(stage.week);
-                const stageExercises = (stage.exerciseIds ?? [])
-                  .map((exerciseId) => plan.exercises.find((entry) => entry.id === exerciseId))
-                  .filter((entry): entry is (typeof plan.exercises)[number] => Boolean(entry));
-                return (
-                  <li key={`${plan.id}-timeline-${stage.week}`} className="ml-2">
-                    <div
-                      className={`absolute -left-[9px] mt-1 h-4 w-4 rounded-full ${
-                        completed ? 'bg-primary' : 'bg-muted'
-                      }`}
-                    />
-                    <div className="flex flex-col items-start gap-2">
-                      <Badge variant={active ? 'default' : 'secondary'}>
-                        Semana {stage.week}
-                      </Badge>
-                      <div className="flex items-center gap-2">
-                        {stage.title && (
-                          <span className="font-medium">{stage.title}</span>
-                        )}
-                        {completed && (
-                          <span className="text-xs text-muted-foreground">
-                            (Completada)
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="mt-2 flex flex-wrap items-center gap-3">
-                      {stageExercises.length > 0
-                        ? stageExercises.map((exercise) => (
-                            <Button
-                              key={`${plan.id}-stage-${stage.week}-exercise-${exercise.id}`}
-                              asChild
-                              size="sm"
-                              variant="secondary"
-                            >
-                              <Link href={`/exercises/${exercise.id}?from=${plan.id}`}>
-                                Ver ejercicio: {exercise.name}
-                              </Link>
-                            </Button>
-                          ))
-                        : null}
-                      <label className="flex items-center gap-2 text-sm text-muted-foreground select-none cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={completed}
-                          onChange={(event) =>
-                            event.target.checked
-                              ? markWeekDone(stage.week)
-                              : unmarkWeek(stage.week)
-                          }
-                          disabled={isLoadingProgress || !editable}
-                        />
-                        {editable ? 'Marcar completada' : 'Semana cerrada'}
-                      </label>
-                    </div>
-
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      {stage.description}
-                    </p>
-                  </li>
-                );
-              })}
-            </ol>
-          </section>
-        ) : null}
 
         <section>
           <Card className={STUDENT_PANEL_CLASS}>

@@ -5,8 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { collection, doc, getDocs, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import Autoplay from 'embla-carousel-autoplay';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 
 import { useAuth } from '@/components/auth-provider';
 import {
@@ -24,7 +23,6 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Logo } from '@/components/logo';
-import { Carousel, CarouselContent, CarouselItem, CarouselPrevious, CarouselNext } from '@/components/ui/carousel';
 import { auth, db, USE_FIRESTORE } from '@/lib/firebase';
 import {
   getPlanDisplayDescription,
@@ -71,6 +69,14 @@ const STUDENT_PROGRESS_FILL_CLASS =
   'bg-gradient-to-r from-[#a24a1d] via-[#d88348] to-[#f4c68b]';
 const STUDENT_PRIMARY_BUTTON_CLASS =
   'h-16 w-full rounded-full border-0 bg-[#b99b6a] px-8 text-lg font-bold text-[#2f2118] shadow-none hover:bg-[#ad8d5d] hover:text-[#2f2118] sm:w-auto';
+const WARM_PANEL_CLASS =
+  'rounded-[1.9rem] border border-[#dccab7] bg-[#fffaf2]/95 shadow-[0_18px_45px_rgba(120,92,68,0.10)]';
+const WARM_INSET_PANEL_CLASS =
+  'rounded-[1.5rem] border border-[#ddceb9] bg-white/55 shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]';
+const WARM_PRIMARY_BUTTON_CLASS =
+  'h-14 rounded-full border-0 bg-[#b99b6a] px-7 text-base font-bold text-[#2f2118] shadow-none hover:bg-[#ad8d5d] hover:text-[#2f2118]';
+const WARM_SECONDARY_BUTTON_CLASS =
+  'h-14 rounded-full border border-[#ddceb9] bg-[#fff8ee] px-7 text-base font-semibold text-[#5f4636] shadow-none hover:bg-[#f3eadc] hover:text-[#4c382c]';
 
 export default function Home() {
   return (
@@ -210,10 +216,6 @@ function HomePageContent() {
     [featuredStudentPlan, studentCurrentWeek, studentCurrentWeekDays]
   );
 
-  const autoplay = useRef(
-    Autoplay({ delay: 2500, stopOnInteraction: false, stopOnMouseEnter: false, playOnInit: true })
-  );
-
   async function handleSignOut() {
     setIsSigningOut(true);
     try {
@@ -310,8 +312,8 @@ function HomePageContent() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground font-body flex flex-col antialiased">
-      <header className="sticky top-0 z-20 w-full bg-background/80 backdrop-blur-sm border-b border-primary/20">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(216,234,101,0.18),_transparent_34rem),linear-gradient(180deg,_#f5f0e1_0%,_#efe5d4_100%)] text-foreground font-body flex flex-col antialiased">
+      <header className="sticky top-0 z-20 w-full border-b border-[#dccab7]/80 bg-[#f7f0e4]/85 shadow-[0_12px_34px_rgba(120,92,68,0.06)] backdrop-blur-md">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between">
             <div className="flex items-center gap-3">
@@ -325,15 +327,16 @@ function HomePageContent() {
                 <span className="hidden lg:inline text-xs text-muted-foreground max-w-[14rem] truncate">
                   {user.displayName || user.email}
                 </span>
-                <Button asChild variant="outline" size="sm">
+                <Button asChild variant="outline" size="sm" className="rounded-full border-[#ddceb9] bg-[#fff8ee]/80 text-[#5f4636] hover:bg-[#f3eadc] hover:text-[#4c382c]">
                   <Link href="/history">Historia</Link>
                 </Button>
-                <Button asChild variant="outline" size="sm">
+                <Button asChild variant="outline" size="sm" className="rounded-full border-[#ddceb9] bg-[#fff8ee]/80 text-[#5f4636] hover:bg-[#f3eadc] hover:text-[#4c382c]">
                   <Link href="/feedback">Opinión</Link>
                 </Button>
                 <Button
                   variant="ghost"
                   size="sm"
+                  className="rounded-full text-[#5f4636] hover:bg-[#f3eadc] hover:text-[#4c382c]"
                   onClick={handleSignOut}
                   disabled={isSigningOut}
                 >
@@ -341,7 +344,7 @@ function HomePageContent() {
                 </Button>
               </div>
             ) : (
-              <Button asChild size="sm">
+              <Button asChild size="sm" className="rounded-full bg-[#b99b6a] px-5 font-semibold text-[#2f2118] hover:bg-[#ad8d5d] hover:text-[#2f2118]">
                 <Link href="/login">Iniciar sesión</Link>
               </Button>
             )}
@@ -349,7 +352,8 @@ function HomePageContent() {
         </div>
       </header>
 
-      <main className="flex-grow w-full container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="relative flex-grow w-full container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="pointer-events-none absolute inset-x-4 top-2 -z-10 h-80 rounded-[3rem] bg-[radial-gradient(circle,_rgba(185,155,106,0.24),_transparent_65%)]" />
         {!loading && user && !isAdmin && !accountMetaLoading && effectiveTrialStatus && (
           <section className="mb-6">
             <Card className="mx-auto max-w-2xl border-primary/30 bg-card/80">
@@ -426,72 +430,84 @@ function HomePageContent() {
           />
         )}
 
-        {(!user || isAdmin) && (
-          <div className="flex flex-col items-center text-center mb-12">
-            <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold font-headline tracking-tight text-foreground">
+        {!loading && !user && (
+          <PublicLandingHero />
+        )}
+
+        {!loading && user && isAdmin && (
+          <div className="mb-10 flex flex-col items-center text-center">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">Biblioteca</p>
+            <h2 className="mt-3 text-3xl font-black tracking-tight text-foreground sm:text-4xl md:text-5xl">
               Planes de Entrenamiento para Caballos
             </h2>
-            <p className="mt-4 max-w-2xl text-lg text-muted-foreground">
+            <p className="mt-4 max-w-2xl text-lg leading-relaxed text-muted-foreground">
               Desde iniciar un caballo joven hasta refinar movimientos avanzados, encuentra un plan que se adapte a tu viaje.
             </p>
           </div>
         )}
 
         {!loading && !user && (
-          <>
-            <Card className="mb-6 border-dashed">
-              <CardHeader>
-                <CardTitle>Para tus estudiantes</CardTitle>
-                <CardDescription>
+          <section className="mb-8 grid gap-5 md:grid-cols-2">
+            <Card className={`${WARM_PANEL_CLASS} overflow-hidden`}>
+              <CardHeader className="p-6 pb-3 sm:p-7 sm:pb-3">
+                <div className="mb-3 inline-flex w-fit rounded-full bg-[#f4ecde]/90 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-[#7a5c45]">
+                  Progreso individual
+                </div>
+                <CardTitle className="text-3xl font-black tracking-tight">Para tus estudiantes</CardTitle>
+                <CardDescription className="text-base leading-relaxed">
                   Pide a cada estudiante que cree una cuenta para guardar su progreso e historial de forma individual.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="flex flex-col sm:flex-row gap-3">
-                <Button asChild>
+              <CardContent className="flex flex-col gap-3 p-6 pt-3 sm:p-7 sm:pt-4">
+                <Button asChild className={WARM_PRIMARY_BUTTON_CLASS}>
                   <Link href="/register">Crear cuenta</Link>
                 </Button>
-                <Button asChild variant="outline">
+                <Button asChild variant="outline" className={WARM_SECONDARY_BUTTON_CLASS}>
                   <Link href="/login">Iniciar sesión</Link>
                 </Button>
-                <Button asChild variant="ghost">
+                <Button asChild variant="ghost" className="h-12 rounded-full text-base font-semibold text-[#5f4636] hover:bg-[#f3eadc] hover:text-[#4c382c]">
                   <Link href="/reset-password">Restablecer contraseña</Link>
                 </Button>
               </CardContent>
             </Card>
 
-            <Card className="mb-8">
-              <CardHeader>
-                <CardTitle>Prueba gratis de {PRICING.trialDays} días</CardTitle>
-                <CardDescription>{getTrialNotice()}</CardDescription>
+            <Card className={`${WARM_PANEL_CLASS} overflow-hidden`}>
+              <CardHeader className="p-6 pb-3 sm:p-7 sm:pb-3">
+                <div className="mb-3 inline-flex w-fit rounded-full bg-[#e6efdf] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-[#44552b]">
+                  Sin costo inicial
+                </div>
+                <CardTitle className="text-3xl font-black tracking-tight">Prueba gratis de {PRICING.trialDays} días</CardTitle>
+                <CardDescription className="text-base leading-relaxed">{getTrialNotice()}</CardDescription>
               </CardHeader>
-              <CardContent className="flex flex-col sm:flex-row gap-3">
-                <Button asChild variant="outline">
+              <CardContent className="flex flex-col gap-3 p-6 pt-3 sm:p-7 sm:pt-4">
+                <Button asChild variant="outline" className={WARM_SECONDARY_BUTTON_CLASS}>
                   <Link href="/pricing">Ver detalles de la prueba</Link>
                 </Button>
-                <Button asChild variant="ghost">
+                <Button asChild className={WARM_PRIMARY_BUTTON_CLASS}>
                   <Link href="/register">Comenzar prueba gratis</Link>
                 </Button>
               </CardContent>
             </Card>
-          </>
+          </section>
         )}
 
         {!loading && user && isAdmin && (
-          <Card className="mb-8">
-            <CardHeader>
-              <CardTitle>{isAdmin ? 'Modo administrador activo' : 'Modo estudiante activo'}</CardTitle>
-              <CardDescription>
-                {isAdmin
-                  ? 'Puedes ver todos los planes y gestionar las asignaciones de estudiantes.'
-                  : `El progreso está vinculado a ${user.displayName || user.email}. Aquí verás solo el plan asignado a tus clases.`}
+          <Card className={`${WARM_PANEL_CLASS} mb-8 overflow-hidden`}>
+            <CardHeader className="p-6 pb-3 sm:p-7 sm:pb-3">
+              <div className="mb-3 inline-flex w-fit rounded-full bg-[#f4ecde]/90 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-[#7a5c45]">
+                Panel interno
+              </div>
+              <CardTitle className="text-3xl font-black tracking-tight sm:text-4xl">Modo administrador activo</CardTitle>
+              <CardDescription className="max-w-2xl text-base leading-relaxed">
+                Puedes ver todos los planes y gestionar las asignaciones de estudiantes.
               </CardDescription>
             </CardHeader>
-            <CardContent className="flex flex-col gap-3">
+            <CardContent className="flex flex-col gap-3 p-6 pt-3 sm:p-7 sm:pt-4">
               <div className="flex flex-col sm:flex-row gap-3">
-                <Button asChild variant="outline">
+                <Button asChild variant="outline" className={WARM_SECONDARY_BUTTON_CLASS}>
                   <Link href="/history">Abrir historial de progreso</Link>
                 </Button>
-                <Button asChild variant="outline">
+                <Button asChild variant="outline" className={WARM_SECONDARY_BUTTON_CLASS}>
                   <Link href="/feedback">Enviar opinión</Link>
                 </Button>
               </div>
@@ -502,16 +518,19 @@ function HomePageContent() {
         {!loading && user && isAdmin && (
           <>
             <section className="mb-8">
-              <Card className="border-primary/30">
-                <CardHeader>
-                  <CardTitle>Extensiones de prueba (Admin)</CardTitle>
-                  <CardDescription>
+              <Card className={`${WARM_PANEL_CLASS} overflow-hidden`}>
+                <CardHeader className="p-6 pb-3 sm:p-7 sm:pb-3">
+                  <div className="mb-3 inline-flex w-fit rounded-full bg-[#e6efdf] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-[#44552b]">
+                    Gestión de acceso
+                  </div>
+                  <CardTitle className="text-3xl font-black tracking-tight sm:text-4xl">Extensiones de prueba</CardTitle>
+                  <CardDescription className="max-w-2xl text-base leading-relaxed">
                     Estudiantes bloqueados con opinión enviada pueden recibir +30 días con un clic.
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-sm text-muted-foreground">
+                <CardContent className="space-y-4 p-6 pt-3 sm:p-7 sm:pt-4">
+                  <div className={`${WARM_INSET_PANEL_CLASS} flex flex-wrap items-center justify-between gap-3 px-4 py-3`}>
+                    <p className="text-sm font-medium text-muted-foreground">
                       {isAdminStudentsLoading
                         ? 'Cargando estudiantes...'
                         : `${adminStudents.length} cuentas de estudiante encontradas.`}
@@ -520,6 +539,7 @@ function HomePageContent() {
                       type="button"
                       variant="outline"
                       size="sm"
+                      className="h-10 rounded-full border-[#ddceb9] bg-[#fff8ee] px-4 font-semibold text-[#5f4636] shadow-none hover:bg-[#f3eadc] hover:text-[#4c382c]"
                       onClick={() => void loadAdminStudents()}
                       disabled={isAdminStudentsLoading || Boolean(grantingStudentUid)}
                     >
@@ -528,17 +548,19 @@ function HomePageContent() {
                   </div>
 
                   {adminStudentsError && (
-                    <p className="text-sm text-destructive">{adminStudentsError}</p>
+                    <p className="rounded-[1.15rem] border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                      {adminStudentsError}
+                    </p>
                   )}
 
                   {!db || !USE_FIRESTORE ? (
-                    <p className="text-sm text-muted-foreground">
+                    <p className={`${WARM_INSET_PANEL_CLASS} px-4 py-3 text-sm text-muted-foreground`}>
                       Firestore está desactivado. Este panel requiere nube activa.
                     </p>
                   ) : isAdminStudentsLoading ? (
-                    <p className="text-sm text-muted-foreground">Preparando panel...</p>
+                    <p className={`${WARM_INSET_PANEL_CLASS} px-4 py-3 text-sm text-muted-foreground`}>Preparando panel...</p>
                   ) : adminStudents.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">
+                    <p className={`${WARM_INSET_PANEL_CLASS} px-4 py-3 text-sm text-muted-foreground`}>
                       No se encontraron estudiantes todavía.
                     </p>
                   ) : (
@@ -546,13 +568,13 @@ function HomePageContent() {
                       {adminStudents.map((student) => (
                         <div
                           key={student.uid}
-                          className="rounded-md border border-primary/20 bg-background px-3 py-3 space-y-2"
+                          className={`${WARM_INSET_PANEL_CLASS} space-y-2 px-4 py-4`}
                         >
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <p className="font-medium">
                               {student.displayName || student.email || student.uid}
                             </p>
-                            <p className="text-xs text-muted-foreground">
+                            <p className="rounded-full bg-[#f4ecde]/90 px-3 py-1 text-xs font-medium text-[#6d5547]">
                               {student.lockStage === 'pending_admin'
                                 ? 'Pendiente de habilitación'
                                 : student.lockStage === 'feedback_required'
@@ -575,13 +597,14 @@ function HomePageContent() {
                             <Button
                               type="button"
                               size="sm"
+                              className="h-10 rounded-full bg-[#b99b6a] px-4 font-semibold text-[#2f2118] hover:bg-[#ad8d5d] hover:text-[#2f2118]"
                               onClick={() => void handleGrantThirtyDays(student)}
                               disabled={Boolean(grantingStudentUid)}
                             >
                               {grantingStudentUid === student.uid ? 'Otorgando...' : 'Otorgar +30 días'}
                             </Button>
                             {student.lockStage === 'feedback_required' && (
-                              <Button type="button" size="sm" variant="outline" asChild>
+                              <Button type="button" size="sm" variant="outline" className="h-10 rounded-full border-[#ddceb9] bg-[#fff8ee] px-4 font-semibold text-[#5f4636] shadow-none hover:bg-[#f3eadc] hover:text-[#4c382c]" asChild>
                                 <Link href="/feedback">Abrir feedback</Link>
                               </Button>
                             )}
@@ -594,38 +617,39 @@ function HomePageContent() {
               </Card>
             </section>
 
-            <div className="relative mb-12 w-full max-w-2xl mx-auto">
-              <Carousel
-                opts={{ loop: true, align: 'center' }}
-                plugins={[autoplay.current]}
-                onMouseEnter={() => autoplay.current?.stop?.()}
-                onMouseLeave={() => autoplay.current?.play?.()}
-                className="px-6 sm:px-8"
-              >
-                <CarouselContent>
+            <div className={`${WARM_PANEL_CLASS} mb-10 mx-auto max-w-4xl p-3 sm:p-4`}>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="px-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                    Filtrar biblioteca
+                  </p>
+                  <p className="mt-1 text-sm text-[#6d5547]">
+                    {adminFilteredPlans.length} planes en {CATEGORY_LABELS[selectedCategory]}
+                  </p>
+                </div>
+
+                <div className="grid gap-2 rounded-[1.45rem] border border-[#ddceb9] bg-[#f4ecde]/78 p-1.5 sm:grid-cols-3">
                   {CATEGORIES.map((category) => (
-                    <CarouselItem key={category} className="basis-auto pr-4">
-                      <Button
-                        variant={selectedCategory === category ? 'default' : 'ghost'}
-                        onClick={() => setSelectedCategory(category)}
-                        className={`whitespace-nowrap rounded-md px-4 py-2 text-sm font-medium transition-colors ${
-                          selectedCategory === category
-                            ? 'bg-primary text-primary-foreground shadow-sm'
-                            : 'text-muted-foreground hover:bg-background/50 hover:text-primary'
-                        }`}
-                        aria-pressed={selectedCategory === category}
-                      >
-                        {CATEGORY_LABELS[category]}
-                      </Button>
-                    </CarouselItem>
+                    <Button
+                      key={category}
+                      type="button"
+                      variant="ghost"
+                      onClick={() => setSelectedCategory(category)}
+                      className={`h-12 rounded-full px-5 text-sm font-semibold transition-colors sm:text-base ${
+                        selectedCategory === category
+                          ? 'bg-[#b99b6a] text-[#2f2118] shadow-none hover:bg-[#ad8d5d] hover:text-[#2f2118]'
+                          : 'bg-transparent text-[#6d5547] hover:bg-[#fff8ee] hover:text-[#4c382c]'
+                      }`}
+                      aria-pressed={selectedCategory === category}
+                    >
+                      {CATEGORY_LABELS[category]}
+                    </Button>
                   ))}
-                </CarouselContent>
-                <CarouselPrevious className="left-0 top-1/2 -translate-y-1/2 shadow-sm" />
-                <CarouselNext className="right-0 top-1/2 -translate-y-1/2 shadow-sm" />
-              </Carousel>
+                </div>
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
               {adminFilteredPlans.map((plan: TrainingPlan) => {
                 const planName = getPlanDisplayName(plan.id, plan.name, isAdmin);
                 const planDescription = getPlanDisplayDescription(
@@ -633,6 +657,7 @@ function HomePageContent() {
                   plan.description,
                   isAdmin
                 );
+                const planTone = getStudentPlanPanelTone(plan.category);
 
                 return (
                   <Link
@@ -641,18 +666,50 @@ function HomePageContent() {
                     className="group focus:outline-none"
                     aria-label={`Abrir plan: ${planName}`}
                   >
-                    <Card className="flex h-full flex-col transition-transform group-hover:-translate-y-0.5">
-                      <CardHeader>
-                        <div>
-                          <CardTitle>{planName}</CardTitle>
-                          <CardDescription>{plan.duration}</CardDescription>
+                    <Card className="flex h-full flex-col overflow-hidden rounded-[2rem] border border-[#cfb89f] bg-[#fff7ea] shadow-[0_22px_58px_rgba(120,92,68,0.16)] transition-transform group-hover:-translate-y-1">
+                      <div className="relative h-56 overflow-hidden bg-[#211714] text-white sm:h-60">
+                        {plan.image ? (
+                          <Image
+                            src={plan.image}
+                            alt={planName}
+                            fill
+                            sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw"
+                            className="object-cover transition-transform duration-500 group-hover:scale-105"
+                          />
+                        ) : (
+                          <div className={`h-full w-full bg-gradient-to-br ${planTone.thumbGlow}`} />
+                        )}
+                        <div className="absolute inset-0 bg-gradient-to-b from-black/5 via-black/20 to-[#1c1411]/88" />
+                        <div className={`absolute inset-0 bg-gradient-to-tr ${planTone.heroGlow}`} />
+                        <div className="absolute left-5 top-5 rounded-full border border-white/20 bg-black/20 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/95 backdrop-blur-sm">
+                          {CATEGORY_LABELS[plan.category]}
                         </div>
-                      </CardHeader>
-                      <CardContent className="flex-grow">
-                        <p className="text-muted-foreground mb-4 line-clamp-3">
+                        <div className="absolute bottom-5 left-5 right-5">
+                          <p className="text-sm font-semibold text-white/88 [text-shadow:0_2px_12px_rgba(0,0,0,0.45)]">{plan.duration}</p>
+                          <h3 className="mt-2 line-clamp-2 text-3xl font-black leading-[0.92] tracking-tight text-white [text-shadow:0_5px_22px_rgba(0,0,0,0.58)]">
+                            {planName}
+                          </h3>
+                        </div>
+                      </div>
+                      <CardContent className="flex flex-1 flex-col gap-5 p-5 sm:p-6">
+                        <div className={`h-1.5 rounded-full bg-gradient-to-r ${planTone.barGlow}`} />
+                        <div className="space-y-3">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="rounded-full bg-[#f4ecde] px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-[#7a5c45]">
+                              {plan.duration}
+                            </span>
+                            <span className="rounded-full bg-[#e6efdf] px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-[#44552b]">
+                              {CATEGORY_LABELS[plan.category]}
+                            </span>
+                          </div>
+                          <h3 className="text-2xl font-black leading-tight tracking-tight text-[#4E342E]">
+                            {planName}
+                          </h3>
+                        </div>
+                        <CardDescription className="line-clamp-3 text-base leading-relaxed text-[#6d5547]">
                           {planDescription}
-                        </p>
-                        <Button variant="outline" className="mt-auto">
+                        </CardDescription>
+                        <Button className={`${WARM_PRIMARY_BUTTON_CLASS} mt-auto w-full sm:w-fit`}>
                           Ver plan
                         </Button>
                       </CardContent>
@@ -670,8 +727,8 @@ function HomePageContent() {
 
 function HomePageLoading() {
   return (
-    <div className="min-h-screen bg-background text-foreground font-body flex flex-col antialiased">
-      <header className="sticky top-0 z-20 w-full bg-background/80 backdrop-blur-sm border-b border-primary/20">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(216,234,101,0.18),_transparent_34rem),linear-gradient(180deg,_#f5f0e1_0%,_#efe5d4_100%)] text-foreground font-body flex flex-col antialiased">
+      <header className="sticky top-0 z-20 w-full border-b border-[#dccab7]/80 bg-[#f7f0e4]/85 shadow-[0_12px_34px_rgba(120,92,68,0.06)] backdrop-blur-md">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between">
             <div className="flex items-center gap-3">
@@ -682,14 +739,93 @@ function HomePageLoading() {
         </div>
       </header>
       <main className="flex-grow w-full container mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Card className="max-w-2xl mx-auto">
-          <CardHeader>
-            <CardTitle>Cargando inicio...</CardTitle>
-            <CardDescription>Preparando panel y planes.</CardDescription>
+        <Card className={`${WARM_PANEL_CLASS} max-w-2xl mx-auto`}>
+          <CardHeader className="p-7">
+            <CardTitle className="text-3xl font-black tracking-tight">Cargando inicio...</CardTitle>
+            <CardDescription className="text-base leading-relaxed">Preparando panel y planes.</CardDescription>
           </CardHeader>
         </Card>
       </main>
     </div>
+  );
+}
+
+function PublicLandingHero() {
+  return (
+    <section className="mb-7 overflow-hidden rounded-[2rem] border border-primary/25 bg-[#211714] text-white shadow-[0_28px_70px_rgba(78,52,46,0.18)]">
+      <div className="relative min-h-[34rem]">
+        <Image
+          src="/plans/plan-de-iniciacion-caballo-joven.png"
+          alt="Caballo joven en entrenamiento"
+          fill
+          priority
+          sizes="100vw"
+          className="object-cover"
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-black/35 to-[#1c1411]/95" />
+        <div className="absolute inset-0 bg-gradient-to-tr from-[#ffdfbf]/0 via-[#b85a2b]/12 to-[#6f2f16]/38" />
+
+        <div className="relative grid min-h-[34rem] gap-8 p-5 sm:p-8 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-end">
+          <div className="flex max-w-3xl flex-col justify-between gap-12">
+            <div className="flex flex-wrap gap-2">
+              <span className="rounded-full border border-white/20 bg-black/15 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.2em] text-white/95 backdrop-blur-sm [text-shadow:0_1px_8px_rgba(0,0,0,0.45)]">
+                Entrenamiento guiado
+              </span>
+              <span className="rounded-full border border-white/20 bg-black/15 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.2em] text-white/95 backdrop-blur-sm [text-shadow:0_1px_8px_rgba(0,0,0,0.45)]">
+                Historial por estudiante
+              </span>
+            </div>
+
+            <div className="space-y-5">
+              <div className="space-y-3">
+                <p className="text-xs uppercase tracking-[0.25em] text-white/82 [text-shadow:0_1px_8px_rgba(0,0,0,0.45)]">
+                  EquiProgress
+                </p>
+                <h2 className="max-w-3xl text-4xl font-black leading-[0.92] tracking-tight text-white [text-shadow:0_5px_22px_rgba(0,0,0,0.55)] sm:text-5xl md:text-6xl">
+                  Planes de Entrenamiento para Caballos
+                </h2>
+                <p className="max-w-2xl text-base leading-relaxed text-white/92 [text-shadow:0_2px_12px_rgba(0,0,0,0.5)] sm:text-lg">
+                  Desde iniciar un caballo joven hasta refinar movimientos avanzados, encuentra un plan que se adapte a tu viaje.
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <Button asChild className={STUDENT_PRIMARY_BUTTON_CLASS}>
+                  <Link href="/register">Comenzar prueba gratis</Link>
+                </Button>
+                <Button asChild variant="outline" className="h-14 w-full rounded-full border-white/20 bg-white/5 px-7 text-base font-semibold text-white hover:bg-white/10 hover:text-white sm:w-auto">
+                  <Link href="/login">Ya tengo cuenta</Link>
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <div className={`${WARM_INSET_PANEL_CLASS} bg-white/12 p-4 text-white backdrop-blur-sm`}>
+            <p className="text-[11px] uppercase tracking-[0.2em] text-white/82 [text-shadow:0_1px_8px_rgba(0,0,0,0.45)]">
+              Tu plataforma
+            </p>
+            <div className="mt-4 space-y-3">
+              <div className="rounded-[1.2rem] border border-white/12 bg-black/15 p-4">
+                <p className="text-3xl font-semibold leading-none [text-shadow:0_3px_16px_rgba(0,0,0,0.5)]">
+                  {PRICING.trialDays}
+                </p>
+                <p className="mt-1 text-sm text-white/88 [text-shadow:0_1px_8px_rgba(0,0,0,0.45)]">
+                  días de prueba gratis
+                </p>
+              </div>
+              <div className="rounded-[1.2rem] border border-white/12 bg-black/15 p-4">
+                <p className="text-3xl font-semibold leading-none [text-shadow:0_3px_16px_rgba(0,0,0,0.5)]">
+                  1:1
+                </p>
+                <p className="mt-1 text-sm text-white/88 [text-shadow:0_1px_8px_rgba(0,0,0,0.45)]">
+                  progreso separado por estudiante
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
 
