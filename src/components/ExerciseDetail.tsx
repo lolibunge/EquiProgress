@@ -12,9 +12,11 @@ export type Exercise = {
   name: string;
   image?: string;
   description?: string; // legacy
+  longDescription?: string;
   objective?: string;
   focus?: string;
   method?: string[];
+  observe?: string;
   cues?: string[];
   gear?: string[];
   duration?: string;
@@ -195,6 +197,13 @@ export function ExerciseDetail({ exercise }: { exercise: Exercise }) {
           <SectionTitle icon={ListChecks}>Cómo se hace</SectionTitle>
           <LabeledList items={exercise.method} emptyText="Sin pasos definidos aún." />
         </div>
+
+        {exercise.observe ? (
+          <div className="space-y-2">
+            <SectionTitle icon={Info}>Qué observar</SectionTitle>
+            <p className="text-sm leading-relaxed">{exercise.observe}</p>
+          </div>
+        ) : null}
 
         {/* Cues / Prerrequisitos */}
         <div className="grid gap-5 sm:grid-cols-2">

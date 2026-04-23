@@ -109,6 +109,7 @@ function ExerciseDetailPageContent() {
   const commonMistakes: string[] = ex.commonMistakes ?? [];
   const instructorTips: string[] = ex.instructorTips ?? [];
   const transitionTo: string[] = ex.transitionTo ?? [];
+  const observe: string = ex.observe ?? '';
 
   const duration = ex.duration ?? '';
   const reps = ex.reps ?? '';
@@ -214,6 +215,16 @@ function ExerciseDetailPageContent() {
                   <p className="text-sm text-muted-foreground">Sin pasos definidos aún.</p>
                 )}
               </div>
+
+              {observe && (
+                <div className={`${EXERCISE_INSET_CLASS} space-y-2`}>
+                  <div className="flex items-center gap-2 text-sm font-semibold text-foreground/80">
+                    <Info className="size-4" aria-hidden />
+                    <span>Qué observar</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground">{observe}</p>
+                </div>
+              )}
 
               <div className="grid gap-6 md:grid-cols-2">
                 <div className={`${EXERCISE_INSET_CLASS} space-y-2`}>

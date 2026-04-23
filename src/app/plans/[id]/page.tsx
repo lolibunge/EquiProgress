@@ -1064,6 +1064,98 @@ function PlanDetailPageContent() {
           </section>
         ) : null}
 
+        {(plan.longDescription ||
+          plan.goal ||
+          plan.forWhom ||
+          plan.keyPoints?.length ||
+          plan.progressionNote ||
+          plan.successIndicators?.length) ? (
+          <section>
+            <Card className={STUDENT_PANEL_CLASS}>
+              <CardHeader>
+                <CardTitle>Contexto del plan</CardTitle>
+                <CardDescription>
+                  Marco general para entender cómo progresa este reentrenamiento.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {plan.longDescription ? (
+                  <div className={`${STUDENT_PANEL_INSET_CLASS} space-y-2 p-5`}>
+                    <p className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
+                      Enfoque general
+                    </p>
+                    <p className="text-base leading-relaxed text-muted-foreground">
+                      {plan.longDescription}
+                    </p>
+                  </div>
+                ) : null}
+
+                <div className="grid gap-4 lg:grid-cols-2">
+                  {plan.goal ? (
+                    <div className={`${STUDENT_PANEL_INSET_CLASS} space-y-2 p-5`}>
+                      <p className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
+                        Objetivo
+                      </p>
+                      <p className="text-sm leading-relaxed text-muted-foreground">{plan.goal}</p>
+                    </div>
+                  ) : null}
+
+                  {plan.forWhom ? (
+                    <div className={`${STUDENT_PANEL_INSET_CLASS} space-y-2 p-5`}>
+                      <p className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
+                        Para quién es
+                      </p>
+                      <p className="text-sm leading-relaxed text-muted-foreground">{plan.forWhom}</p>
+                    </div>
+                  ) : null}
+                </div>
+
+                {plan.keyPoints?.length ? (
+                  <div className={`${STUDENT_PANEL_INSET_CLASS} space-y-3 p-5`}>
+                    <p className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
+                      Puntos clave
+                    </p>
+                    <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+                      {plan.keyPoints.map((point) => (
+                        <li key={`${plan.id}-key-point-${point}`}>{point}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+
+                {plan.progressionNote ? (
+                  <div className={`${STUDENT_PANEL_INSET_CLASS} space-y-2 p-5`}>
+                    <p className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
+                      Nota de progresión
+                    </p>
+                    <p className="text-sm leading-relaxed text-muted-foreground">
+                      {plan.progressionNote}
+                    </p>
+                  </div>
+                ) : null}
+
+                {plan.successIndicators?.length ? (
+                  <div className={`${STUDENT_PANEL_INSET_CLASS} space-y-3 p-5`}>
+                    <p className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
+                      Indicadores de avance
+                    </p>
+                    <ul className="grid gap-2 sm:grid-cols-2">
+                      {plan.successIndicators.map((indicator) => (
+                        <li
+                          key={`${plan.id}-success-indicator-${indicator}`}
+                          className="rounded-[1.2rem] border border-[#ddceb9] bg-white/60 px-4 py-3 text-sm text-muted-foreground"
+                        >
+                          {indicator}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+              </CardContent>
+            </Card>
+          </section>
+        ) : null}
+
         <section id="plan-progress">
           <Card className={STUDENT_PANEL_CLASS}>
             <CardHeader className="space-y-3 sm:space-y-0 sm:flex sm:items-start sm:justify-between">
