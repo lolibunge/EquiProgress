@@ -3,6 +3,17 @@ export type Signal = {
   details?: string;
 };
 
+export type ExerciseMethodSubSection = {
+  title: string;
+  steps: string[];
+};
+
+export type ExerciseMethodSection = {
+  title: string;
+  steps?: string[];
+  methodSubSections?: ExerciseMethodSubSection[];
+};
+
 export interface Exercise {
   id: string;
   name: string;
@@ -15,6 +26,7 @@ export interface Exercise {
   objective?: string;
   focus?: string;
   method?: string[];
+  methodSections?: ExerciseMethodSection[];
   observe?: string;
   cues?: string[];
   gear?: string[];
@@ -37,7 +49,7 @@ export type PlanStage = {
   dayPlans?: string[][];
 };
 
-export type Category = 'Unbroke' | 'Retraining' | 'Continuing Training';
+export type Category = 'Unbroke' | 'Retraining' | 'Continuing Training' | 'Fundational Training';
 
 export type TrainingPlan = {
   id: string;
@@ -61,12 +73,14 @@ export const CATEGORY_LABELS_ES: Record<Category, string> = {
   Unbroke: 'Manejo básico del caballo',
   Retraining: 'Reentrenamiento',
   'Continuing Training': 'Entrenamiento continuado',
+  'Fundational Training': 'Entrenamiento fundamental',
 };
 
 export const CATEGORIES = [
   'Unbroke',
   'Retraining',
   'Continuing Training',
+  'Fundational Training',
 ] as const satisfies readonly Category[];
 
 export const CATEGORY_LABELS = CATEGORY_LABELS_ES;

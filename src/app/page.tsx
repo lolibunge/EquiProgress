@@ -684,18 +684,12 @@ function HomePageContent() {
                         <div className="absolute left-5 top-5 rounded-full border border-white/20 bg-black/20 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/95 backdrop-blur-sm">
                           {CATEGORY_LABELS[plan.category]}
                         </div>
-                        <div className="absolute bottom-5 left-5 right-5">
-                          <p className="text-sm font-semibold text-white/88 [text-shadow:0_2px_12px_rgba(0,0,0,0.45)]">{plan.duration}</p>
-                          <h3 className="mt-2 line-clamp-2 text-3xl font-black leading-[0.92] tracking-tight text-white [text-shadow:0_5px_22px_rgba(0,0,0,0.58)]">
-                            {planName}
-                          </h3>
-                        </div>
                       </div>
                       <CardContent className="flex flex-1 flex-col gap-5 p-5 sm:p-6">
                         <div className={`h-1.5 rounded-full bg-gradient-to-r ${planTone.barGlow}`} />
                         <div className="space-y-3">
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className="rounded-full bg-[#f4ecde] px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-[#7a5c45]">
+                            <span className="rounded bg-[#f4ecde] px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-[#7a5c45]">
                               {plan.duration}
                             </span>
                             <span className="rounded-full bg-[#e6efdf] px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-[#44552b]">
