@@ -49,7 +49,12 @@ export type PlanStage = {
   dayPlans?: string[][];
 };
 
-export type Category = 'Unbroke' | 'Retraining' | 'Continuing Training' | 'Fundational Training';
+export type Category =
+  | 'Unbroke'
+  | 'Retraining'
+  | 'Continuing Training'
+  | 'Fundational Training'
+  | 'Mounted Basics';
 
 export type TrainingPlan = {
   id: string;
@@ -74,6 +79,7 @@ export const CATEGORY_LABELS_ES: Record<Category, string> = {
   Retraining: 'Reentrenamiento',
   'Continuing Training': 'Entrenamiento continuado',
   'Fundational Training': 'Entrenamiento fundamental',
+  'Mounted Basics': 'Montado - Nivel Básico',
 };
 
 export const CATEGORIES = [
@@ -81,6 +87,7 @@ export const CATEGORIES = [
   'Retraining',
   'Continuing Training',
   'Fundational Training',
+  'Mounted Basics',
 ] as const satisfies readonly Category[];
 
 export const CATEGORY_LABELS = CATEGORY_LABELS_ES;

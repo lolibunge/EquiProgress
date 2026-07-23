@@ -23,10 +23,12 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Logo } from '@/components/logo';
+import { cn } from '@/lib/utils';
 import { auth, db, USE_FIRESTORE } from '@/lib/firebase';
 import {
   getPlanDisplayDescription,
   getPlanDisplayName,
+  getVisiblePlans,
   isAdminUser,
 } from '@/lib/plan-visibility';
 import {
@@ -57,6 +59,7 @@ type AdminStudentTrialRow = {
 };
 
 const STUDENT_WORK_DAYS_PER_WEEK = 5;
+const STUDENT_STAGE_STORAGE_KEY = 'equi:selectedStagePlanId';
 const STUDENT_SESSION_TONES = [
   'from-[#8f3c16] via-[#b85a2b] to-[#ddb07b]',
   'from-[#556018] via-[#90a328] to-[#d8ea65]',
@@ -104,7 +107,25 @@ function HomePageContent() {
     const raw = searchParams.get('trialPreview');
     return raw === 'expired' || raw === 'pending' ? raw : null;
   })();
-  const featuredStudentPlanId = 'taller-metodo-mente-movimiento';
+  const studentStagePlans = useMemo(() => getVisiblePlans(trainingPlans, false), []);
+  const [selectedStagePlanId, setSelectedStagePlanId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const stored = window.localStorage.getItem(STUDENT_STAGE_STORAGE_KEY);
+    if (stored && studentStagePlans.some((stagePlan) => stagePlan.id === stored)) {
+      setSelectedStagePlanId(stored);
+    }
+  }, [studentStagePlans]);
+
+  const handleSelectStagePlan = useCallback((planId: string) => {
+    setSelectedStagePlanId(planId);
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(STUDENT_STAGE_STORAGE_KEY, planId);
+    }
+  }, []);
+
+  const featuredStudentPlanId = selectedStagePlanId ?? studentStagePlans[0]?.id ?? null;
   const featuredStudentPlan = trainingPlans.find((plan) => plan.id === featuredStudentPlanId);
   const featuredStudentPlanStorageKey = featuredStudentPlan
     ? `equi:plan:${featuredStudentPlan.id}`
@@ -354,6 +375,13 @@ function HomePageContent() {
 
       <main className="relative flex-grow w-full container mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="pointer-events-none absolute inset-x-4 top-2 -z-10 h-80 rounded-[3rem] bg-[radial-gradient(circle,_rgba(185,155,106,0.24),_transparent_65%)]" />
+        <div className='py-10 flex items-center justify-center'>
+          <Button asChild variant="outline" size="sm" className="rounded-full border-[#ddceb9] bg-[#fff8ee]/80 text-[#5f4636] hover:bg-[#f3eadc] hover:text-[#4c382c]">
+            <Link href="/new-registry">
+              Registrar entrenamiento
+            </Link>
+          </Button>
+        </div>
         {!loading && user && !isAdmin && !accountMetaLoading && effectiveTrialStatus && (
           <section className="mb-6">
             <Card className="mx-auto max-w-2xl border-primary/30 bg-card/80">
@@ -402,6 +430,33 @@ function HomePageContent() {
               </CardContent>
             </Card>
           </section>
+        )}
+
+        {!loading && user && !isAdmin && studentStagePlans.length > 1 && (
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            <span className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+              Etapa
+            </span>
+            {studentStagePlans.map((stagePlan, index) => {
+              const isActive = stagePlan.id === featuredStudentPlanId;
+              return (
+                <button
+                  key={stagePlan.id}
+                  type="button"
+                  onClick={() => handleSelectStagePlan(stagePlan.id)}
+                  aria-pressed={isActive}
+                  className={cn(
+                    'rounded-full border px-4 py-2 text-sm font-semibold transition-colors',
+                    isActive
+                      ? 'border-transparent bg-[#b99b6a] text-[#2f2118] shadow-sm'
+                      : 'border-[#ddceb9] bg-[#fff8ee] text-[#5f4636] hover:bg-[#f3eadc]'
+                  )}
+                >
+                  {`Etapa ${index + 1} · ${getPlanDisplayName(stagePlan.id, stagePlan.name, false)}`}
+                </button>
+              );
+            })}
+          </div>
         )}
 
         {!loading && user && !isAdmin && featuredStudentPlan && (

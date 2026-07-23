@@ -26,7 +26,7 @@ const EXERCISE_PANEL_CLASS =
 const EXERCISE_INSET_CLASS =
   'rounded-[1.5rem] border border-[#ddceb9] bg-white/55 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]';
 const EXERCISE_PILL_CLASS =
-  'rounded-full border border-[#e2d5c3] bg-[#efe6d8]/92 px-4 py-2 text-sm font-semibold text-[#5f4636]';
+  'rounded-2xl border border-[#e2d5c3] bg-[#efe6d8]/92 px-4 py-2 text-sm font-semibold text-[#5f4636]';
 const EXERCISE_PRIMARY_BUTTON_CLASS =
   'h-16 w-full rounded-full border-0 bg-[#b99b6a] px-8 text-lg font-bold text-[#2f2118] shadow-none hover:bg-[#ad8d5d] hover:text-[#2f2118]';
 

@@ -2,6 +2,7 @@ import type { TrainingPlan } from './types';
 
 import { getPlanDayExercises, getPlanStage, getPlanWeekExercises, weekUsesMultiExerciseDays } from './helpers';
 import { continuingTrainingOnePlan } from './plans/continuing-1';
+import { etapa2BasicoMontadoPlan } from './plans/etapa-2-basico-montado';
 import { fundationalLesson } from './plans/fundational-lesson';
 import { iniciacionJovenPlan } from './plans/iniciacion-joven';
 import { retrainingPlan } from './plans/retraining';
@@ -30,6 +31,7 @@ export {
 
 export {
   continuingTrainingOnePlan,
+  etapa2BasicoMontadoPlan,
   fundationalLesson,
   iniciacionJovenPlan,
   retrainingPlan,
@@ -39,6 +41,7 @@ export {
 export const trainingPlans: TrainingPlan[] = [
   iniciacionJovenPlan,
   tallerMetodoMenteYMovimientoPlan,
+  etapa2BasicoMontadoPlan,
   retrainingPlan,
   continuingTrainingOnePlan,
   fundationalLesson,

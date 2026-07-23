@@ -396,6 +396,7 @@ export const tallerMetodoMenteYMovimientoPlan: TrainingPlan = {
         'Buscá consistencia, no perfección',
         'El caballo debe mantenerse atento, no automático',
       ],
+      transitionTo: ['circulo'],
     },
   ],
   stages: [
