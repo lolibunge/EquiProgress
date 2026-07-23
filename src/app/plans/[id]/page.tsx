@@ -12,7 +12,6 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -968,7 +967,7 @@ function PlanDetailPageContent() {
           <section>
             <Card className={STUDENT_PANEL_CLASS}>
               <CardHeader>
-                <CardTitle>Etapas del programa</CardTitle>
+                <CardTitle>Etapas del plan</CardTitle>
                 <CardDescription>
                   Resumen simple por semana para seguir el taller paso a paso.
                 </CardDescription>
@@ -1060,6 +1059,98 @@ function PlanDetailPageContent() {
                     );
                   })}
                 </Tabs>
+              </CardContent>
+            </Card>
+          </section>
+        ) : null}
+
+        {(plan.longDescription ||
+          plan.goal ||
+          plan.forWhom ||
+          plan.keyPoints?.length ||
+          plan.progressionNote ||
+          plan.successIndicators?.length) ? (
+          <section>
+            <Card className={STUDENT_PANEL_CLASS}>
+              <CardHeader>
+                <CardTitle>Contexto del plan</CardTitle>
+                <CardDescription>
+                  Marco general para entender cómo progresa este reentrenamiento.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {plan.longDescription ? (
+                  <div className={`${STUDENT_PANEL_INSET_CLASS} space-y-2 p-5`}>
+                    <p className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
+                      Enfoque general
+                    </p>
+                    <p className="text-base leading-relaxed text-muted-foreground">
+                      {plan.longDescription}
+                    </p>
+                  </div>
+                ) : null}
+
+                <div className="grid gap-4 lg:grid-cols-2">
+                  {plan.goal ? (
+                    <div className={`${STUDENT_PANEL_INSET_CLASS} space-y-2 p-5`}>
+                      <p className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
+                        Objetivo
+                      </p>
+                      <p className="text-sm leading-relaxed text-muted-foreground">{plan.goal}</p>
+                    </div>
+                  ) : null}
+
+                  {plan.forWhom ? (
+                    <div className={`${STUDENT_PANEL_INSET_CLASS} space-y-2 p-5`}>
+                      <p className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
+                        Para quién es
+                      </p>
+                      <p className="text-sm leading-relaxed text-muted-foreground">{plan.forWhom}</p>
+                    </div>
+                  ) : null}
+                </div>
+
+                {plan.keyPoints?.length ? (
+                  <div className={`${STUDENT_PANEL_INSET_CLASS} space-y-3 p-5`}>
+                    <p className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
+                      Puntos clave
+                    </p>
+                    <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+                      {plan.keyPoints.map((point) => (
+                        <li key={`${plan.id}-key-point-${point}`}>{point}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+
+                {plan.progressionNote ? (
+                  <div className={`${STUDENT_PANEL_INSET_CLASS} space-y-2 p-5`}>
+                    <p className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
+                      Nota de progresión
+                    </p>
+                    <p className="text-sm leading-relaxed text-muted-foreground">
+                      {plan.progressionNote}
+                    </p>
+                  </div>
+                ) : null}
+
+                {plan.successIndicators?.length ? (
+                  <div className={`${STUDENT_PANEL_INSET_CLASS} space-y-3 p-5`}>
+                    <p className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
+                      Indicadores de avance
+                    </p>
+                    <ul className="grid gap-2 sm:grid-cols-2">
+                      {plan.successIndicators.map((indicator) => (
+                        <li
+                          key={`${plan.id}-success-indicator-${indicator}`}
+                          className="rounded-[1.2rem] border border-[#ddceb9] bg-white/60 px-4 py-3 text-sm text-muted-foreground"
+                        >
+                          {indicator}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
               </CardContent>
             </Card>
           </section>
@@ -1362,80 +1453,6 @@ function PlanDetailPageContent() {
             </CardContent>
           </Card>
         </section>
-
-        {plan.stages?.length && isAdmin ? (
-          <section>
-            <h2 className="text-xl font-semibold mb-4">Etapas del plan</h2>
-            <ol className="relative border-l border-primary/30 space-y-6 pl-6">
-              {plan.stages.map((stage) => {
-                const active = stage.week === saved.currentWeek;
-                const completed = isCompleted(stage.week);
-                const editable = isWeekEditable(stage.week);
-                const stageExercises = (stage.exerciseIds ?? [])
-                  .map((exerciseId) => plan.exercises.find((entry) => entry.id === exerciseId))
-                  .filter((entry): entry is (typeof plan.exercises)[number] => Boolean(entry));
-                return (
-                  <li key={`${plan.id}-timeline-${stage.week}`} className="ml-2">
-                    <div
-                      className={`absolute -left-[9px] mt-1 h-4 w-4 rounded-full ${
-                        completed ? 'bg-primary' : 'bg-muted'
-                      }`}
-                    />
-                    <div className="flex flex-col items-start gap-2">
-                      <Badge variant={active ? 'default' : 'secondary'}>
-                        Semana {stage.week}
-                      </Badge>
-                      <div className="flex items-center gap-2">
-                        {stage.title && (
-                          <span className="font-medium">{stage.title}</span>
-                        )}
-                        {completed && (
-                          <span className="text-xs text-muted-foreground">
-                            (Completada)
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="mt-2 flex flex-wrap items-center gap-3">
-                      {stageExercises.length > 0
-                        ? stageExercises.map((exercise) => (
-                            <Button
-                              key={`${plan.id}-stage-${stage.week}-exercise-${exercise.id}`}
-                              asChild
-                              size="sm"
-                              variant="secondary"
-                            >
-                              <Link href={`/exercises/${exercise.id}?from=${plan.id}`}>
-                                Ver ejercicio: {exercise.name}
-                              </Link>
-                            </Button>
-                          ))
-                        : null}
-                      <label className="flex items-center gap-2 text-sm text-muted-foreground select-none cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={completed}
-                          onChange={(event) =>
-                            event.target.checked
-                              ? markWeekDone(stage.week)
-                              : unmarkWeek(stage.week)
-                          }
-                          disabled={isLoadingProgress || !editable}
-                        />
-                        {editable ? 'Marcar completada' : 'Semana cerrada'}
-                      </label>
-                    </div>
-
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      {stage.description}
-                    </p>
-                  </li>
-                );
-              })}
-            </ol>
-          </section>
-        ) : null}
 
         <section>
           <Card className={STUDENT_PANEL_CLASS}>

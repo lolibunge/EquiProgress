@@ -1,12 +1,20 @@
 import type { TrainingPlan } from '@/data/training-plans';
 
-const STUDENT_ALLOWED_PLAN_IDS = ['taller-metodo-mente-movimiento'] as const;
+const STUDENT_ALLOWED_PLAN_IDS = [
+  'taller-metodo-mente-movimiento',
+  'etapa-2-basico-montado',
+] as const;
 
 const STUDENT_PLAN_OVERRIDES: Record<string, { name?: string; description?: string }> = {
   'taller-metodo-mente-movimiento': {
     name: 'Taller Metodo Mente y Movimiento',
     description:
       'Primer acercamiento al caballo con enfoque de manejo basico, calma y comunicacion.',
+  },
+  'etapa-2-basico-montado': {
+    name: 'Etapa 2 - Basico Montado',
+    description:
+      'Patrones montados fundamentales para desarrollar ritmo, control, equilibrio y comunicacion despues de la Etapa 1.',
   },
 };
 

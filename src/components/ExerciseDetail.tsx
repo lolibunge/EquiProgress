@@ -12,9 +12,16 @@ export type Exercise = {
   name: string;
   image?: string;
   description?: string; // legacy
+  longDescription?: string;
   objective?: string;
   focus?: string;
   method?: string[];
+  methodSections?: {
+    title: string;
+    steps?: string[];
+    methodSubSections?: { title: string; steps: string[] }[];
+  }[];
+  observe?: string;
   cues?: string[];
   gear?: string[];
   duration?: string;
@@ -36,8 +43,7 @@ const exerciseLeading: Exercise = {
   name: "Leading",
   image: "/plans/exercise/leading.png",
   description: "Respuestas básicas a la cuerda.",
-  objective:
-    "Respuestas claras a la cuerda respetando el espacio personal del guía.",
+  objective: "Respuestas claras a la cuerda respetando el espacio personal del guía.",
   method: [
     "Enseñar avanzar con ligera tensión y liberar al primer paso.",
     "Parar elevando tu energía hacia atrás + micro tensión; liberar al detener.",
@@ -134,7 +140,7 @@ function SignalsList({
 }
 
 export function ExerciseDetail({ exercise }: { exercise: Exercise }) {
-  const desc = useMemo(() => exercise.objective ?? exercise.description ?? "", [exercise]);
+  const desc = useMemo(() => exercise.description ?? "", [exercise]);
 
   return (
     <Card className="max-w-3xl mx-auto shadow-sm">
@@ -193,8 +199,75 @@ export function ExerciseDetail({ exercise }: { exercise: Exercise }) {
         {/* Método */}
         <div className="space-y-2">
           <SectionTitle icon={ListChecks}>Cómo se hace</SectionTitle>
-          <LabeledList items={exercise.method} emptyText="Sin pasos definidos aún." />
+          {exercise.methodSections?.length ? (
+            <div className="space-y-4">
+              {exercise.methodSections.map((section, index) => (
+                <div key={`${section.title}-${index}`} className="rounded-xl border p-4">
+                  <div className="text-sm font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                    {section.title}
+                  </div>
+                  {section.steps?.length ? (
+                    section.methodSubSections?.length ? (
+                      <ul className="mt-3 list-disc pl-5 space-y-1 text-sm">
+                        {section.steps.map((line, stepIndex) => (
+                          <li key={`${section.title}-step-${stepIndex}`} className="leading-relaxed">
+                            {line}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <LabeledList items={section.steps} emptyText="Sin pasos definidos aún." />
+                    )
+                  ) : null}
+                  {section.methodSubSections?.length ? (
+                    <div className="mt-3 space-y-3">
+                      {section.methodSubSections.map((subSection, subSectionIndex) => (
+                        <div
+                          key={`${section.title}-sub-${subSection.title}-${subSectionIndex}`}
+                          className="rounded-lg border bg-background/50 p-3"
+                        >
+                          <div className="text-sm font-semibold text-foreground/80">
+                            {subSection.title}
+                          </div>
+                          {subSection.steps.length > 0 ? (
+                            <ol
+                              className="mt-2 pl-5 space-y-1 text-sm"
+                              style={{ listStyleType: "lower-alpha" }}
+                            >
+                              {subSection.steps.map((line, stepIndex) => (
+                                <li key={`${subSection.title}-step-${stepIndex}`} className="leading-relaxed">
+                                  {line}
+                                </li>
+                              ))}
+                            </ol>
+                          ) : (
+                            <p className="mt-2 text-sm text-muted-foreground">
+                              Sin subpasos definidos aún.
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                  {!section.steps?.length && !section.methodSubSections?.length ? (
+                    <p className="mt-3 text-sm text-muted-foreground">
+                      Sin pasos definidos aún.
+                    </p>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <LabeledList items={exercise.method} emptyText="Sin pasos definidos aún." />
+          )}
         </div>
+
+        {exercise.observe ? (
+          <div className="space-y-2">
+            <SectionTitle icon={Info}>Qué observar</SectionTitle>
+            <p className="text-sm leading-relaxed">{exercise.observe}</p>
+          </div>
+        ) : null}
 
         {/* Cues / Prerrequisitos */}
         <div className="grid gap-5 sm:grid-cols-2">

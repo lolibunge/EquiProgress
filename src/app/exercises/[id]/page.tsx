@@ -3,7 +3,11 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useParams, notFound, useSearchParams } from 'next/navigation';
-import { trainingPlans } from '@/data/training-plans';
+import {
+  trainingPlans,
+  type ExerciseMethodSection,
+  type ExerciseMethodSubSection,
+} from '@/data/training-plans';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -22,7 +26,7 @@ const EXERCISE_PANEL_CLASS =
 const EXERCISE_INSET_CLASS =
   'rounded-[1.5rem] border border-[#ddceb9] bg-white/55 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]';
 const EXERCISE_PILL_CLASS =
-  'rounded-full border border-[#e2d5c3] bg-[#efe6d8]/92 px-4 py-2 text-sm font-semibold text-[#5f4636]';
+  'rounded-2xl border border-[#e2d5c3] bg-[#efe6d8]/92 px-4 py-2 text-sm font-semibold text-[#5f4636]';
 const EXERCISE_PRIMARY_BUTTON_CLASS =
   'h-16 w-full rounded-full border-0 bg-[#b99b6a] px-8 text-lg font-bold text-[#2f2118] shadow-none hover:bg-[#ad8d5d] hover:text-[#2f2118]';
 
@@ -82,11 +86,14 @@ function ExerciseDetailPageContent() {
     : plan;
   const sourcePlanId = sourcePlan.id;
 
-  // Compatibilidad hacia atrás
-  const headline =
+  const objective: string =
     ex.objective ??
-    ex.longDescription ??
+    ex.goal ??
+    '';
+
+  const description: string =
     ex.description ??
+    ex.longDescription ??
     '';
 
   const focus: string = ex.focus ?? '';
@@ -95,6 +102,7 @@ function ExerciseDetailPageContent() {
     ex.method ??
     ex.steps ??
     [];
+  const methodSections: ExerciseMethodSection[] = ex.methodSections ?? [];
 
   const tips: string[] =
     ex.cues ??
@@ -109,6 +117,7 @@ function ExerciseDetailPageContent() {
   const commonMistakes: string[] = ex.commonMistakes ?? [];
   const instructorTips: string[] = ex.instructorTips ?? [];
   const transitionTo: string[] = ex.transitionTo ?? [];
+  const observe: string = ex.observe ?? '';
 
   const duration = ex.duration ?? '';
   const reps = ex.reps ?? '';
@@ -145,9 +154,9 @@ function ExerciseDetailPageContent() {
 
         <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <Card className={`md:col-span-2 ${EXERCISE_PANEL_CLASS}`}>
-            <CardHeader className="pb-0">
+            <CardHeader className="pb-5">
               <CardTitle>Descripción</CardTitle>
-              <CardDescription>{duration || reps || '—'}</CardDescription>
+              <CardDescription>{description || 'Sin descripción todavía.'}</CardDescription>
             </CardHeader>
 
             <CardContent className="space-y-6">
@@ -179,13 +188,13 @@ function ExerciseDetailPageContent() {
                 </div>
               )}
 
-              {headline && (
+              {objective && (
                 <div className={`${EXERCISE_INSET_CLASS} space-y-2`}>
                   <div className="flex items-center gap-2 text-sm font-semibold text-foreground/80">
                     <Target className="size-4" aria-hidden />
                     <span>Objetivo</span>
                   </div>
-                  <p className="text-muted-foreground">{headline}</p>
+                  <p className="text-muted-foreground">{objective}</p>
                 </div>
               )}
 
@@ -204,7 +213,78 @@ function ExerciseDetailPageContent() {
                   <ListChecks className="size-4" aria-hidden />
                   <span>Cómo se hace</span>
                 </div>
-                {steps.length > 0 ? (
+                {methodSections.length > 0 ? (
+                  <div className="space-y-4">
+                    {methodSections.map((section, index) => (
+                      <div
+                        key={`${section.title}-${index}`}
+                        className="rounded-[1.15rem] border border-[#e5d9c8] bg-[#fffaf2]/85 p-4"
+                      >
+                        <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[#7a5c45]">
+                          {section.title}
+                        </p>
+                        {section.steps?.length ? (
+                          section.methodSubSections?.length ? (
+                            <ul className="mt-3 list-disc pl-5 space-y-2 text-sm text-muted-foreground">
+                              {section.steps.map((step: string, stepIndex: number) => (
+                                <li key={`${section.title}-step-${stepIndex}`}>{step}</li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <ol className="mt-3 list-decimal pl-5 space-y-2 text-sm text-muted-foreground">
+                              {section.steps.map((step: string, stepIndex: number) => (
+                                <li key={`${section.title}-step-${stepIndex}`}>{step}</li>
+                              ))}
+                            </ol>
+                          )
+                        ) : null}
+
+                        {section.methodSubSections?.length ? (
+                          <div className="mt-4 space-y-3">
+                            {section.methodSubSections.map((
+                              subSection: ExerciseMethodSubSection,
+                              subSectionIndex: number,
+                            ) => (
+                              <div
+                                key={`${section.title}-sub-${subSection.title}-${subSectionIndex}`}
+                                className="rounded-[1rem] border border-[#e2d4c1] bg-white/70 p-4"
+                              >
+                                <p className="text-sm font-semibold text-[#5f4636]">
+                                  {subSection.title}
+                                </p>
+                                {subSection.steps.length > 0 ? (
+                                  <ol
+                                    className="mt-3 pl-5 space-y-2 text-sm text-muted-foreground"
+                                    style={{ listStyleType: 'lower-alpha' }}
+                                  >
+                                    {subSection.steps.map((step: string, stepIndex: number) => (
+                                      <li
+                                        key={`${subSection.title}-step-${stepIndex}`}
+                                        className="pl-1"
+                                      >
+                                        {step}
+                                      </li>
+                                    ))}
+                                  </ol>
+                                ) : (
+                                  <p className="mt-3 text-sm text-muted-foreground">
+                                    Sin subpasos definidos aún.
+                                  </p>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
+
+                        {!section.steps?.length && !section.methodSubSections?.length ? (
+                          <p className="mt-3 text-sm text-muted-foreground">
+                            Sin pasos definidos aún.
+                          </p>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                ) : steps.length > 0 ? (
                   <ol className="list-decimal pl-5 space-y-1 text-sm text-muted-foreground">
                     {steps.map((s: string, i: number) => (
                       <li key={i}>{s}</li>
@@ -214,6 +294,16 @@ function ExerciseDetailPageContent() {
                   <p className="text-sm text-muted-foreground">Sin pasos definidos aún.</p>
                 )}
               </div>
+
+              {observe && (
+                <div className={`${EXERCISE_INSET_CLASS} space-y-2`}>
+                  <div className="flex items-center gap-2 text-sm font-semibold text-foreground/80">
+                    <Info className="size-4" aria-hidden />
+                    <span>Qué observar</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground">{observe}</p>
+                </div>
+              )}
 
               <div className="grid gap-6 md:grid-cols-2">
                 <div className={`${EXERCISE_INSET_CLASS} space-y-2`}>
