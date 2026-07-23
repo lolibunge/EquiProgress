@@ -1,13 +1,17 @@
 import type { TrainingPlan } from '@/data/training-plans';
 
-const STUDENT_ALLOWED_PLAN_IDS = [
+// Fallback list used only for accounts that don't have an explicit
+// `allowedPlanIds` field yet in Firestore (e.g. accounts created before
+// per-student plan assignment existed). Once an admin sets allowedPlanIds
+// on a user doc (even to an empty array), that value takes over completely.
+export const DEFAULT_STUDENT_PLAN_IDS = [
   'taller-metodo-mente-movimiento',
   'etapa-2-basico-montado',
 ] as const;
 
 const STUDENT_PLAN_OVERRIDES: Record<string, { name?: string; description?: string }> = {
   'taller-metodo-mente-movimiento': {
-    name: 'Taller Metodo Mente y Movimiento',
+    name: 'Etapa 1 - Basico Manejo',
     description:
       'Primer acercamiento al caballo con enfoque de manejo basico, calma y comunicacion.',
   },
@@ -37,14 +41,30 @@ export function isAdminUser(user: { email?: string | null } | null | undefined):
   return isAdminEmail(user?.email);
 }
 
-export function canUserAccessPlan(planId: string, isAdmin: boolean): boolean {
-  if (isAdmin) return true;
-  return STUDENT_ALLOWED_PLAN_IDS.includes(planId as (typeof STUDENT_ALLOWED_PLAN_IDS)[number]);
+// `allowedPlanIds` is `null`/`undefined` when the user doc has no explicit
+// assignment yet (fall back to the default list). Pass `[]` explicitly to
+// mean "this student has no plans assigned".
+function resolveAllowedPlanIds(allowedPlanIds: string[] | null | undefined): readonly string[] {
+  if (allowedPlanIds == null) return DEFAULT_STUDENT_PLAN_IDS;
+  return allowedPlanIds;
 }
 
-export function getVisiblePlans(plans: TrainingPlan[], isAdmin: boolean): TrainingPlan[] {
+export function canUserAccessPlan(
+  planId: string,
+  isAdmin: boolean,
+  allowedPlanIds?: string[] | null
+): boolean {
+  if (isAdmin) return true;
+  return resolveAllowedPlanIds(allowedPlanIds).includes(planId);
+}
+
+export function getVisiblePlans(
+  plans: TrainingPlan[],
+  isAdmin: boolean,
+  allowedPlanIds?: string[] | null
+): TrainingPlan[] {
   if (isAdmin) return plans;
-  return plans.filter((plan) => canUserAccessPlan(plan.id, false));
+  return plans.filter((plan) => canUserAccessPlan(plan.id, false, allowedPlanIds));
 }
 
 export function getPlanDisplayName(planId: string, defaultName: string, isAdmin: boolean): string {

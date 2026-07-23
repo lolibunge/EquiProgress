@@ -98,10 +98,15 @@ function PlanDetailPageContent() {
   const STORAGE_KEY = `equi:plan:${plan.id}`;
 
   const { user, loading: authLoading } = useAuth();
-  const { trialExtensionDays, lastFeedbackAt, loading: accountMetaLoading } = useUserAccountMeta(user);
+  const {
+    trialExtensionDays,
+    lastFeedbackAt,
+    allowedPlanIds,
+    loading: accountMetaLoading,
+  } = useUserAccountMeta(user);
   const { toast } = useToast();
   const isAdmin = isAdminUser(user);
-  const canAccessPlan = canUserAccessPlan(plan.id, isAdmin);
+  const canAccessPlan = canUserAccessPlan(plan.id, isAdmin, allowedPlanIds);
   const simulatedTrialPreview = (() => {
     const raw = searchParams.get('trialPreview');
     return raw === 'expired' || raw === 'pending' ? raw : null;
