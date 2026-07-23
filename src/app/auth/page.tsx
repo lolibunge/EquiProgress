@@ -105,7 +105,29 @@ function AuthPageContent() {
     setBusyMode('login');
 
     try {
-      await signInWithEmailAndPassword(auth, loginEmail.trim(), loginPassword);
+      const credentials = await signInWithEmailAndPassword(auth, loginEmail.trim(), loginPassword);
+
+      if (db && USE_FIRESTORE) {
+        try {
+          // Backfills identity fields for accounts whose Firestore doc is
+          // missing them (e.g. the original signup write failed). Never
+          // touches createdAt so we don't clobber the real signup date.
+          const role = isAdminEmail(credentials.user.email) ? 'admin' : 'student';
+          await setDoc(
+            doc(db, 'users', credentials.user.uid),
+            {
+              email: credentials.user.email,
+              ...(credentials.user.displayName ? { displayName: credentials.user.displayName } : {}),
+              role,
+              updatedAt: serverTimestamp(),
+            },
+            { merge: true }
+          );
+        } catch {
+          // Best-effort backfill; a failure here shouldn't block login.
+        }
+      }
+
       toast({
         title: 'Bienvenida',
         description: 'Sesión iniciada correctamente.',

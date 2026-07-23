@@ -12,8 +12,6 @@ import {
   trainingPlans,
   type TrainingPlan,
   type PlanStage,
-  CATEGORIES,
-  CATEGORY_LABELS,
   getPlanDayExercises,
   getPlanStage,
   getPlanWeekExercises,
@@ -22,10 +20,12 @@ import {
 } from '@/data/training-plans';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Check, Plus } from 'lucide-react';
 import { Logo } from '@/components/logo';
 import { cn } from '@/lib/utils';
 import { auth, db, USE_FIRESTORE } from '@/lib/firebase';
 import {
+  DEFAULT_STUDENT_PLAN_IDS,
   getPlanDisplayDescription,
   getPlanDisplayName,
   getVisiblePlans,
@@ -56,6 +56,7 @@ type AdminStudentTrialRow = {
   trialRemainingDays: number;
   trialTotalDays: number;
   lockStage: TrialLockStage;
+  allowedPlanIds: string[];
 };
 
 const STUDENT_WORK_DAYS_PER_WEEK = 5;
@@ -93,21 +94,29 @@ function HomePageContent() {
   const searchParams = useSearchParams();
   const { user, loading } = useAuth();
   const { toast } = useToast();
-  const [selectedCategory, setSelectedCategory] = useState<Category>(CATEGORIES[0]);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [adminStudents, setAdminStudents] = useState<AdminStudentTrialRow[]>([]);
   const [isAdminStudentsLoading, setIsAdminStudentsLoading] = useState(false);
   const [adminStudentsError, setAdminStudentsError] = useState<string | null>(null);
-  const [grantingStudentUid, setGrantingStudentUid] = useState<string | null>(null);
   const [studentPlanProgress, setStudentPlanProgress] = useState<SavedPlan>(createEmptyProgress());
-  const { trialExtensionDays, lastFeedbackAt, loading: accountMetaLoading } = useUserAccountMeta(user);
+  const [studentSearchQuery, setStudentSearchQuery] = useState('');
+  const [togglingPlanKey, setTogglingPlanKey] = useState<string | null>(null);
+  const {
+    trialExtensionDays,
+    lastFeedbackAt,
+    allowedPlanIds,
+    loading: accountMetaLoading,
+  } = useUserAccountMeta(user);
 
   const isAdmin = isAdminUser(user);
   const simulatedTrialPreview = (() => {
     const raw = searchParams.get('trialPreview');
     return raw === 'expired' || raw === 'pending' ? raw : null;
   })();
-  const studentStagePlans = useMemo(() => getVisiblePlans(trainingPlans, false), []);
+  const studentStagePlans = useMemo(
+    () => getVisiblePlans(trainingPlans, false, allowedPlanIds),
+    [allowedPlanIds]
+  );
   const [selectedStagePlanId, setSelectedStagePlanId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -130,7 +139,6 @@ function HomePageContent() {
   const featuredStudentPlanStorageKey = featuredStudentPlan
     ? `equi:plan:${featuredStudentPlan.id}`
     : null;
-  const adminFilteredPlans = trainingPlans.filter((plan) => plan.category === selectedCategory);
   const trialStatus = useMemo(() => {
     if (!user || isAdmin) return null;
     return getTrialStatus(user.metadata.creationTime, { extraDays: trialExtensionDays });
@@ -295,42 +303,58 @@ function HomePageContent() {
     void loadAdminStudents();
   }, [loadAdminStudents]);
 
-  async function handleGrantThirtyDays(student: AdminStudentTrialRow) {
+  async function handleTogglePlanForStudent(student: AdminStudentTrialRow, planId: string) {
     if (!db || !USE_FIRESTORE) {
       toast({
         variant: 'destructive',
         title: 'Firestore desactivado',
-        description: 'No se puede otorgar extensión sin Firestore activo.',
+        description: 'No se puede editar el acceso sin Firestore activo.',
       });
       return;
     }
 
-    setGrantingStudentUid(student.uid);
+    const isCurrentlyAllowed = student.allowedPlanIds.includes(planId);
+    const nextAllowedPlanIds = isCurrentlyAllowed
+      ? student.allowedPlanIds.filter((id) => id !== planId)
+      : [...student.allowedPlanIds, planId];
+    const toggleKey = `${student.uid}:${planId}`;
+
+    setTogglingPlanKey(toggleKey);
+    setAdminStudents((current) =>
+      current.map((row) =>
+        row.uid === student.uid ? { ...row, allowedPlanIds: nextAllowedPlanIds } : row
+      )
+    );
 
     try {
-      const nextExtension = Math.max(0, student.trialExtensionDays) + 30;
       await updateDoc(doc(db, 'users', student.uid), {
-        trialExtensionDays: nextExtension,
+        allowedPlanIds: nextAllowedPlanIds,
         updatedAt: serverTimestamp(),
-        trialExtendedAt: serverTimestamp(),
       });
-
-      toast({
-        title: 'Extensión aplicada',
-        description: `Se otorgaron 30 días extra a ${student.displayName || student.email || student.uid}.`,
-      });
-
-      await loadAdminStudents();
     } catch (error) {
+      setAdminStudents((current) =>
+        current.map((row) =>
+          row.uid === student.uid ? { ...row, allowedPlanIds: student.allowedPlanIds } : row
+        )
+      );
       toast({
         variant: 'destructive',
-        title: 'No se pudo otorgar extensión',
+        title: 'No se pudo actualizar el acceso',
         description: firestoreAdminErrorMessage(error),
       });
     } finally {
-      setGrantingStudentUid(null);
+      setTogglingPlanKey(null);
     }
   }
+
+  const filteredAdminStudents = adminStudents.filter((student) => {
+    const query = studentSearchQuery.trim().toLowerCase();
+    if (!query) return true;
+    return (
+      (student.displayName ?? '').toLowerCase().includes(query) ||
+      (student.email ?? '').toLowerCase().includes(query)
+    );
+  });
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(216,234,101,0.18),_transparent_34rem),linear-gradient(180deg,_#f5f0e1_0%,_#efe5d4_100%)] text-foreground font-body flex flex-col antialiased">
@@ -375,13 +399,15 @@ function HomePageContent() {
 
       <main className="relative flex-grow w-full container mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="pointer-events-none absolute inset-x-4 top-2 -z-10 h-80 rounded-[3rem] bg-[radial-gradient(circle,_rgba(185,155,106,0.24),_transparent_65%)]" />
-        <div className='py-10 flex items-center justify-center'>
-          <Button asChild variant="outline" size="sm" className="rounded-full border-[#ddceb9] bg-[#fff8ee]/80 text-[#5f4636] hover:bg-[#f3eadc] hover:text-[#4c382c]">
-            <Link href="/new-registry">
-              Registrar entrenamiento
-            </Link>
-          </Button>
-        </div>
+        {!loading && user && !isAdmin && (
+          <div className='py-10 flex items-center justify-center'>
+            <Button asChild variant="outline" size="sm" className="rounded-full border-[#ddceb9] bg-[#fff8ee]/80 text-[#5f4636] hover:bg-[#f3eadc] hover:text-[#4c382c]">
+              <Link href="/new-registry">
+                Registrar entrenamiento
+              </Link>
+            </Button>
+          </div>
+        )}
         {!loading && user && !isAdmin && !accountMetaLoading && effectiveTrialStatus && (
           <section className="mb-6">
             <Card className="mx-auto max-w-2xl border-primary/30 bg-card/80">
@@ -452,7 +478,7 @@ function HomePageContent() {
                       : 'border-[#ddceb9] bg-[#fff8ee] text-[#5f4636] hover:bg-[#f3eadc]'
                   )}
                 >
-                  {`Etapa ${index + 1} · ${getPlanDisplayName(stagePlan.id, stagePlan.name, false)}`}
+                  {getPlanDisplayName(stagePlan.id, stagePlan.name, false)}
                 </button>
               );
             })}
@@ -487,18 +513,6 @@ function HomePageContent() {
 
         {!loading && !user && (
           <PublicLandingHero />
-        )}
-
-        {!loading && user && isAdmin && (
-          <div className="mb-10 flex flex-col items-center text-center">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">Biblioteca</p>
-            <h2 className="mt-3 text-3xl font-black tracking-tight text-foreground sm:text-4xl md:text-5xl">
-              Planes de Entrenamiento para Caballos
-            </h2>
-            <p className="mt-4 max-w-2xl text-lg leading-relaxed text-muted-foreground">
-              Desde iniciar un caballo joven hasta refinar movimientos avanzados, encuentra un plan que se adapte a tu viaje.
-            </p>
-          </div>
         )}
 
         {!loading && !user && (
@@ -547,30 +561,6 @@ function HomePageContent() {
         )}
 
         {!loading && user && isAdmin && (
-          <Card className={`${WARM_PANEL_CLASS} mb-8 overflow-hidden`}>
-            <CardHeader className="p-6 pb-3 sm:p-7 sm:pb-3">
-              <div className="mb-3 inline-flex w-fit rounded-full bg-[#f4ecde]/90 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-[#7a5c45]">
-                Panel interno
-              </div>
-              <CardTitle className="text-3xl font-black tracking-tight sm:text-4xl">Modo administrador activo</CardTitle>
-              <CardDescription className="max-w-2xl text-base leading-relaxed">
-                Puedes ver todos los planes y gestionar las asignaciones de estudiantes.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-3 p-6 pt-3 sm:p-7 sm:pt-4">
-              <div className="flex flex-col sm:flex-row gap-3">
-                <Button asChild variant="outline" className={WARM_SECONDARY_BUTTON_CLASS}>
-                  <Link href="/history">Abrir historial de progreso</Link>
-                </Button>
-                <Button asChild variant="outline" className={WARM_SECONDARY_BUTTON_CLASS}>
-                  <Link href="/feedback">Enviar opinión</Link>
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {!loading && user && isAdmin && (
           <>
             <section className="mb-8">
               <Card className={`${WARM_PANEL_CLASS} overflow-hidden`}>
@@ -578,29 +568,19 @@ function HomePageContent() {
                   <div className="mb-3 inline-flex w-fit rounded-full bg-[#e6efdf] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-[#44552b]">
                     Gestión de acceso
                   </div>
-                  <CardTitle className="text-3xl font-black tracking-tight sm:text-4xl">Extensiones de prueba</CardTitle>
+                  <CardTitle className="text-3xl font-black tracking-tight sm:text-4xl">Planes por estudiante</CardTitle>
                   <CardDescription className="max-w-2xl text-base leading-relaxed">
-                    Estudiantes bloqueados con opinión enviada pueden recibir +30 días con un clic.
+                    Elegí qué planes puede ver cada estudiante. Los cambios se aplican al instante.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4 p-6 pt-3 sm:p-7 sm:pt-4">
-                  <div className={`${WARM_INSET_PANEL_CLASS} flex flex-wrap items-center justify-between gap-3 px-4 py-3`}>
-                    <p className="text-sm font-medium text-muted-foreground">
-                      {isAdminStudentsLoading
-                        ? 'Cargando estudiantes...'
-                        : `${adminStudents.length} cuentas de estudiante encontradas.`}
-                    </p>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-10 rounded-full border-[#ddceb9] bg-[#fff8ee] px-4 font-semibold text-[#5f4636] shadow-none hover:bg-[#f3eadc] hover:text-[#4c382c]"
-                      onClick={() => void loadAdminStudents()}
-                      disabled={isAdminStudentsLoading || Boolean(grantingStudentUid)}
-                    >
-                      Recargar lista
-                    </Button>
-                  </div>
+                  <input
+                    type="text"
+                    value={studentSearchQuery}
+                    onChange={(event) => setStudentSearchQuery(event.target.value)}
+                    placeholder="Buscar por nombre o email"
+                    className="h-11 w-full rounded-full border border-[#ddceb9] bg-[#fff8ee] px-4 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#b99b6a]/40"
+                  />
 
                   {adminStudentsError && (
                     <p className="rounded-[1.15rem] border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
@@ -614,55 +594,56 @@ function HomePageContent() {
                     </p>
                   ) : isAdminStudentsLoading ? (
                     <p className={`${WARM_INSET_PANEL_CLASS} px-4 py-3 text-sm text-muted-foreground`}>Preparando panel...</p>
-                  ) : adminStudents.length === 0 ? (
+                  ) : filteredAdminStudents.length === 0 ? (
                     <p className={`${WARM_INSET_PANEL_CLASS} px-4 py-3 text-sm text-muted-foreground`}>
-                      No se encontraron estudiantes todavía.
+                      No se encontraron estudiantes que coincidan con la búsqueda.
                     </p>
                   ) : (
                     <div className="space-y-2">
-                      {adminStudents.map((student) => (
+                      {filteredAdminStudents.map((student) => (
                         <div
                           key={student.uid}
-                          className={`${WARM_INSET_PANEL_CLASS} space-y-2 px-4 py-4`}
+                          className={`${WARM_INSET_PANEL_CLASS} space-y-3 px-4 py-4`}
                         >
                           <div className="flex flex-wrap items-center justify-between gap-2">
-                            <p className="font-medium">
-                              {student.displayName || student.email || student.uid}
-                            </p>
+                            <div className="flex items-center gap-3">
+                              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#b99b6a] text-sm font-semibold text-[#2f2118]">
+                                {(student.displayName || student.email || student.uid).slice(0, 2).toUpperCase()}
+                              </div>
+                              <div>
+                                <p className="text-sm font-medium">
+                                  {student.displayName || student.email || student.uid}
+                                </p>
+                                <p className="text-xs text-muted-foreground">{student.email || 'Sin email'}</p>
+                              </div>
+                            </div>
                             <p className="rounded-full bg-[#f4ecde]/90 px-3 py-1 text-xs font-medium text-[#6d5547]">
-                              {student.lockStage === 'pending_admin'
-                                ? 'Pendiente de habilitación'
-                                : student.lockStage === 'feedback_required'
-                                  ? 'Bloqueado: falta opinión'
-                                  : 'Acceso activo'}
+                              {student.allowedPlanIds.length}/{trainingPlans.length} planes
                             </p>
                           </div>
-                          <p className="text-xs text-muted-foreground">
-                            {student.email || 'Sin email'}
-                            {student.createdAt ? ` · Alta: ${formatShortDate(student.createdAt)}` : ''}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            Días extra: {student.trialExtensionDays} · Restantes: {student.trialRemainingDays}/
-                            {student.trialTotalDays}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            Feedback: {student.lastFeedbackAt ? formatShortDate(student.lastFeedbackAt) : 'No enviado'}
-                          </p>
                           <div className="flex flex-wrap gap-2">
-                            <Button
-                              type="button"
-                              size="sm"
-                              className="h-10 rounded-full bg-[#b99b6a] px-4 font-semibold text-[#2f2118] hover:bg-[#ad8d5d] hover:text-[#2f2118]"
-                              onClick={() => void handleGrantThirtyDays(student)}
-                              disabled={Boolean(grantingStudentUid)}
-                            >
-                              {grantingStudentUid === student.uid ? 'Otorgando...' : 'Otorgar +30 días'}
-                            </Button>
-                            {student.lockStage === 'feedback_required' && (
-                              <Button type="button" size="sm" variant="outline" className="h-10 rounded-full border-[#ddceb9] bg-[#fff8ee] px-4 font-semibold text-[#5f4636] shadow-none hover:bg-[#f3eadc] hover:text-[#4c382c]" asChild>
-                                <Link href="/feedback">Abrir feedback</Link>
-                              </Button>
-                            )}
+                            {trainingPlans.map((plan) => {
+                              const isAllowed = student.allowedPlanIds.includes(plan.id);
+                              const toggleKey = `${student.uid}:${plan.id}`;
+                              const isToggling = togglingPlanKey === toggleKey;
+                              return (
+                                <button
+                                  key={plan.id}
+                                  type="button"
+                                  disabled={isToggling}
+                                  onClick={() => void handleTogglePlanForStudent(student, plan.id)}
+                                  className={cn(
+                                    'inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition-colors disabled:opacity-60',
+                                    isAllowed
+                                      ? 'bg-[#b99b6a] text-[#2f2118] hover:bg-[#ad8d5d]'
+                                      : 'border border-[#ddceb9] bg-[#fff8ee] text-[#8a7561] hover:bg-[#f3eadc]'
+                                  )}
+                                >
+                                  {isAllowed ? <Check className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
+                                  {getPlanDisplayName(plan.id, plan.name, false)}
+                                </button>
+                              );
+                            })}
                           </div>
                         </div>
                       ))}
@@ -672,101 +653,6 @@ function HomePageContent() {
               </Card>
             </section>
 
-            <div className={`${WARM_PANEL_CLASS} mb-10 mx-auto max-w-4xl p-3 sm:p-4`}>
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="px-2">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                    Filtrar biblioteca
-                  </p>
-                  <p className="mt-1 text-sm text-[#6d5547]">
-                    {adminFilteredPlans.length} planes en {CATEGORY_LABELS[selectedCategory]}
-                  </p>
-                </div>
-
-                <div className="grid gap-2 rounded-[1.45rem] border border-[#ddceb9] bg-[#f4ecde]/78 p-1.5 sm:grid-cols-3">
-                  {CATEGORIES.map((category) => (
-                    <Button
-                      key={category}
-                      type="button"
-                      variant="ghost"
-                      onClick={() => setSelectedCategory(category)}
-                      className={`h-12 rounded-full px-5 text-sm font-semibold transition-colors sm:text-base ${
-                        selectedCategory === category
-                          ? 'bg-[#b99b6a] text-[#2f2118] shadow-none hover:bg-[#ad8d5d] hover:text-[#2f2118]'
-                          : 'bg-transparent text-[#6d5547] hover:bg-[#fff8ee] hover:text-[#4c382c]'
-                      }`}
-                      aria-pressed={selectedCategory === category}
-                    >
-                      {CATEGORY_LABELS[category]}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {adminFilteredPlans.map((plan: TrainingPlan) => {
-                const planName = getPlanDisplayName(plan.id, plan.name, isAdmin);
-                const planDescription = getPlanDisplayDescription(
-                  plan.id,
-                  plan.description,
-                  isAdmin
-                );
-                const planTone = getStudentPlanPanelTone(plan.category);
-
-                return (
-                  <Link
-                    key={plan.id}
-                    href={`/plans/${plan.id}`}
-                    className="group focus:outline-none"
-                    aria-label={`Abrir plan: ${planName}`}
-                  >
-                    <Card className="flex h-full flex-col overflow-hidden rounded-[2rem] border border-[#cfb89f] bg-[#fff7ea] shadow-[0_22px_58px_rgba(120,92,68,0.16)] transition-transform group-hover:-translate-y-1">
-                      <div className="relative h-56 overflow-hidden bg-[#211714] text-white sm:h-60">
-                        {plan.image ? (
-                          <Image
-                            src={plan.image}
-                            alt={planName}
-                            fill
-                            sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw"
-                            className="object-cover transition-transform duration-500 group-hover:scale-105"
-                          />
-                        ) : (
-                          <div className={`h-full w-full bg-gradient-to-br ${planTone.thumbGlow}`} />
-                        )}
-                        <div className="absolute inset-0 bg-gradient-to-b from-black/5 via-black/20 to-[#1c1411]/88" />
-                        <div className={`absolute inset-0 bg-gradient-to-tr ${planTone.heroGlow}`} />
-                        <div className="absolute left-5 top-5 rounded-full border border-white/20 bg-black/20 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/95 backdrop-blur-sm">
-                          {CATEGORY_LABELS[plan.category]}
-                        </div>
-                      </div>
-                      <CardContent className="flex flex-1 flex-col gap-5 p-5 sm:p-6">
-                        <div className={`h-1.5 rounded-full bg-gradient-to-r ${planTone.barGlow}`} />
-                        <div className="space-y-3">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="rounded bg-[#f4ecde] px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-[#7a5c45]">
-                              {plan.duration}
-                            </span>
-                            <span className="rounded-full bg-[#e6efdf] px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-[#44552b]">
-                              {CATEGORY_LABELS[plan.category]}
-                            </span>
-                          </div>
-                          <h3 className="text-2xl font-black leading-tight tracking-tight text-[#4E342E]">
-                            {planName}
-                          </h3>
-                        </div>
-                        <CardDescription className="line-clamp-3 text-base leading-relaxed text-[#6d5547]">
-                          {planDescription}
-                        </CardDescription>
-                        <Button className={`${WARM_PRIMARY_BUTTON_CLASS} mt-auto w-full sm:w-fit`}>
-                          Ver plan
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  </Link>
-                );
-              })}
-            </div>
           </>
         )}
       </main>
@@ -1259,6 +1145,9 @@ function buildAdminStudentTrialRow(uid: string, data: Record<string, unknown>): 
   const trialExtensionDays = parseNonNegativeInt(data.trialExtensionDays);
   const trialStatus = getTrialStatus(createdAt, { extraDays: trialExtensionDays });
   const lockStage = getTrialLockStage(trialStatus, { lastFeedbackAt });
+  const allowedPlanIds = Array.isArray(data.allowedPlanIds)
+    ? data.allowedPlanIds.filter((entry): entry is string => typeof entry === 'string')
+    : [...DEFAULT_STUDENT_PLAN_IDS];
 
   return {
     uid,
@@ -1270,6 +1159,7 @@ function buildAdminStudentTrialRow(uid: string, data: Record<string, unknown>): 
     trialRemainingDays: trialStatus.remainingDays,
     trialTotalDays: trialStatus.totalDays,
     lockStage,
+    allowedPlanIds,
   };
 }
 

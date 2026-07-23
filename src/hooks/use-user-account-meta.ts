@@ -9,6 +9,7 @@ import { db, USE_FIRESTORE } from '@/lib/firebase';
 type UserAccountMeta = {
   trialExtensionDays: number;
   lastFeedbackAt: Date | null;
+  allowedPlanIds: string[] | null;
   loading: boolean;
 };
 
@@ -20,6 +21,7 @@ type InternalUserAccountMeta = Omit<UserAccountMeta, 'loading'> & {
 const DEFAULT_META: InternalUserAccountMeta = {
   trialExtensionDays: 0,
   lastFeedbackAt: null,
+  allowedPlanIds: null,
   loading: false,
   resolved: false,
 };
@@ -40,6 +42,7 @@ export function useUserAccountMeta(user: User | null | undefined): UserAccountMe
       setMeta({
         trialExtensionDays: readLocalTrialExtensionDays(user.uid),
         lastFeedbackAt: readLocalFeedbackAt(user.uid),
+        allowedPlanIds: null,
         loading: false,
         resolved: true,
       });
@@ -55,12 +58,14 @@ export function useUserAccountMeta(user: User | null | undefined): UserAccountMe
           | {
               trialExtensionDays?: unknown;
               lastFeedbackAt?: unknown;
+              allowedPlanIds?: unknown;
             }
           | undefined;
 
         setMeta({
           trialExtensionDays: parseNonNegativeInt(data?.trialExtensionDays),
           lastFeedbackAt: parseDateLike(data?.lastFeedbackAt),
+          allowedPlanIds: parseAllowedPlanIds(data?.allowedPlanIds),
           loading: false,
           resolved: true,
         });
@@ -69,6 +74,7 @@ export function useUserAccountMeta(user: User | null | undefined): UserAccountMe
         setMeta({
           trialExtensionDays: readLocalTrialExtensionDays(user.uid),
           lastFeedbackAt: readLocalFeedbackAt(user.uid),
+          allowedPlanIds: null,
           loading: false,
           resolved: true,
         });
@@ -83,8 +89,14 @@ export function useUserAccountMeta(user: User | null | undefined): UserAccountMe
   return {
     trialExtensionDays: meta.trialExtensionDays,
     lastFeedbackAt: meta.lastFeedbackAt,
+    allowedPlanIds: meta.allowedPlanIds,
     loading: waitingForFirstSnapshot || meta.loading,
   };
+}
+
+function parseAllowedPlanIds(value: unknown): string[] | null {
+  if (!Array.isArray(value)) return null;
+  return value.filter((entry): entry is string => typeof entry === 'string');
 }
 
 function parseNonNegativeInt(value: unknown): number {
