@@ -304,19 +304,30 @@ export function sesionesDeHoyDesdePlan(
   plan: TrainingPlan,
   fecha: string,
   sesionesGuardadas: SesionEntry[],
-  diasEntrenoSemana: readonly number[] = DIAS_ENTRENO_POR_DEFECTO
+  diasEntrenoSemana: readonly number[] = DIAS_ENTRENO_POR_DEFECTO,
+  caballoId: string | null = null
 ): SesionEntry[] {
   const diaDelPlan = posicionDiaDeEntreno(fecha, diasEntrenoSemana);
   if (diaDelPlan === null) return [];
 
+  // El progreso (qué semana toca) y los documentos guardados son por
+  // caballo -- dos caballos entrenando el mismo plan en paralelo no deben
+  // pisarse el progreso ni la sesión de un mismo día.
   const sesionesDelPlan = sesionesGuardadas.filter(
-    (sesion) => sesion.origen === 'plan' && sesion.planId === plan.id
+    (sesion) => sesion.origen === 'plan' && sesion.planId === plan.id && sesion.caballoId === caballoId
   );
   const semana = semanaActualDelPlan(sesionesDelPlan, diasEntrenoSemana.length);
-  const ejercicios = getPlanDayExercises(plan, semana, diaDelPlan);
+  // Si el plan personalizado pidió más semanas de las que tiene el plan base
+  // del catálogo (o si ya se pasó de su duración original), repetimos la
+  // rotación de ejercicios en vez de caer en el fallback genérico de
+  // `getPlanWeekExercises` -- misma lógica de "seguir entrenando" que ya
+  // usa Move cuando termina la rutina base.
+  const semanaFuente = plan.weeks > 0 ? ((semana - 1) % plan.weeks) + 1 : semana;
+  const ejercicios = getPlanDayExercises(plan, semanaFuente, diaDelPlan);
+  const sufijoCaballo = caballoId ? `-${caballoId}` : '';
 
   return ejercicios.map((ejercicio) => {
-    const id = `plan-${plan.id}-${fecha}-${ejercicio.id}`;
+    const id = `plan-${plan.id}${sufijoCaballo}-${fecha}-${ejercicio.id}`;
     const existente = sesionesGuardadas.find((sesion) => sesion.id === id);
 
     if (existente) return existente;
@@ -327,7 +338,7 @@ export function sesionesDeHoyDesdePlan(
       origen: 'plan',
       planId: plan.id,
       ejercicioId: ejercicio.id,
-      caballoId: null,
+      caballoId,
       titulo: ejercicio.name,
       completada: false,
       calificacion: null,

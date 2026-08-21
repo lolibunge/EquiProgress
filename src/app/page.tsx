@@ -1,9 +1,10 @@
 'use client';
 
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { signOut } from 'firebase/auth';
 import { Flame, User, Zap } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 
 import { AgregarSesionDialog } from '@/components/agregar-sesion-dialog';
 import { useAuth } from '@/components/auth-provider';
@@ -29,23 +30,35 @@ import {
   guardarSesion,
   hoyFecha,
   posicionDiaDeEntreno,
+  semanaActualDelPlan,
   sesionesDeHoyDesdePlan,
   subscribeSesionesRango,
   sumarDias,
   type SesionEntry,
 } from '@/lib/sesiones-store';
 import {
-  subscribeActivePlanId,
+  claveDeCaballo,
+  subscribeActivePlanesPorCaballo,
   subscribePlanesPersonalizados,
   type PlanPersonalizado,
 } from '@/lib/planes-personalizados-store';
 import { crearCaballo, subscribeCaballos, type Caballo } from '@/lib/caballos-store';
+import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useUserAccountMeta } from '@/hooks/use-user-account-meta';
 
 const DIAS_DE_HISTORIA_PARA_RACHA = 59;
 
 export default function HoyPage() {
+  return (
+    <Suspense fallback={null}>
+      <HoyPageContent />
+    </Suspense>
+  );
+}
+
+function HoyPageContent() {
+  const searchParams = useSearchParams();
   const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const { allowedPlanIds, loading: accountMetaLoading } = useUserAccountMeta(user);
@@ -54,7 +67,8 @@ export default function HoyPage() {
   const [fecha, setFecha] = useState<string | null>(null);
   const [sesiones, setSesiones] = useState<SesionEntry[]>([]);
   const [caballos, setCaballos] = useState<Caballo[]>([]);
-  const [activePlanId, setActivePlanId] = useState<string | null>(null);
+  const [caballoSeleccionadoId, setCaballoSeleccionadoId] = useState<string | null>(null);
+  const [activePlanesPorCaballo, setActivePlanesPorCaballo] = useState<Record<string, string>>({});
   const [planesPersonalizados, setPlanesPersonalizados] = useState<PlanPersonalizado[]>([]);
   const [guardandoId, setGuardandoId] = useState<string | null>(null);
   const [isSigningOut, setIsSigningOut] = useState(false);
@@ -96,11 +110,33 @@ export default function HoyPage() {
 
   useEffect(() => {
     if (!user) {
-      setActivePlanId(null);
+      setActivePlanesPorCaballo({});
       return;
     }
-    return subscribeActivePlanId(user.uid, setActivePlanId);
+    return subscribeActivePlanesPorCaballo(user.uid, setActivePlanesPorCaballo);
   }, [user]);
+
+  // Elegimos qué caballo estamos viendo: el que venga en la URL (si venís
+  // desde "Mis planes"), o el primero de la lista.
+  useEffect(() => {
+    if (caballos.length === 0) {
+      setCaballoSeleccionadoId(null);
+      return;
+    }
+
+    const desdeUrl = searchParams.get('caballo');
+    if (desdeUrl && caballos.some((caballo) => caballo.id === desdeUrl)) {
+      setCaballoSeleccionadoId(desdeUrl);
+      return;
+    }
+
+    setCaballoSeleccionadoId((actual) => {
+      if (actual && caballos.some((caballo) => caballo.id === actual)) return actual;
+      return caballos[0].id;
+    });
+    // Solo queremos re-evaluar cuando cambia la lista de caballos o el query param.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [caballos, searchParams]);
 
   useEffect(() => {
     if (!user) {
@@ -109,6 +145,9 @@ export default function HoyPage() {
     }
     return subscribePlanesPersonalizados(user.uid, setPlanesPersonalizados);
   }, [user]);
+
+  const claveCaballoActual = claveDeCaballo(caballoSeleccionadoId);
+  const activePlanId = activePlanesPorCaballo[claveCaballoActual] ?? null;
 
   const planesVisibles = useMemo(() => {
     if (!user || isAdmin) return [];
@@ -140,13 +179,24 @@ export default function HoyPage() {
   const sesionesDeHoy = useMemo(() => {
     if (!fecha) return [];
 
-    const delPlan = plan ? sesionesDeHoyDesdePlan(plan, fecha, sesiones, diasEntrenoSemana) : [];
+    const delPlan = plan
+      ? sesionesDeHoyDesdePlan(plan, fecha, sesiones, diasEntrenoSemana, caballoSeleccionadoId)
+      : [];
     const personalizadas = sesiones.filter(
-      (sesion) => sesion.origen === 'personalizada' && sesion.fecha === fecha
+      (sesion) =>
+        sesion.origen === 'personalizada' && sesion.fecha === fecha && sesion.caballoId === caballoSeleccionadoId
     );
 
     return [...delPlan, ...personalizadas];
-  }, [plan, fecha, sesiones, diasEntrenoSemana]);
+  }, [plan, fecha, sesiones, diasEntrenoSemana, caballoSeleccionadoId]);
+
+  const semanaActualPlan = useMemo(() => {
+    if (!plan) return null;
+    const sesionesDelPlan = sesiones.filter(
+      (sesion) => sesion.origen === 'plan' && sesion.planId === plan.id && sesion.caballoId === caballoSeleccionadoId
+    );
+    return semanaActualDelPlan(sesionesDelPlan, diasEntrenoSemana.length);
+  }, [plan, sesiones, diasEntrenoSemana, caballoSeleccionadoId]);
 
   const resumen = useMemo(() => {
     if (!fecha) return { rachaActual: 0, xpTotal: 0, sesionesCompletadas: 0 };
@@ -292,6 +342,26 @@ export default function HoyPage() {
               <h1 className="text-3xl font-headline font-bold">Hoy</h1>
             </section>
 
+            {caballos.length > 1 ? (
+              <div className="flex flex-wrap gap-2">
+                {caballos.map((caballo) => (
+                  <button
+                    key={caballo.id}
+                    type="button"
+                    onClick={() => setCaballoSeleccionadoId(caballo.id)}
+                    className={cn(
+                      'rounded-full border px-4 py-1.5 text-sm font-semibold transition-colors',
+                      caballoSeleccionadoId === caballo.id
+                        ? 'border-primary bg-primary text-primary-foreground'
+                        : 'border-border bg-card/80 hover:bg-muted'
+                    )}
+                  >
+                    {caballo.nombre}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+
             <section className="grid grid-cols-2 gap-3">
               <div className="rounded-2xl border border-primary/20 bg-card/80 p-4">
                 <p className="flex items-center gap-1 text-xs uppercase tracking-wide text-muted-foreground">
@@ -329,10 +399,22 @@ export default function HoyPage() {
                 <CardHeader className="flex flex-row items-start justify-between gap-3">
                   <div>
                     <CardTitle>{nombrePlanActivo}</CardTitle>
-                    <CardDescription>Sesiones de hoy</CardDescription>
+                    <CardDescription>
+                      Sesiones de hoy
+                      {planPersonalizadoActivo?.semanasObjetivo
+                        ? ` · Semana ${semanaActualPlan} de ${planPersonalizadoActivo.semanasObjetivo}`
+                        : ''}
+                    </CardDescription>
+                    {planPersonalizadoActivo?.resultadoDeseado ? (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Buscás: {planPersonalizadoActivo.resultadoDeseado}
+                      </p>
+                    ) : null}
                   </div>
                   <Button asChild variant="ghost" size="sm">
-                    <Link href="/planes">Cambiar plan</Link>
+                    <Link href={caballoSeleccionadoId ? `/planes?caballo=${caballoSeleccionadoId}` : '/planes'}>
+                      Cambiar plan
+                    </Link>
                   </Button>
                 </CardHeader>
                 <CardContent className="space-y-3">
@@ -386,6 +468,7 @@ export default function HoyPage() {
               <AgregarSesionDialog
                 fecha={fecha as string}
                 caballos={caballos}
+                caballoPorDefectoId={caballoSeleccionadoId}
                 onCrearCaballo={handleCrearCaballo}
                 onGuardar={handleGuardarNueva}
               />

@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { Check } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 
 import { ArmarPlanDialog } from '@/components/armar-plan-dialog';
 import { useAuth } from '@/components/auth-provider';
@@ -12,10 +13,13 @@ import { useToast } from '@/hooks/use-toast';
 import { useUserAccountMeta } from '@/hooks/use-user-account-meta';
 import { trainingPlans } from '@/data/training-plans';
 import { getPlanDisplayDescription, getPlanDisplayName, getVisiblePlans } from '@/lib/plan-visibility';
+import { crearCaballo, subscribeCaballos, type Caballo } from '@/lib/caballos-store';
+import { cn } from '@/lib/utils';
 import {
+  claveDeCaballo,
   idActivoDePlanPersonalizado,
-  setActivePlanId,
-  subscribeActivePlanId,
+  setActivePlanIdParaCaballo,
+  subscribeActivePlanesPorCaballo,
   subscribePlanesPersonalizados,
   type PlanPersonalizado,
 } from '@/lib/planes-personalizados-store';
@@ -23,20 +27,39 @@ import {
 const DIAS_LABELS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 
 export default function PlanesPage() {
+  return (
+    <Suspense fallback={null}>
+      <PlanesPageContent />
+    </Suspense>
+  );
+}
+
+function PlanesPageContent() {
   const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const { allowedPlanIds, loading: accountMetaLoading } = useUserAccountMeta(user);
+  const searchParams = useSearchParams();
 
-  const [activePlanId, setActivePlanIdState] = useState<string | null>(null);
+  const [caballos, setCaballos] = useState<Caballo[]>([]);
+  const [caballoSeleccionadoId, setCaballoSeleccionadoId] = useState<string | null>(null);
+  const [activePlanesPorCaballo, setActivePlanesPorCaballo] = useState<Record<string, string>>({});
   const [planesPersonalizados, setPlanesPersonalizados] = useState<PlanPersonalizado[]>([]);
   const [activando, setActivando] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) {
-      setActivePlanIdState(null);
+      setCaballos([]);
       return;
     }
-    return subscribeActivePlanId(user.uid, setActivePlanIdState);
+    return subscribeCaballos(user.uid, setCaballos);
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) {
+      setActivePlanesPorCaballo({});
+      return;
+    }
+    return subscribeActivePlanesPorCaballo(user.uid, setActivePlanesPorCaballo);
   }, [user]);
 
   useEffect(() => {
@@ -47,13 +70,49 @@ export default function PlanesPage() {
     return subscribePlanesPersonalizados(user.uid, setPlanesPersonalizados);
   }, [user]);
 
+  // Elegimos qué caballo estamos viendo: el que venga en la URL (si venís
+  // desde "Hoy" con "Cambiar plan"), o el primero de la lista.
+  useEffect(() => {
+    if (caballos.length === 0) {
+      setCaballoSeleccionadoId(null);
+      return;
+    }
+
+    const desdeUrl = searchParams.get('caballo');
+    if (desdeUrl && caballos.some((caballo) => caballo.id === desdeUrl)) {
+      setCaballoSeleccionadoId(desdeUrl);
+      return;
+    }
+
+    setCaballoSeleccionadoId((actual) => {
+      if (actual && caballos.some((caballo) => caballo.id === actual)) return actual;
+      return caballos[0].id;
+    });
+    // Solo queremos re-evaluar cuando cambia la lista de caballos o el query param.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [caballos, searchParams]);
+
+  const claveActual = claveDeCaballo(caballoSeleccionadoId);
+  const activePlanId = activePlanesPorCaballo[claveActual] ?? null;
+
   const planesDelCatalogo = useMemo(() => getVisiblePlans(trainingPlans, false, allowedPlanIds), [allowedPlanIds]);
+  const planesDelCaballo = useMemo(
+    () => planesPersonalizados.filter((plan) => (plan.caballoId ?? null) === caballoSeleccionadoId),
+    [planesPersonalizados, caballoSeleccionadoId]
+  );
+
+  async function handleCrearCaballo(nombre: string): Promise<Caballo> {
+    if (!user) throw new Error('Sin usuario');
+    const caballo = await crearCaballo(user.uid, nombre);
+    setCaballoSeleccionadoId(caballo.id);
+    return caballo;
+  }
 
   async function activarPlanCatalogo(planId: string) {
     if (!user) return;
     setActivando(planId);
     try {
-      await setActivePlanId(user.uid, planId);
+      await setActivePlanIdParaCaballo(user.uid, claveActual, planId);
       toast({ title: 'Plan activado' });
     } catch {
       toast({ variant: 'destructive', title: 'No se pudo activar el plan' });
@@ -67,7 +126,7 @@ export default function PlanesPage() {
     const id = idActivoDePlanPersonalizado(plan.id);
     setActivando(id);
     try {
-      await setActivePlanId(user.uid, id);
+      await setActivePlanIdParaCaballo(user.uid, claveActual, id);
       toast({ title: 'Plan activado' });
     } catch {
       toast({ variant: 'destructive', title: 'No se pudo activar el plan' });
@@ -80,7 +139,10 @@ export default function PlanesPage() {
     <div className="min-h-screen bg-background text-foreground font-body antialiased">
       <header className="sticky top-0 z-20 border-b border-primary/20 bg-background/80 backdrop-blur-sm">
         <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
-          <Link href="/" className="text-sm text-muted-foreground hover:text-primary">
+          <Link
+            href={caballoSeleccionadoId ? `/?caballo=${caballoSeleccionadoId}` : '/'}
+            className="text-sm text-muted-foreground hover:text-primary"
+          >
             &larr; Volver a Hoy
           </Link>
           <h1 className="text-lg font-headline font-semibold">Tus planes</h1>
@@ -108,15 +170,39 @@ export default function PlanesPage() {
           </Card>
         ) : (
           <>
-            {planesPersonalizados.length > 0 ? (
+            {caballos.length > 1 ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Caballo
+                </span>
+                {caballos.map((caballo) => (
+                  <button
+                    key={caballo.id}
+                    type="button"
+                    onClick={() => setCaballoSeleccionadoId(caballo.id)}
+                    className={cn(
+                      'rounded-full border px-4 py-1.5 text-sm font-semibold transition-colors',
+                      caballoSeleccionadoId === caballo.id
+                        ? 'border-primary bg-primary text-primary-foreground'
+                        : 'border-border bg-background hover:bg-muted'
+                    )}
+                  >
+                    {caballo.nombre}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+
+            {planesDelCaballo.length > 0 ? (
               <section className="space-y-3">
                 <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
                   Tu plan armado
                 </h2>
-                {planesPersonalizados.map((plan) => {
+                {planesDelCaballo.map((plan) => {
                   const planBase = trainingPlans.find((candidato) => candidato.id === plan.planBaseId);
                   const esActivo = activePlanId === idActivoDePlanPersonalizado(plan.id);
                   const diasTexto = plan.diasEntrenoSemana.map((dia) => DIAS_LABELS[dia - 1]).join(' · ');
+                  const duracionTexto = plan.semanasObjetivo ? `${plan.semanasObjetivo} semanas · ` : '';
 
                   return (
                     <Card key={plan.id} className={esActivo ? 'border-primary' : undefined}>
@@ -126,10 +212,23 @@ export default function PlanesPage() {
                           {esActivo ? <Check className="h-5 w-5 text-primary" /> : null}
                         </CardTitle>
                         <CardDescription>
-                          Basado en {planBase?.name ?? 'un plan del catálogo'} · {diasTexto}
+                          Basado en {planBase?.name ?? 'un plan del catálogo'} · {duracionTexto}
+                          {diasTexto}
                         </CardDescription>
                       </CardHeader>
-                      <CardContent>
+                      <CardContent className="space-y-3">
+                        {plan.descripcionCaballo ? (
+                          <p className="text-sm text-muted-foreground">
+                            <span className="font-medium text-foreground">Situación: </span>
+                            {plan.descripcionCaballo}
+                          </p>
+                        ) : null}
+                        {plan.resultadoDeseado ? (
+                          <p className="text-sm text-muted-foreground">
+                            <span className="font-medium text-foreground">Buscás: </span>
+                            {plan.resultadoDeseado}
+                          </p>
+                        ) : null}
                         <Button
                           variant={esActivo ? 'secondary' : 'default'}
                           disabled={esActivo || activando === idActivoDePlanPersonalizado(plan.id)}
@@ -183,7 +282,13 @@ export default function PlanesPage() {
             </section>
 
             <div className="flex justify-center pt-2">
-              <ArmarPlanDialog uid={user.uid} onCreado={() => toast({ title: 'Plan armado y activado' })} />
+              <ArmarPlanDialog
+                uid={user.uid}
+                caballos={caballos}
+                caballoPorDefectoId={caballoSeleccionadoId}
+                onCrearCaballo={handleCrearCaballo}
+                onCreado={() => toast({ title: 'Plan armado y activado' })}
+              />
             </div>
           </>
         )}

@@ -38,17 +38,19 @@ const CALIFICACION_LABELS: Record<SesionRating, string> = {
 export function AgregarSesionDialog({
   fecha,
   caballos,
+  caballoPorDefectoId,
   onCrearCaballo,
   onGuardar,
 }: {
   fecha: string;
   caballos: Caballo[];
+  caballoPorDefectoId?: string | null;
   onCrearCaballo: (nombre: string) => Promise<Caballo>;
   onGuardar: (sesion: SesionEntry) => Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
   const [titulo, setTitulo] = useState('');
-  const [caballoId, setCaballoId] = useState<string>(SIN_CABALLO);
+  const [caballoId, setCaballoId] = useState<string>(caballoPorDefectoId ?? SIN_CABALLO);
   const [creandoCaballo, setCreandoCaballo] = useState(false);
   const [nombreCaballoNuevo, setNombreCaballoNuevo] = useState('');
   const [calificacion, setCalificacion] = useState<string>('');
@@ -59,7 +61,7 @@ export function AgregarSesionDialog({
 
   function resetForm() {
     setTitulo('');
-    setCaballoId(SIN_CABALLO);
+    setCaballoId(caballoPorDefectoId ?? SIN_CABALLO);
     setCreandoCaballo(false);
     setNombreCaballoNuevo('');
     setCalificacion('');
