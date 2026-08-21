@@ -127,10 +127,10 @@ function ExerciseDetailPageContent() {
       <header className="sticky top-0 z-20 bg-background/80 backdrop-blur-sm border-b border-primary/20">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <Link
-            href={sourcePlanId ? `/plans/${sourcePlanId}` : '/'}
+            href="/"
             className="text-sm text-muted-foreground hover:text-primary"
           >
-            &larr; {sourcePlanId ? 'Volver al plan' : 'Volver'}
+            &larr; Volver a Hoy
           </Link>
           <h1 className="text-lg font-headline font-semibold">{ex.name}</h1>
           <div />
@@ -451,7 +451,7 @@ function ExerciseDetailPageContent() {
             <CardContent className="space-y-3">
               <p className="text-sm text-muted-foreground">{sourcePlan.name}</p>
               <Button asChild className={EXERCISE_PRIMARY_BUTTON_CLASS}>
-                <Link href={`/plans/${sourcePlanId}`}>Volver al plan</Link>
+                <Link href="/">Volver a Hoy</Link>
               </Button>
             </CardContent>
           </Card>
