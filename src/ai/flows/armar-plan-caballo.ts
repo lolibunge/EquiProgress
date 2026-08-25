@@ -8,6 +8,15 @@
  * - armarPlanCaballo - Elige un `planBaseId` del catálogo recibido y explica por qué.
  * - ArmarPlanCaballoInput - El tipo de entrada.
  * - ArmarPlanCaballoOutput - El tipo de salida.
+ *
+ * NOTA: el plugin @genkit-ai/anthropic (a esta fecha, v0.4.x) todavía no
+ * soporta el modo de salida estructurada de Genkit ("Only text output
+ * format is supported for Claude models currently") -- por eso, a
+ * diferencia de un flow típico de Genkit, acá NO usamos `output: {schema}`
+ * en el prompt. En cambio le pedimos texto plano con instrucciones
+ * explícitas de responder solo JSON, y lo parseamos/validamos a mano con
+ * el mismo schema de Zod. Si en el futuro el plugin agrega soporte para
+ * salida estructurada, se puede volver a la forma simple.
  */
 
 import {ai} from '@/ai/genkit';
@@ -54,7 +63,6 @@ export async function armarPlanCaballo(input: ArmarPlanCaballoInput): Promise<Ar
 const prompt = ai.definePrompt({
   name: 'armarPlanCaballoPrompt',
   input: {schema: ArmarPlanCaballoInputSchema},
-  output: {schema: ArmarPlanCaballoOutputSchema},
   prompt: `Sos un asistente para una instructora de equitación que arma planes de entrenamiento personalizados a partir de un catálogo curado de planes ya existentes.
 
 No inventes ejercicios nuevos ni planes que no estén en el catálogo. Tu única tarea es elegir, del catálogo que te paso, el plan que mejor se ajuste a la descripción del caballo y al resultado buscado, y explicar por qué en un tono cercano y claro (sin tecnicismos innecesarios).
@@ -73,8 +81,31 @@ Catálogo de planes disponibles:
 - id: "{{this.id}}" | nombre: "{{this.nombre}}" | categoría: "{{this.categoria}}" | descripción: {{this.descripcion}}
 {{/each}}
 
-Elegí el "planBaseId" que mejor se ajuste -- tiene que ser EXACTAMENTE uno de los ids de arriba, copiado tal cual, sin modificarlo. Sugerí un "nombreSugerido" corto en español. Escribí un "resumen" de 2 a 3 oraciones explicando por qué elegiste ese plan y qué se puede esperar trabajar en esas {{semanasObjetivo}} semanas.`,
+Elegí el plan que mejor se ajuste -- el "planBaseId" tiene que ser EXACTAMENTE uno de los ids de arriba, copiado tal cual, sin modificarlo. Sugerí un "nombreSugerido" corto en español. Escribí un "resumen" de 2 a 3 oraciones explicando por qué elegiste ese plan y qué se puede esperar trabajar en esas {{semanasObjetivo}} semanas.
+
+Respondé ÚNICAMENTE con un objeto JSON válido, sin texto antes ni después, sin bloque de código markdown, con exactamente esta forma:
+{"planBaseId": "...", "nombreSugerido": "...", "resumen": "..."}`,
 });
+
+/** Saca el JSON de la respuesta de texto, tolerando bloques ```json y texto sobrante alrededor. */
+function extraerJson(texto: string): unknown {
+  const limpio = texto
+    .trim()
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/```\s*$/i, '')
+    .trim();
+
+  try {
+    return JSON.parse(limpio);
+  } catch {
+    const inicio = limpio.indexOf('{');
+    const fin = limpio.lastIndexOf('}');
+    if (inicio === -1 || fin === -1 || fin < inicio) {
+      throw new Error('La IA no devolvió JSON reconocible.');
+    }
+    return JSON.parse(limpio.slice(inicio, fin + 1));
+  }
+}
 
 const armarPlanCaballoFlow = ai.defineFlow(
   {
@@ -83,10 +114,12 @@ const armarPlanCaballoFlow = ai.defineFlow(
     outputSchema: ArmarPlanCaballoOutputSchema,
   },
   async input => {
-    const {output} = await prompt(input);
-    if (!output) {
+    const {text} = await prompt(input);
+    if (!text) {
       throw new Error('La IA no devolvió una respuesta.');
     }
-    return output;
+
+    const json = extraerJson(text);
+    return ArmarPlanCaballoOutputSchema.parse(json);
   }
 );
